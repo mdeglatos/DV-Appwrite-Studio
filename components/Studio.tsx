@@ -44,7 +44,7 @@ export const Studio: React.FC<StudioProps> = ({
     // 1. Initialize Core Logic Hooks
     const studioData = useStudioData(activeProject, activeTab, logCallback);
     const studioModals = useStudioModals();
-    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData);
+    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback);
     
     // 2. Local Feature States
     const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false);
@@ -119,7 +119,9 @@ export const Studio: React.FC<StudioProps> = ({
                             onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
                             onViewExecution={handleViewExecution}
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
+                            onCleanupOldDeployments={studioActions.handleCleanupOldDeployments}
                             onEditCode={onEditCode}
+                            onRedeployAll={() => studioActions.handleRedeployAllFunctions(functions)}
                         />
                     )}
 

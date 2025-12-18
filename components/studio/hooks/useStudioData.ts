@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Query } from '../../../services/appwrite';
+import { Query, handleFetchError } from '../../../services/appwrite';
 import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams } from '../../../services/appwrite';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../../../types';
 import type { Models } from 'node-appwrite';
@@ -178,11 +178,16 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setIsLoading(true);
         try {
             const sdk = getSdkFunctions(activeProject);
-            const [deps, execs] = await Promise.all([
+            // Fetch Function + Deployments + Executions in parallel
+            const [func, deps, execs] = await Promise.all([
+                sdk.get(funcId),
                 sdk.listDeployments(funcId, [Query.limit(50), Query.orderDesc('$createdAt')]),
                 sdk.listExecutions(funcId, [Query.limit(20), Query.orderDesc('$createdAt')]),
             ]);
+            
             if (currentPid === lastProjectIdRef.current) {
+                // Ensure selectedFunction has latest active deployment ID
+                setSelectedFunction(func as unknown as AppwriteFunction);
                 setDeployments(deps.deployments);
                 setExecutions(execs.executions);
                 logCallback(`Studio: Loaded ${deps.deployments.length} deployments.`);

@@ -4,7 +4,7 @@ import type { AppwriteFunction } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 
 interface FunctionsTabProps {
@@ -24,10 +24,24 @@ interface FunctionsTabProps {
 
     // Bulk Actions
     onBulkDeleteDeployments?: (deploymentIds: string[]) => void;
+    onCleanupOldDeployments?: () => void;
+    onRedeployAll?: () => void;
     
     // New prop for code editing
     onEditCode?: (f: AppwriteFunction) => void;
 }
+
+/**
+ * Format bytes into human readable string
+ */
+const formatBytes = (bytes: number, decimals = 1) => {
+    if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
 
 export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     functions, selectedFunction, deployments, executions,
@@ -35,6 +49,8 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     onActivateDeployment,
     onDeleteAllExecutions, onViewExecution,
     onBulkDeleteDeployments,
+    onCleanupOldDeployments,
+    onRedeployAll,
     onEditCode
 }) => {
     const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([]);
@@ -53,6 +69,16 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                 onDelete={onDeleteFunction} 
                 onSelect={(item) => onSelectFunction(item)} 
                 createLabel="Create Function" 
+                extraActions={
+                    onRedeployAll && (
+                        <button 
+                            onClick={onRedeployAll}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors mr-2"
+                        >
+                            <RefreshIcon size={14} /> Redeploy All
+                        </button>
+                    )
+                }
                 renderExtra={(f) => (
                     <div className="flex items-center gap-3">
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${f.enabled ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>{f.runtime}</span>
@@ -111,30 +137,101 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                         selectedIds: selectedDeploymentIds,
                         onSelectionChange: setSelectedDeploymentIds
                     }}
+                    headers={['Status & ID', 'Build Settings', 'Metadata', 'Action']}
                     autoHeight
                     isRowActive={(d) => d.$id === selectedFunction.deployment}
                     extraActions={
-                        selectedDeploymentIds.length > 0 && onBulkDeleteDeployments && (
-                            <button 
-                                onClick={() => {
-                                    onBulkDeleteDeployments(selectedDeploymentIds);
-                                    setSelectedDeploymentIds([]);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors"
-                            >
-                                <DeleteIcon size={14} /> Delete ({selectedDeploymentIds.length})
-                            </button>
-                        )
-                    }
-                    renderName={(d) => <span className="flex items-center gap-2"><CodeIcon size={14}/> <span className="font-mono">{d.$id}</span></span>}
-                    renderExtra={(d) => (
                         <div className="flex items-center gap-2">
-                            <span className={`text-[10px] ${d.status === 'ready' ? 'text-green-400' : 'text-yellow-400'}`}>{d.status}</span>
-                            <span className="text-[10px] text-gray-500">{((d as any).size / 1024).toFixed(1)} KB</span>
-                            <span className="text-[10px] text-gray-500">{new Date(d.$createdAt).toLocaleString()}</span>
-                            {selectedFunction.deployment !== d.$id && d.status === 'ready' && <button onClick={() => onActivateDeployment(d.$id)} className="text-[10px] bg-gray-700 px-2 py-1 rounded hover:bg-gray-600 text-white ml-2">Activate</button>}
+                            {onCleanupOldDeployments && deployments.length > 1 && (
+                                <button 
+                                    onClick={onCleanupOldDeployments}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-red-900/40 border border-gray-700 hover:border-red-800 text-gray-400 hover:text-red-300 text-xs font-bold rounded-lg transition-colors"
+                                >
+                                    <DeleteIcon size={14} /> Cleanup Old
+                                </button>
+                            )}
+                            {selectedDeploymentIds.length > 0 && onBulkDeleteDeployments && (
+                                <button 
+                                    onClick={() => {
+                                        onBulkDeleteDeployments(selectedDeploymentIds);
+                                        setSelectedDeploymentIds([]);
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                                >
+                                    <DeleteIcon size={14} /> Delete ({selectedDeploymentIds.length})
+                                </button>
+                            )}
                         </div>
-                    )}
+                    }
+                    renderName={(d) => {
+                        const isActive = d.$id === selectedFunction.deployment;
+                        return (
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                        d.status === 'ready' ? 'bg-green-900/30 text-green-400' : 
+                                        d.status === 'failed' ? 'bg-red-900/30 text-red-400' : 
+                                        'bg-yellow-900/30 text-yellow-400'
+                                    }`}>
+                                        {d.status}
+                                    </span>
+                                    <span className="font-mono text-xs text-gray-400 group-hover:text-gray-200 transition-colors">{d.$id}</span>
+                                    {isActive && (
+                                        <span className="text-[10px] bg-cyan-500 text-black px-2 py-0.5 rounded font-black shadow-[0_0_15px_rgba(6,182,212,0.5)] flex items-center gap-1 animate-pulse">
+                                            <CheckIcon size={10} /> ACTIVE
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-[10px] text-gray-600 flex items-center gap-2">
+                                    <span className="font-mono">{new Date(d.$createdAt).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        );
+                    }}
+                    renderExtra={(d) => {
+                        const isActive = d.$id === selectedFunction.deployment;
+                        // Use .size (compressed size) or .sizeOriginal (uncompressed) if needed
+                        const sizeToDisplay = (d as any).size ?? (d as any).sizeOriginal ?? 0;
+                        
+                        return (
+                            <div className="flex items-center justify-between w-full pr-4">
+                                {/* Build Info */}
+                                <div className="flex flex-col gap-1 min-w-[180px]">
+                                    <div className="flex items-center gap-1.5 text-xs text-gray-400 font-mono">
+                                        <CodeIcon size={12} className="text-purple-400 opacity-70" />
+                                        <span className="truncate" title={d.entrypoint}>{d.entrypoint}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[10px] text-gray-500 italic">
+                                        <TerminalIcon size={10} />
+                                        <span className="truncate" title={d.commands}>{d.commands || 'No build command'}</span>
+                                    </div>
+                                </div>
+
+                                {/* Metadata & Action */}
+                                <div className="flex items-center gap-6">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-xs font-bold text-gray-300">{formatBytes(sizeToDisplay)}</span>
+                                        <span className="text-[10px] text-gray-600 uppercase tracking-tighter">Size</span>
+                                    </div>
+
+                                    <div className="w-24 flex justify-end">
+                                        {isActive ? (
+                                            <span className="text-[10px] text-cyan-400 font-black uppercase tracking-widest border border-cyan-900/50 px-2 py-1 rounded bg-cyan-950/20">Current</span>
+                                        ) : d.status === 'ready' ? (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onActivateDeployment(d.$id); }} 
+                                                className="text-[10px] bg-gray-800 hover:bg-cyan-600 border border-gray-700 hover:border-cyan-500 px-3 py-1 rounded text-white transition-all font-bold uppercase shadow-sm active:scale-95"
+                                            >
+                                                Activate
+                                            </button>
+                                        ) : (
+                                            <span className="text-[10px] text-gray-600 font-bold uppercase italic opacity-50">{d.status}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }}
                 />
                 
                 <ResourceTable<Models.Execution> 

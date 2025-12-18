@@ -4,22 +4,23 @@ import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTea
 import type { AppwriteProject, Database, Bucket, AppwriteFunction } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
-import { deployCodeFromString } from '../../../tools/functionsTools';
+import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tools/functionsTools';
 
 export function useStudioActions(
     activeProject: AppwriteProject,
     data: any, // Result of useStudioData
     modals: any, // Result of useStudioModals
-    refreshData: () => void
+    refreshData: () => void,
+    logCallback: (msg: string) => void
 ) {
     const { 
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
-        selectedBucket, selectedFunction, selectedTeam,
+        selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
         fetchCollections, fetchCollectionDetails, fetchFiles, 
         fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships 
     } = data;
 
-    const { confirmAction, openForm } = modals;
+    const { confirmAction, openForm, setModalLoading } = modals;
 
     // -- Database --
     const handleCreateDatabase = () => {
@@ -219,7 +220,20 @@ export function useStudioActions(
     const handleActivateDeployment = (depId: string) => {
         if (!selectedFunction) return;
         confirmAction("Activate Deployment", "Activate this deployment?", async () => {
-            await (getSdkFunctions(activeProject) as any).updateDeployment(selectedFunction.$id, depId);
+            const sdk = getSdkFunctions(activeProject);
+            // 1. Perform activation
+            await (sdk as any).updateDeployment(selectedFunction.$id, depId);
+            
+            // 2. CRITICAL REFRESH: Re-fetch function object to update 'deployment' ID in UI state immediately
+            try {
+                const updatedFunc = await sdk.get(selectedFunction.$id);
+                setSelectedFunction(updatedFunc as unknown as AppwriteFunction);
+                logCallback(`Studio: Deployment ${depId} activated for "${selectedFunction.name}".`);
+            } catch (e) {
+                console.error("Failed to refresh function object after activation", e);
+            }
+            
+            // 3. Refresh list details (deployments/executions)
             fetchFunctionDetails(selectedFunction.$id);
         });
     };
@@ -231,6 +245,59 @@ export function useStudioActions(
             await Promise.all(deploymentIds.map(id => sdk.deleteDeployment(selectedFunction.$id, id)));
             fetchFunctionDetails(selectedFunction.$id);
         });
+    };
+
+    const handleCleanupOldDeployments = () => {
+        if (!selectedFunction) return;
+        
+        confirmAction(
+            "Cleanup Old Deployments", 
+            `This will delete ALL deployments for "${selectedFunction.name}" EXCEPT the currently active or latest one. Do you want to proceed?`, 
+            async () => {
+                logCallback(`🧹 Cleanup: Identifying old deployments for "${selectedFunction.name}"...`);
+                setModalLoading(true);
+                const sdk = getSdkFunctions(activeProject);
+                
+                try {
+                    // 1. Fetch latest function data to get accurate deployment pointer
+                    const latestFunc = await sdk.get(selectedFunction.$id);
+                    let activeDeploymentId = latestFunc.deployment;
+
+                    // 2. Fetch all deployments
+                    const res = await sdk.listDeployments(selectedFunction.$id, [Query.limit(100), Query.orderDesc('$createdAt')]);
+                    
+                    // 3. Fallback: if no active pointer, use the top of the list (latest)
+                    if (!activeDeploymentId && res.deployments.length > 0) {
+                        activeDeploymentId = res.deployments[0].$id;
+                        logCallback(`   ℹ️ No active pointer. Preserving latest deployment instead: ${activeDeploymentId}`);
+                    }
+
+                    if (!activeDeploymentId) {
+                        logCallback("   - No deployments found to cleanup.");
+                        return;
+                    }
+
+                    // 4. Filter to delete everything except the identified one
+                    const toDelete = res.deployments.filter(d => d.$id !== activeDeploymentId);
+                    
+                    if (toDelete.length === 0) {
+                        logCallback(`   - Only one deployment exists (${activeDeploymentId}). Nothing to cleanup.`);
+                    } else {
+                        logCallback(`   - Preserving active/latest: ${activeDeploymentId}`);
+                        logCallback(`   - Deleting ${toDelete.length} stale deployment(s)...`);
+                        
+                        // Execute deletions
+                        await Promise.all(toDelete.map(d => sdk.deleteDeployment(selectedFunction.$id, d.$id)));
+                        logCallback(`   ✅ Cleanup finished.`);
+                    }
+                } catch (e: any) {
+                    logCallback(`   ❌ Cleanup failed: ${e.message}`);
+                } finally {
+                    setModalLoading(false);
+                    fetchFunctionDetails(selectedFunction.$id);
+                }
+            }
+        );
     };
 
     const handleDeleteAllExecutions = () => {
@@ -245,6 +312,88 @@ export function useStudioActions(
             }
             fetchFunctionDetails(selectedFunction.$id);
         });
+    };
+
+    const handleRedeployAllFunctions = (allFunctions: AppwriteFunction[]) => {
+        if (allFunctions.length === 0) return;
+        confirmAction(
+            "Redeploy All Functions", 
+            `This will create a new deployment for all ${allFunctions.length} functions using their current source code. This is useful for picking up changes to Global Variables. Do you want to proceed?`, 
+            async () => {
+                logCallback(`🚀 Bulk Redeploy: Starting for ${allFunctions.length} functions...`);
+                setModalLoading(true);
+                
+                let successCount = 0;
+                let failCount = 0;
+
+                const sdk = getSdkFunctions(activeProject);
+
+                for (const func of allFunctions) {
+                    logCallback(`   - Processing "${func.name}"...`);
+                    try {
+                        // 1. Find deployment ID (Active pointer or fallback to latest)
+                        let deploymentId = func.deployment;
+                        if (!deploymentId) {
+                            try {
+                                const deps = await sdk.listDeployments(func.$id, [Query.limit(1), Query.orderDesc('$createdAt')]);
+                                if (deps.deployments.length > 0) {
+                                    deploymentId = deps.deployments[0].$id;
+                                    logCallback(`     ℹ️ No active deployment pointer. Using latest: ${deploymentId}`);
+                                }
+                            } catch (err) { /* silent fail */ }
+                        }
+
+                        if (!deploymentId) {
+                            logCallback(`     ⚠️ Skipped: No deployments found for this function.`);
+                            failCount++;
+                            continue;
+                        }
+
+                        // 2. Download and unpack latest code
+                        const files = await downloadAndUnpackDeployment(activeProject, func.$id, deploymentId);
+                        if (!files || files.length === 0) {
+                            logCallback(`     ⚠️ Skipped: Deployment ${deploymentId} appears empty or could not be unpacked.`);
+                            failCount++;
+                            continue;
+                        }
+
+                        // 3. Sanitize and prepare build commands (Migration Logic)
+                        const sanitizedFiles = files.map(f => ({
+                            ...f,
+                            name: f.name.replace(/^\.\//, '')
+                        }));
+
+                        let finalCommands = func.commands;
+                        const hasPackageJson = sanitizedFiles.some(f => f.name === 'package.json');
+                        const isNode = func.runtime && func.runtime.startsWith('node');
+                        
+                        if (!finalCommands && isNode && hasPackageJson) {
+                            finalCommands = 'npm install';
+                            logCallback(`     ℹ️ Auto-detect: forcing build command 'npm install'`);
+                        }
+
+                        // 4. Deploy again
+                        await deployCodeFromString(
+                            activeProject, 
+                            func.$id, 
+                            sanitizedFiles, 
+                            true, // activate
+                            func.entrypoint, 
+                            finalCommands
+                        );
+                        logCallback(`     ✅ Deployment triggered successfully.`);
+                        successCount++;
+                    } catch (e: any) {
+                        logCallback(`     ❌ Failed: ${e.message}`);
+                        failCount++;
+                    }
+                }
+
+                logCallback(`🏁 Bulk Redeploy Finished. Success: ${successCount}, Failures: ${failCount}.`);
+                setModalLoading(false);
+                refreshData();
+            }
+        );
     };
 
     // -- Users & Teams --
@@ -314,7 +463,8 @@ export function useStudioActions(
         handleCreateDocument, handleUpdateDocument, handleDeleteDocument,
         handleCreateAttribute, handleDeleteAttribute, handleCreateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleDeleteFile,
-        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleDeleteAllExecutions,
+        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleCleanupOldDeployments, handleDeleteAllExecutions,
+        handleRedeployAllFunctions,
         handleCreateUser, handleDeleteUser,
         handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership
     };
