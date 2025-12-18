@@ -1,3 +1,4 @@
+
 import { Client, Account, ID, AppwriteException, Query, Permission, Role } from 'appwrite';
 import { Client as NodeClient, Databases, Storage, Functions, Users, Teams } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
@@ -10,13 +11,36 @@ export const client = new Client()
 
 export const account = new Account(client);
 
+/**
+ * Normalizes an Appwrite endpoint URL.
+ * Ensures protocol is present and removes trailing slashes.
+ */
+function normalizeEndpoint(endpoint: string): string {
+    if (!endpoint) return '';
+    let clean = endpoint.trim().replace(/\/+$/, '');
+    if (!clean.startsWith('http')) {
+        clean = `https://${clean}`;
+    }
+    // Ensure /v1 is appended if missing, as SDKs expect the base path
+    if (!clean.endsWith('/v1') && !clean.includes('/v1/')) {
+        clean = `${clean}/v1`;
+    }
+    return clean;
+}
+
+/**
+ * Enhanced error translator for browser-specific fetch issues.
+ */
+export function handleFetchError(error: any): string {
+    const msg = error?.message || String(error);
+    if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+        return `Connection Failed: This is likely a CORS issue. Please ensure "${window.location.origin}" is added as a 'Web Platform' in your Appwrite Project settings.`;
+    }
+    return msg;
+}
 
 /**
  * Creates a temporary, admin-level Appwrite client for a specific user-defined project.
- * This client is configured with the project's endpoint, ID, and a server-side API key,
- * allowing it to perform administrative actions. This uses the node-appwrite SDK.
- * @param project - The Appwrite project to connect to.
- * @returns An authenticated node-appwrite client instance.
  */
 function createProjectAdminClient(project: AppwriteProject): NodeClient {
     if (!project || !project.endpoint || !project.projectId || !project.apiKey) {
@@ -25,63 +49,30 @@ function createProjectAdminClient(project: AppwriteProject): NodeClient {
     
     const client = new NodeClient();
     client
-        .setEndpoint(project.endpoint)
-        .setProject(project.projectId)
-        .setKey(project.apiKey);
+        .setEndpoint(normalizeEndpoint(project.endpoint))
+        .setProject(project.projectId.trim())
+        .setKey(project.apiKey.trim());
     return client;
 }
 
-/**
- * Returns an Appwrite Databases service instance configured for a specific project.
- * @param project - The Appwrite project to interact with.
- * @returns A Databases service instance from the node-appwrite SDK.
- */
 export function getSdkDatabases(project: AppwriteProject): Databases {
-    const client = createProjectAdminClient(project);
-    return new Databases(client);
+    return new Databases(createProjectAdminClient(project));
 }
 
-/**
- * Returns an Appwrite Storage service instance configured for a specific project.
- * @param project - The Appwrite project to interact with.
- * @returns A Storage service instance from the node-appwrite SDK.
- */
 export function getSdkStorage(project: AppwriteProject): Storage {
-    const client = createProjectAdminClient(project);
-    return new Storage(client);
+    return new Storage(createProjectAdminClient(project));
 }
 
-/**
- * Returns an Appwrite Functions service instance configured for a specific project.
- * @param project - The Appwrite project to interact with.
- * @returns A Functions service instance from the node-appwrite SDK.
- */
 export function getSdkFunctions(project: AppwriteProject): Functions {
-    const client = createProjectAdminClient(project);
-    return new Functions(client);
+    return new Functions(createProjectAdminClient(project));
 }
 
-/**
- * Returns an Appwrite Users service instance configured for a specific project.
- * @param project - The Appwrite project to interact with.
- * @returns A Users service instance from the node-appwrite SDK.
- */
 export function getSdkUsers(project: AppwriteProject): Users {
-    const client = createProjectAdminClient(project);
-    return new Users(client);
+    return new Users(createProjectAdminClient(project));
 }
 
-/**
- * Returns an Appwrite Teams service instance configured for a specific project.
- * @param project - The Appwrite project to interact with.
- * @returns A Teams service instance from the node-appwrite SDK.
- */
 export function getSdkTeams(project: AppwriteProject): Teams {
-    const client = createProjectAdminClient(project);
-    return new Teams(client);
+    return new Teams(createProjectAdminClient(project));
 }
 
-
-// Re-export key Appwrite modules for convenience in other parts of the app.
-// These are from the web-sdk but are generally compatible.
 export { ID, Query, Permission, Role, AppwriteException };

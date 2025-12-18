@@ -1,8 +1,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Query } from '../../../services/appwrite';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams } from '../../../services/appwrite';
-import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../../../types';
+import { Query, handleFetchError } from '../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams } from '../services/appwrite';
+import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
 
 export function useStudioData(activeProject: AppwriteProject, activeTab: StudioTab, logCallback: (msg: string) => void) {
@@ -29,16 +29,11 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const [executions, setExecutions] = useState<Models.Execution[]>([]);
     const [memberships, setMemberships] = useState<Models.Membership[]>([]);
 
-    // Tracker for latest project ID to prevent race conditions and stale ID fetches
     const lastProjectIdRef = useRef<string | null>(null);
 
-    // -- Global Project Reset (Triggered on Project Switch) --
     useEffect(() => {
         const projectId = activeProject?.$id;
         if (projectId !== lastProjectIdRef.current) {
-            logCallback(`Studio: Project switched. Clearing context for "${activeProject?.name || 'Unknown'}"`);
-            
-            // Atomic reset of ALL states
             setUsers([]);
             setTeams([]);
             setSelectedDb(null);
@@ -54,28 +49,20 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
             setDeployments([]);
             setExecutions([]);
             setMemberships([]);
-            
             lastProjectIdRef.current = projectId;
         }
-    }, [activeProject?.$id, logCallback]);
+    }, [activeProject?.$id]);
 
-    // -- Fetchers --
     const fetchUsers = useCallback(async () => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching users for "${activeProject.name}"...`);
         setIsLoading(true);
         try {
             const sdk = getSdkUsers(activeProject);
             const res = await sdk.list([Query.limit(100), Query.orderDesc('$createdAt')]);
-            if (currentPid === lastProjectIdRef.current) {
-                setUsers(res.users);
-                logCallback(`Studio: Found ${res.users.length} users.`);
-            }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Users: ${e.message}`);
-            console.error('Studio User Fetch Error:', e); 
-            if (currentPid === lastProjectIdRef.current) setUsers([]);
+            if (currentPid === lastProjectIdRef.current) setUsers(res.users);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
@@ -84,19 +71,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const fetchTeams = useCallback(async () => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching teams for "${activeProject.name}"...`);
         setIsLoading(true);
         try {
             const sdk = getSdkTeams(activeProject);
             const res = await sdk.list([Query.limit(100), Query.orderDesc('$createdAt')]);
-            if (currentPid === lastProjectIdRef.current) {
-                setTeams(res.teams);
-                logCallback(`Studio: Found ${res.teams.length} teams.`);
-            }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Teams: ${e.message}`);
-            console.error('Studio Team Fetch Error:', e); 
-            if (currentPid === lastProjectIdRef.current) setTeams([]);
+            if (currentPid === lastProjectIdRef.current) setTeams(res.teams);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
@@ -105,17 +86,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const fetchCollections = useCallback(async (dbId: string) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching collections for DB ${dbId}...`);
         setIsLoading(true);
         try {
             const sdk = getSdkDatabases(activeProject);
             const res = await sdk.listCollections(dbId, [Query.limit(100)]);
-            if (currentPid === lastProjectIdRef.current) {
-                setCollections(res.collections);
-                logCallback(`Studio: Found ${res.collections.length} collections in DB.`);
-            }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Collections: ${e.message}`);
+            if (currentPid === lastProjectIdRef.current) setCollections(res.collections);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
             if (currentPid === lastProjectIdRef.current) setCollections([]);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
@@ -125,7 +102,6 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const fetchCollectionDetails = useCallback(async (dbId: string, collId: string) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching details for Collection ${collId}...`);
         setIsLoading(true);
         try {
             const sdk = getSdkDatabases(activeProject);
@@ -137,15 +113,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
                 setDocuments(docs.documents);
                 setAttributes((coll.attributes || []).map((a: any) => ({ ...a, $id: a.key })));
                 setIndexes((coll.indexes || []).map((i: any) => ({ ...i, $id: i.key })));
-                logCallback(`Studio: Loaded ${docs.documents.length} documents.`);
             }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Collection Details: ${e.message}`);
-            if (currentPid === lastProjectIdRef.current) {
-                setDocuments([]);
-                setAttributes([]);
-                setIndexes([]);
-            }
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
@@ -154,18 +124,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const fetchFiles = useCallback(async (bucketId: string) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching files for Bucket ${bucketId}...`);
         setIsLoading(true);
         try {
             const sdk = getSdkStorage(activeProject);
             const res = await sdk.listFiles(bucketId, [Query.limit(100), Query.orderDesc('$createdAt')]);
-            if (currentPid === lastProjectIdRef.current) {
-                setFiles(res.files);
-                logCallback(`Studio: Found ${res.files.length} files.`);
-            }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Storage: ${e.message}`);
-            if (currentPid === lastProjectIdRef.current) setFiles([]);
+            if (currentPid === lastProjectIdRef.current) setFiles(res.files);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
@@ -174,7 +139,6 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const fetchFunctionDetails = useCallback(async (funcId: string) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching deployments for Function ${funcId}...`);
         setIsLoading(true);
         try {
             const sdk = getSdkFunctions(activeProject);
@@ -185,47 +149,29 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
             if (currentPid === lastProjectIdRef.current) {
                 setDeployments(deps.deployments);
                 setExecutions(execs.executions);
-                logCallback(`Studio: Loaded ${deps.deployments.length} deployments.`);
             }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Function Details: ${e.message}`);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
     }, [activeProject, logCallback]);
-
-    const fetchFunctionExecutionsOnly = useCallback(async (funcId: string) => {
-        if (!activeProject) return;
-        const currentPid = activeProject.$id;
-        try {
-            const sdk = getSdkFunctions(activeProject);
-            const execs = await sdk.listExecutions(funcId, [Query.limit(20), Query.orderDesc('$createdAt')]);
-            if (currentPid === lastProjectIdRef.current) {
-                setExecutions(execs.executions);
-            }
-        } catch (e) { /* polling fail silent */ }
-    }, [activeProject]);
 
     const fetchMemberships = useCallback(async (teamId: string) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        logCallback(`Studio: Fetching memberships for Team ${teamId}...`);
         setIsLoading(true);
         try {
             const sdk = getSdkTeams(activeProject);
             const res = await sdk.listMemberships(teamId);
-            if (currentPid === lastProjectIdRef.current) {
-                setMemberships(res.memberships);
-                logCallback(`Studio: Loaded ${res.memberships.length} members.`);
-            }
-        } catch (e: any) { 
-            logCallback(`ERROR Studio Memberships: ${e.message}`);
+            if (currentPid === lastProjectIdRef.current) setMemberships(res.memberships);
+        } catch (e) { 
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
     }, [activeProject, logCallback]);
 
-    // -- Tab Switching Reset --
     useEffect(() => {
         setSelectedDb(null);
         setSelectedCollection(null);
@@ -234,58 +180,33 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setSelectedTeam(null);
     }, [activeTab]);
 
-    // -- Loaders with Project-ID Guarding --
     useEffect(() => { 
-        if (activeProject && (activeTab === 'users' || activeTab === 'overview')) {
-            fetchUsers(); 
-        }
+        if (activeProject && (activeTab === 'users' || activeTab === 'overview')) fetchUsers(); 
     }, [activeTab, activeProject?.$id, fetchUsers]);
 
     useEffect(() => { 
-        if (activeProject && (activeTab === 'teams' || activeTab === 'overview')) {
-            fetchTeams(); 
-        }
+        if (activeProject && (activeTab === 'teams' || activeTab === 'overview')) fetchTeams(); 
     }, [activeTab, activeProject?.$id, fetchTeams]);
 
     useEffect(() => { 
-        if (selectedDb && activeProject?.$id === lastProjectIdRef.current) {
-            fetchCollections(selectedDb.$id); 
-        }
+        if (selectedDb && activeProject?.$id === lastProjectIdRef.current) fetchCollections(selectedDb.$id); 
     }, [selectedDb?.$id, fetchCollections, activeProject?.$id]);
 
     useEffect(() => { 
-        if (selectedCollection && selectedDb && activeProject?.$id === lastProjectIdRef.current) {
-            fetchCollectionDetails(selectedDb.$id, selectedCollection.$id); 
-        }
+        if (selectedCollection && selectedDb && activeProject?.$id === lastProjectIdRef.current) fetchCollectionDetails(selectedDb.$id, selectedCollection.$id); 
     }, [selectedCollection?.$id, selectedDb?.$id, fetchCollectionDetails, activeProject?.$id]);
 
     useEffect(() => { 
-        if (selectedBucket && activeProject?.$id === lastProjectIdRef.current) {
-            fetchFiles(selectedBucket.$id); 
-        }
+        if (selectedBucket && activeProject?.$id === lastProjectIdRef.current) fetchFiles(selectedBucket.$id); 
     }, [selectedBucket?.$id, fetchFiles, activeProject?.$id]);
 
     useEffect(() => { 
-        if (selectedFunction && activeProject?.$id === lastProjectIdRef.current) {
-            fetchFunctionDetails(selectedFunction.$id); 
-        }
+        if (selectedFunction && activeProject?.$id === lastProjectIdRef.current) fetchFunctionDetails(selectedFunction.$id); 
     }, [selectedFunction?.$id, fetchFunctionDetails, activeProject?.$id]);
 
     useEffect(() => { 
-        if (selectedTeam && activeProject?.$id === lastProjectIdRef.current) {
-            fetchMemberships(selectedTeam.$id); 
-        }
+        if (selectedTeam && activeProject?.$id === lastProjectIdRef.current) fetchMemberships(selectedTeam.$id); 
     }, [selectedTeam?.$id, fetchMemberships, activeProject?.$id]);
-
-    // -- Execution Polling --
-    useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (selectedFunction && activeTab === 'functions' && activeProject?.$id === lastProjectIdRef.current) {
-            fetchFunctionExecutionsOnly(selectedFunction.$id);
-            interval = setInterval(() => fetchFunctionExecutionsOnly(selectedFunction.$id), 3000);
-        }
-        return () => clearInterval(interval);
-    }, [selectedFunction?.$id, activeTab, fetchFunctionExecutionsOnly, activeProject?.$id]);
 
     return {
         isLoading,

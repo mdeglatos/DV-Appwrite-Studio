@@ -1,5 +1,4 @@
 
-
 import { getSdkFunctions, ID, Query } from '../services/appwrite';
 import type { AIContext, AppwriteProject } from '../types';
 import { Type, type FunctionDeclaration } from '@google/genai';
@@ -13,6 +12,43 @@ async function handleApiError(error: unknown) {
         return { error: `Appwrite API Error: ${error.message}` };
     }
     return { error: 'An unknown error occurred while communicating with the Appwrite API.' };
+}
+
+/**
+ * Sanitizes an endpoint URL and performs a fetch with Appwrite admin headers.
+ * Uses mode: 'cors' and credentials: 'omit' to ensure browser-based API key requests 
+ * aren't blocked by standard credential-based CORS restrictions.
+ */
+async function appwriteFetch(project: AppwriteProject, path: string, options: RequestInit = {}) {
+    const cleanEndpoint = project.endpoint.trim().replace(/\/+$/, '');
+    const cleanPath = path.trim().replace(/^\/+/, '');
+    const url = `${cleanEndpoint}/${cleanPath}`;
+    
+    const headers: Record<string, string> = {
+        'X-Appwrite-Project': project.projectId.trim(),
+        'X-Appwrite-Key': project.apiKey.trim(),
+        'X-Appwrite-Response-Format': 'json',
+    };
+
+    if (options.headers && typeof options.headers === 'object') {
+        Object.entries(options.headers).forEach(([key, value]) => {
+            headers[key] = String(value);
+        });
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        headers,
+        mode: 'cors',
+        credentials: 'omit',
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP Error ${response.status}` }));
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+    }
+
+    return response.json();
 }
 
 // Helper to create a .tar.gz blob from an array of File objects
@@ -60,30 +96,21 @@ export async function deployCodeFromString(
     }
 
     const codeBlob = await createTarGzFromStringContent(files);
-    const codeFile = new File([codeBlob], 'code.tar.gz', { type: 'application/gzip' });
-
+    
+    // CRITICAL: Wrap blob in a File object to ensure multi-part boundary and filename metadata
+    const fileObj = new File([codeBlob], 'code.tar.gz', { type: 'application/gzip' });
+    
     const formData = new FormData();
-    formData.append('code', codeFile);
-    formData.append('activate', String(activate));
+    // Explicitly append with filename to ensure multipart headers are set correctly by browser
+    formData.append('code', fileObj, 'code.tar.gz');
+    formData.append('activate', activate ? 'true' : 'false');
     if (entrypoint) formData.append('entrypoint', entrypoint);
     if (commands) formData.append('commands', commands);
 
-    const response = await fetch(`${project.endpoint}/functions/${functionId}/deployments`, {
+    return appwriteFetch(project, `/functions/${functionId}/deployments`, {
         method: 'POST',
-        headers: {
-            'X-Appwrite-Project': project.projectId,
-            'X-Appwrite-Key': project.apiKey,
-        },
         body: formData,
     });
-
-    const jsonResponse = await response.json();
-
-    if (!response.ok) {
-        throw new Error(jsonResponse.message || `Deployment creation failed with status ${response.status}`);
-    }
-
-    return jsonResponse;
 }
 
 
@@ -93,10 +120,6 @@ export interface UnpackedFile {
     content: string;
     size: number;
 }
-
-// FIX: The original code was using 'tar-js' to extract tar files, which is not a supported feature of the library.
-// The following helper functions implement a simple TAR extractor to correctly parse the deployment data
-// without adding new dependencies.
 
 // Helper to decode a string from a Uint8Array, stopping at the first null character.
 function decodeString(buffer: Uint8Array): string {
@@ -182,7 +205,7 @@ export async function downloadAndUnpackDeployment(
         const tarData = pako.ungzip(gzippedData);
 
         // FIX: The original code incorrectly used 'tar-js' for extraction, which it does not support.
-        // Replaced with a simple, self-contained TAR parser. This resolves errors on lines 76, 80, and 89.
+        // Replaced with a simple, self-contained TAR parser.
         const files = untar(tarData.buffer);
 
         return files;
@@ -398,34 +421,17 @@ async function createDeployment(context: AIContext, { functionId, activate, entr
     }
 
     try {
-        // Use manual fetch with FormData for file upload.
         const formData = new FormData();
-        formData.append('code', codeFile);
+        // Explicitly set filename
+        formData.append('code', codeFile, codeFile.name);
         formData.append('activate', String(activate));
-        if (entrypoint) {
-            formData.append('entrypoint', entrypoint);
-        }
-        if (commands) {
-            formData.append('commands', commands);
-        }
+        if (entrypoint) formData.append('entrypoint', entrypoint);
+        if (commands) formData.append('commands', commands);
 
-        const response = await fetch(`${context.project.endpoint}/functions/${functionId}/deployments`, {
+        return appwriteFetch(context.project, `/functions/${functionId}/deployments`, {
             method: 'POST',
-            headers: {
-                'X-Appwrite-Project': context.project.projectId,
-                'X-Appwrite-Key': context.project.apiKey,
-                // Content-Type is set automatically by the browser for FormData
-            },
             body: formData,
         });
-
-        const jsonResponse = await response.json();
-
-        if (!response.ok) {
-            throw new Error(jsonResponse.message || `Deployment creation failed with status ${response.status}`);
-        }
-
-        return jsonResponse;
     } catch (error) {
         return handleApiError(error);
     }

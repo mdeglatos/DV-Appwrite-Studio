@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { ModalState, FormField } from '../types';
 
 export function useStudioModals() {

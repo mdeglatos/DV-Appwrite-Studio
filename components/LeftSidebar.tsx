@@ -5,7 +5,7 @@ import type { NewAppwriteProject } from '../services/projectService';
 import { 
     AddIcon, DeleteIcon, CloseIcon, ToolsIcon, ProjectsIcon, ChevronDownIcon, 
     KeyIcon, SettingsIcon, DashboardIcon, DatabaseIcon, StorageIcon, 
-    FunctionIcon, TeamIcon, EditIcon
+    FunctionIcon, TeamIcon, EditIcon, WarningIcon
 } from './Icons';
 import { toolDefinitionGroups } from '../tools';
 import { Modal } from './Modal';
@@ -524,9 +524,19 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 className="border-none"
                 transparent
             >
+                <div className="mb-4 p-2.5 bg-yellow-900/20 border border-yellow-700/50 rounded-xl text-[10px] text-yellow-200/80 space-y-1.5 animate-fade-in">
+                    <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-yellow-500">
+                        <WarningIcon size={12} /> Connection Tip
+                    </div>
+                    <p>To avoid "Failed to fetch", add this origin to your Appwrite Web Platforms:</p>
+                    <div className="bg-black/40 p-1.5 rounded font-mono text-[9px] select-all border border-black/20 truncate">
+                        {window.location.origin}
+                    </div>
+                </div>
+
                 <form onSubmit={handleSave} className="flex flex-col gap-2.5">
                     <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Project Name" className="bg-gray-900/50 border border-gray-700 text-gray-200 text-xs rounded-lg focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 block w-full p-2 placeholder-gray-600 outline-none" required />
-                    <input type="url" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="Endpoint URL" className="bg-gray-900/50 border border-gray-700 text-gray-200 text-xs rounded-lg focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 block w-full p-2 placeholder-gray-600 outline-none" required />
+                    <input type="url" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="Endpoint (with /v1)" className="bg-gray-900/50 border border-gray-700 text-gray-200 text-xs rounded-lg focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 block w-full p-2 placeholder-gray-600 outline-none" required />
                     <input type="text" value={projectId} onChange={e => setProjectId(e.target.value)} placeholder="Project ID" className="bg-gray-900/50 border border-gray-700 text-gray-200 text-xs rounded-lg focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 block w-full p-2 placeholder-gray-600 font-mono outline-none" required />
                     <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="API Key" className="bg-gray-900/50 border border-gray-700 text-gray-200 text-xs rounded-lg focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500/50 block w-full p-2 placeholder-gray-600 font-mono outline-none" required />
                     <button type="submit" className="w-full mt-1 py-2 px-3 text-xs font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-colors flex justify-center items-center gap-2 shadow-lg shadow-cyan-900/20">
@@ -550,6 +560,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       {/* Edit Project Modal */}
       {editingProject && (
           <Modal isOpen={!!editingProject} onClose={closeEditingModal} title="Edit Project">
+               <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/50 rounded-xl text-xs text-cyan-200">
+                    <p className="font-bold mb-1">CORS Troubleshoot:</p>
+                    <p className="opacity-80">If you see "Failed to fetch", ensure <strong>{window.location.origin}</strong> is allowed in your Appwrite Dashboard under Settings > Platforms.</p>
+               </div>
                <form onSubmit={handleUpdateProjectSubmit} className="flex flex-col gap-4">
                     <div>
                         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Project Name</label>

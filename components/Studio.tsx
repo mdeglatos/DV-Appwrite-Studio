@@ -33,15 +33,16 @@ interface StudioProps {
     activeTab: StudioTab;
     onTabChange: (tab: StudioTab) => void;
     onEditCode: (func: AppwriteFunction) => void;
+    logCallback: (msg: string) => void;
 }
 
 export const Studio: React.FC<StudioProps> = ({ 
     activeProject, projects, databases, buckets, functions, 
-    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode 
+    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback
 }) => {
     
     // 1. Initialize Core Logic Hooks
-    const studioData = useStudioData(activeProject, activeTab);
+    const studioData = useStudioData(activeProject, activeTab, logCallback);
     const studioModals = useStudioModals();
     const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData);
     

@@ -1,7 +1,7 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppwriteProject, Database, Collection, Bucket, AppwriteFunction } from '../types';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query } from '../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query, handleFetchError } from '../services/appwrite';
 
 const CONTEXT_FETCH_LIMIT = 100;
 
@@ -17,6 +17,8 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
     const [isContextLoading, setIsContextLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const currentProjectIdRef = useRef<string | null>(null);
+
     const resetContext = useCallback(() => {
         setDatabases([]);
         setCollections([]);
@@ -26,7 +28,16 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
         setSelectedCollection(null);
         setSelectedBucket(null);
         setSelectedFunction(null);
+        setError(null);
     }, []);
+
+    useEffect(() => {
+        if (activeProject?.$id !== currentProjectIdRef.current) {
+            logCallback(`--- CONTEXT RESET: Project switched to ${activeProject?.name || 'None'} ---`);
+            resetContext();
+            currentProjectIdRef.current = activeProject?.$id || null;
+        }
+    }, [activeProject?.$id, resetContext, logCallback]);
 
     const refreshContextData = useCallback(async () => {
         if (!activeProject) {
@@ -34,7 +45,8 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
             return;
         }
 
-        logCallback(`Refreshing context for project "${activeProject.name}"...`);
+        const currentPid = activeProject.$id;
+        logCallback(`Connecting to Appwrite: ${activeProject.endpoint}...`);
         setIsContextLoading(true);
         setError(null);
 
@@ -48,96 +60,72 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
                 projectStorage.listBuckets([Query.limit(CONTEXT_FETCH_LIMIT)]),
                 projectFunctions.list([Query.limit(CONTEXT_FETCH_LIMIT)])
             ]);
-            const newDatabases: Database[] = dbResponse.databases;
-            const newBuckets: Bucket[] = bucketResponse.buckets;
-            const newFunctions = funcResponse.functions;
-            setDatabases(newDatabases);
-            setBuckets(newBuckets);
-            setFunctions(newFunctions as unknown as AppwriteFunction[]);
 
-            const dbStillExists = selectedDatabase && newDatabases.some(db => db.$id === selectedDatabase.$id);
-            if (!dbStillExists) {
-                setSelectedDatabase(null);
-                setCollections([]);
-                setSelectedCollection(null);
-            } else if (selectedDatabase) {
-                logCallback(`Refreshing collections for database "${selectedDatabase.name}"...`);
-                const collectionsResponse = await projectDatabases.listCollections(selectedDatabase.$id, [Query.limit(CONTEXT_FETCH_LIMIT)]);
-                const newCollections: Collection[] = collectionsResponse.collections;
-                setCollections(newCollections);
-                
-                const collectionStillExists = selectedCollection && newCollections.some(c => c.$id === selectedCollection.$id);
-                if (!collectionStillExists) {
-                    setSelectedCollection(null);
-                }
-            }
-            
-            if (selectedBucket && !newBuckets.some(b => b.$id === selectedBucket.$id)) setSelectedBucket(null);
-            if (selectedFunction && !newFunctions.some(f => f.$id === selectedFunction.$id)) setSelectedFunction(null);
+            if (currentPid !== currentProjectIdRef.current) return;
 
-            logCallback(`Refreshed context: Found ${newDatabases.length} databases, ${newBuckets.length} buckets, and ${newFunctions.length} functions.`);
+            setDatabases(dbResponse.databases);
+            setBuckets(bucketResponse.buckets);
+            setFunctions(funcResponse.functions as unknown as AppwriteFunction[]);
+
+            logCallback(`Connection successful: Found ${dbResponse.databases.length} Databases.`);
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : 'Failed to fetch project context.';
-            setError(errorMessage);
-            logCallback(`ERROR fetching context: ${errorMessage}`);
+            const errorMessage = handleFetchError(e);
+            if (currentPid === currentProjectIdRef.current) {
+                setError(errorMessage);
+                logCallback(`CONNECTION ERROR: ${errorMessage}`);
+            }
         } finally {
-            setIsContextLoading(false);
+            if (currentPid === currentProjectIdRef.current) {
+                setIsContextLoading(false);
+            }
         }
-    }, [activeProject, logCallback, resetContext, selectedDatabase, selectedCollection, selectedBucket, selectedFunction]);
+    }, [activeProject, logCallback, resetContext]);
 
     useEffect(() => {
         if (activeProject) {
             refreshContextData();
-        } else {
-            resetContext();
         }
-    }, [activeProject, resetContext]); // refreshContextData is not needed here as it will cause loops
+    }, [activeProject?.$id, refreshContextData]);
 
     useEffect(() => {
-        if (!selectedDatabase || !activeProject) {
+        if (!selectedDatabase || !activeProject || activeProject.$id !== currentProjectIdRef.current) {
             setCollections([]);
             setSelectedCollection(null);
             return;
         }
+
+        const currentPid = activeProject.$id;
+        const currentDbId = selectedDatabase.$id;
+
         const fetchCollections = async () => {
-            logCallback(`Fetching collections for database "${selectedDatabase.name}"...`);
             setIsContextLoading(true);
-            setError(null);
             try {
                 const projectDatabases = getSdkDatabases(activeProject);
-                const response = await projectDatabases.listCollections(selectedDatabase.$id, [Query.limit(CONTEXT_FETCH_LIMIT)]);
-                const newCollections: Collection[] = response.collections;
-                setCollections(newCollections);
-                logCallback(`Found ${newCollections.length} collections.`);
-                setSelectedCollection(current => current && !newCollections.some(c => c.$id === current.$id) ? null : current);
+                const response = await projectDatabases.listCollections(currentDbId, [Query.limit(CONTEXT_FETCH_LIMIT)]);
+                
+                if (currentPid === currentProjectIdRef.current && currentDbId === selectedDatabase.$id) {
+                    setCollections(response.collections);
+                }
             } catch (e) {
-                const errorMessage = e instanceof Error ? e.message : 'Failed to fetch collections.';
-                setError(errorMessage);
-                logCallback(`ERROR fetching collections: ${errorMessage}`);
-                setCollections([]);
+                const errorMessage = handleFetchError(e);
+                if (currentPid === currentProjectIdRef.current) {
+                    logCallback(`ERROR fetching collections: ${errorMessage}`);
+                    setCollections([]);
+                }
             } finally {
-                setIsContextLoading(false);
+                if (currentPid === currentProjectIdRef.current) {
+                    setIsContextLoading(false);
+                }
             }
         };
+
         fetchCollections();
-    }, [selectedDatabase, activeProject, logCallback]);
+    }, [selectedDatabase?.$id, activeProject?.$id, logCallback]);
 
     return {
-        databases,
-        collections,
-        buckets,
-        functions,
-        selectedDatabase,
-        selectedCollection,
-        selectedBucket,
-        selectedFunction,
-        setSelectedDatabase,
-        setSelectedCollection,
-        setSelectedBucket,
-        setSelectedFunction,
-        isContextLoading,
-        error,
-        setError,
-        refreshContextData,
+        databases, collections, buckets, functions,
+        selectedDatabase, selectedCollection, selectedBucket, selectedFunction,
+        setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
+        isContextLoading, error, setError, refreshContextData,
     };
 }
