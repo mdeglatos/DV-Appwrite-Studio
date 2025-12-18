@@ -12,24 +12,41 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
     const modalRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
 
+    // Keep the latest onClose in a ref to avoid re-triggering effects when it changes
     useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
+    // Handle initial focus once per open
+    useEffect(() => {
+        if (isOpen) {
+            // Delay focus slightly to ensure the modal is fully rendered and transitions are complete
+            const timer = setTimeout(() => {
+                if (modalRef.current && !modalRef.current.contains(document.activeElement)) {
+                    modalRef.current.focus();
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
+
+    // Handle escape key listener
+    useEffect(() => {
+        if (!isOpen) return;
+
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
-                onClose();
+                onCloseRef.current();
             }
         };
 
-        if (isOpen) {
-            document.addEventListener('keydown', handleKeyDown);
-            // Delay focus slightly to ensure the modal is fully rendered and transitions are complete
-            setTimeout(() => modalRef.current?.focus(), 100);
-        }
-
+        document.addEventListener('keydown', handleKeyDown);
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen]);
 
     if (!isOpen) {
         return null;
@@ -51,7 +68,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            onClick={onClose} // Close on backdrop click
+            onClick={() => onCloseRef.current()} // Close on backdrop click
         >
             <div
                 ref={modalRef}
@@ -63,7 +80,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
                 <header className="flex items-center justify-between p-4 border-b border-gray-700 flex-shrink-0">
                     <h2 id="modal-title" className="text-xl font-semibold text-gray-100">{title}</h2>
                     <button
-                        onClick={onClose}
+                        onClick={() => onCloseRef.current()}
                         className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-600"
                         aria-label="Close dialog"
                     >

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, StudioTab } from '../types';
 import type { NewAppwriteProject } from '../services/projectService';
 import { 
@@ -235,6 +235,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     { id: 'users', label: 'Auth & Users', icon: <TeamIcon /> },
     { id: 'teams', label: 'Teams', icon: <TeamIcon /> },
   ];
+
+  const closeEditingModal = useCallback(() => {
+    setEditingProject(null);
+  }, []);
 
   return (
     <>
@@ -545,7 +549,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
 
       {/* Edit Project Modal */}
       {editingProject && (
-          <Modal isOpen={!!editingProject} onClose={() => setEditingProject(null)} title="Edit Project">
+          <Modal isOpen={!!editingProject} onClose={closeEditingModal} title="Edit Project">
                <form onSubmit={handleUpdateProjectSubmit} className="flex flex-col gap-4">
                     <div>
                         <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Project Name</label>
@@ -564,7 +568,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                         <input type="password" value={editingProject.apiKey} onChange={e => setEditingProject({...editingProject, apiKey: e.target.value})} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-sm text-gray-100 font-mono focus:ring-1 focus:ring-cyan-500 outline-none" required />
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
-                        <button type="button" onClick={() => setEditingProject(null)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+                        <button type="button" onClick={closeEditingModal} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
                         <button type="submit" className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-cyan-900/20">Save Changes</button>
                     </div>
                </form>

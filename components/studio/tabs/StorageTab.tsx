@@ -39,7 +39,7 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                         onClick={onConsolidateBuckets}
                         className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors mr-2"
                     >
-                        <RiShareForwardLine size={14} /> Consolidate
+                        <RiShareForwardLine size={14} /> Transfer Files
                     </button>
                 }
             />
