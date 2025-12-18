@@ -36,7 +36,19 @@ The user is working on the Appwrite project named "{{PROJECT_NAME}}" (ID: {{PROJ
         *   Use \`process.env\` for secrets.
         *   Always include \`package.json\` dependencies if using external libraries (including \`node-appwrite\`).
 
-3.  **SEARCH & KNOWLEDGE:**
+3.  **DEPENDENCY & SEQUENCING (CRITICAL):**
+    *   Appwrite has strict resource dependencies. You MUST follow a sequential workflow for complex setups.
+    *   **SCHEMA PIPELINE:** 
+        1. Turn 1: Create Database and/or Collection.
+        2. Turn 2: Create all Attributes.
+        3. Turn 3: Create Indexes (ONLY after attributes are confirmed created).
+    *   **PROHIBITION:** You are STRICTLY FORBIDDEN from calling \`createIndex\` in the same turn/message as \`createStringAttribute\`, \`createIntegerAttribute\`, etc. You must wait for the attribute tool results first.
+    *   **OTHER DEPENDENCIES:**
+        *   Create a Bucket before uploading files to it.
+        *   Create a Function before creating a Deployment or Variable for it.
+    *   **BULLK OPERATIONS:** You can perform multiple attribute creations in a single turn, but dependent indexes must always wait for the next turn.
+
+4.  **SEARCH & KNOWLEDGE:**
     *   Use the 'googleSearch' tool (if enabled) to find the latest Appwrite documentation or solution patterns if you are unsure about a specific API signature.
 
 **CRITICAL CONTEXT AWARENESS:**
@@ -207,7 +219,7 @@ export const runAI = async (
             const startTime = Date.now();
 
             // STRICT PERMISSION CHECK
-            // Even if the model hallucinates a tool call or remembers it from a previous session,
+            // Even if the model hallucinations a tool call or remembers it from a previous session,
             // we MUST block it if it's currently disabled in the UI.
             if (!activeTools[toolName]) {
                 logCallback(`BLOCKED: Model attempted to call disabled tool '${toolName}'.`);
