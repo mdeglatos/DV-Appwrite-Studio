@@ -562,7 +562,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
           <Modal isOpen={!!editingProject} onClose={closeEditingModal} title="Edit Project">
                <div className="mb-4 p-3 bg-cyan-900/20 border border-cyan-700/50 rounded-xl text-xs text-cyan-200">
                     <p className="font-bold mb-1">CORS Troubleshoot:</p>
-                    <p className="opacity-80">If you see "Failed to fetch", ensure <strong>{window.location.origin}</strong> is allowed in your Appwrite Dashboard under Settings > Platforms.</p>
+                    <p className="opacity-80">If you see "Failed to fetch", ensure <strong>{window.location.origin}</strong> is allowed in your Appwrite Dashboard under Settings &gt; Platforms.</p>
                </div>
                <form onSubmit={handleUpdateProjectSubmit} className="flex flex-col gap-4">
                     <div>
