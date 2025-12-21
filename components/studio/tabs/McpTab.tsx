@@ -46,13 +46,19 @@ export const McpTab: React.FC<McpTabProps> = ({ activeProject }) => {
             
             // Try to fetch domains
             try {
-                // @ts-ignore - listDomains exists in newer SDKs but types might lag
-                const domainsList = await sdk.listDomains(func.$id);
-                if (domainsList.domains.length > 0) {
-                    setPublicDomain(domainsList.domains[0].domain);
+                // @ts-ignore - Check if listDomains exists before calling to prevent runtime errors on older SDKs
+                if (typeof sdk.listDomains === 'function') {
+                    // @ts-ignore
+                    const domainsList = await sdk.listDomains(func.$id);
+                    if (domainsList.domains.length > 0) {
+                        setPublicDomain(domainsList.domains[0].domain);
+                    } else {
+                        setPublicDomain('');
+                        setDomainError(true);
+                    }
                 } else {
+                    // Fallback for SDKs where listDomains is missing
                     setPublicDomain('');
-                    setDomainError(true);
                 }
             } catch (err) {
                 console.warn("Could not list domains:", err);
