@@ -1,16 +1,18 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Database } from '../../../types';
+import type { Database, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
+import { consoleLinks } from '../../../services/appwrite';
 
 type CollectionTab = 'documents' | 'attributes' | 'indexes' | 'settings';
 
 interface DatabasesTabProps {
+    activeProject: AppwriteProject;
     databases: Database[];
     selectedDb: Database | null;
     selectedCollection: Models.Collection | null;
@@ -41,7 +43,7 @@ interface DatabasesTabProps {
 }
 
 export const DatabasesTab: React.FC<DatabasesTabProps> = ({
-    databases, selectedDb, selectedCollection, collections,
+    activeProject, databases, selectedDb, selectedCollection, collections,
     documents, attributes, indexes,
     onCreateDatabase, onDeleteDatabase, onSelectDb,
     onCreateCollection, onDeleteCollection, onSelectCollection,
@@ -67,6 +69,16 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                 onDelete={onDeleteDatabase} 
                 onSelect={(item) => onSelectDb(item)} 
                 createLabel="New DB" 
+                extraActions={
+                    <a 
+                        href={consoleLinks.databases(activeProject)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all mr-2"
+                    >
+                        <ExternalLinkIcon size={14} /> Open in Console
+                    </a>
+                }
             />
         );
     }
@@ -74,7 +86,17 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     if (!selectedCollection) {
         return (
             <>
-                <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name }]} />
+                <div className="flex justify-between items-start">
+                    <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name }]} />
+                    <a 
+                        href={consoleLinks.database(activeProject, selectedDb.$id)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                    >
+                        <ExternalLinkIcon size={14} /> View Database in Console
+                    </a>
+                </div>
                 <ResourceTable<Models.Collection> 
                     title={`Collections in ${selectedDb.name}`} 
                     data={collections} 
@@ -90,7 +112,17 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     return (
         <div className="flex flex-col h-full">
             <div className="mb-6">
-                <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name, onClick: () => onSelectCollection(null) }, { label: selectedCollection.name }]} />
+                <div className="flex justify-between items-start">
+                    <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name, onClick: () => onSelectCollection(null) }, { label: selectedCollection.name }]} />
+                    <a 
+                        href={consoleLinks.collection(activeProject, selectedDb.$id, selectedCollection.$id)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                    >
+                        <ExternalLinkIcon size={14} /> View Collection in Console
+                    </a>
+                </div>
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-cyan-900/30 rounded-lg text-cyan-400"><DatabaseIcon size={24} /></div>

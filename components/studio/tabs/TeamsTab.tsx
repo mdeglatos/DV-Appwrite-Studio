@@ -3,8 +3,12 @@ import React from 'react';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
+import { ExternalLinkIcon } from '../../Icons';
+import { consoleLinks } from '../../../services/appwrite';
+import type { AppwriteProject } from '../../../types';
 
 interface TeamsTabProps {
+    activeProject: AppwriteProject;
     teams: Models.Team<any>[];
     selectedTeam: Models.Team<any> | null;
     memberships: Models.Membership[];
@@ -16,7 +20,7 @@ interface TeamsTabProps {
 }
 
 export const TeamsTab: React.FC<TeamsTabProps> = ({ 
-    teams, selectedTeam, memberships, 
+    activeProject, teams, selectedTeam, memberships, 
     onCreateTeam, onDeleteTeam, onSelectTeam, 
     onCreateMembership, onDeleteMembership 
 }) => {
@@ -29,13 +33,33 @@ export const TeamsTab: React.FC<TeamsTabProps> = ({
                 onDelete={onDeleteTeam} 
                 onSelect={(item) => onSelectTeam(item)} 
                 createLabel="New Team" 
+                extraActions={
+                    <a 
+                        href={consoleLinks.teams(activeProject)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all mr-2"
+                    >
+                        <ExternalLinkIcon size={14} /> Open in Console
+                    </a>
+                }
             />
         );
     }
 
     return (
         <>
-            <Breadcrumb items={[{ label: 'Teams', onClick: () => onSelectTeam(null) }, { label: selectedTeam.name }]} />
+            <div className="flex justify-between items-start">
+                <Breadcrumb items={[{ label: 'Teams', onClick: () => onSelectTeam(null) }, { label: selectedTeam.name }]} />
+                <a 
+                    href={consoleLinks.teams(activeProject)} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                >
+                    <ExternalLinkIcon size={14} /> View in Console
+                </a>
+            </div>
             <ResourceTable<Models.Membership> 
                 title="Memberships" 
                 data={memberships} 

@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, Message, AppwriteFunction } from '../types';
-import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon } from './Icons';
+import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, ExternalLinkIcon, SettingsIcon, KeyIcon, LinksIcon } from './Icons';
 import { RiRobot2Line } from 'react-icons/ri';
 import { AuditLogModal } from './AuditLogModal';
+import { consoleLinks } from '../services/appwrite';
 
 interface HeaderProps {
     isLeftSidebarOpen: boolean;
@@ -60,9 +61,33 @@ export const Header: React.FC<HeaderProps> = ({
                             
                             {activeProject && (
                                 <div className="flex items-center gap-2 ml-1 animate-fade-in border-l border-gray-700/50 pl-3">
-                                    <span className="text-sm font-medium text-cyan-100 truncate max-w-[150px] sm:max-w-[200px]" title={activeProject.name}>
+                                    <span className="text-sm font-medium text-cyan-100 truncate max-w-[150px] sm:max-w-[180px]" title={activeProject.name}>
                                         {activeProject.name}
                                     </span>
+                                    
+                                    {/* Project Quick Links */}
+                                    <div className="group relative">
+                                        <button className="p-1 text-gray-600 hover:text-gray-300 transition-colors">
+                                            <LinksIcon size={14} />
+                                        </button>
+                                        <div className="absolute left-0 top-full mt-2 w-48 py-1 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[60]">
+                                            <p className="px-3 py-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-widest border-b border-gray-800 mb-1">Project Links</p>
+                                            <a href={consoleLinks.overview(activeProject)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                                                <StudioIcon size={14}/> Console Overview
+                                            </a>
+                                            <a href={consoleLinks.settings(activeProject)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                                                <SettingsIcon size={14}/> Project Settings
+                                            </a>
+                                            <a href={consoleLinks.apiKeys(activeProject)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                                                <KeyIcon size={14}/> API Keys & Scopes
+                                            </a>
+                                            <div className="border-t border-gray-800 my-1"></div>
+                                            <div className="px-3 py-1.5 flex flex-col gap-1">
+                                                <p className="text-[9px] text-gray-600 uppercase font-bold">Endpoint</p>
+                                                <p className="text-[10px] text-cyan-500 font-mono truncate">{activeProject.endpoint}</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -120,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <button 
                                 onClick={() => setIsAuditModalOpen(true)}
                                 className="p-2 text-gray-400 hover:text-yellow-400 hover:bg-white/5 rounded-lg transition-colors"
-                                title="Audit Logs"
+                                title="Agent Audit Logs"
                             >
                                 <WarningIcon size={18} className="text-gray-400 hover:text-yellow-400" />
                             </button>

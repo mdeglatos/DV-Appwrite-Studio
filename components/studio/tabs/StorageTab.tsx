@@ -1,12 +1,14 @@
 
 import React from 'react';
-import type { Bucket } from '../../../types';
+import type { Bucket, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { FileIcon, RiShareForwardLine } from '../../Icons';
+import { FileIcon, RiShareForwardLine, ExternalLinkIcon } from '../../Icons';
+import { consoleLinks } from '../../../services/appwrite';
 
 interface StorageTabProps {
+    activeProject: AppwriteProject;
     buckets: Bucket[];
     selectedBucket: Bucket | null;
     files: Models.File[];
@@ -20,7 +22,7 @@ interface StorageTabProps {
 }
 
 export const StorageTab: React.FC<StorageTabProps> = ({
-    buckets, selectedBucket, files,
+    activeProject, buckets, selectedBucket, files,
     onCreateBucket, onDeleteBucket, onSelectBucket,
     onDeleteFile,
     onConsolidateBuckets
@@ -35,12 +37,22 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                 onSelect={(item) => onSelectBucket(item)} 
                 createLabel="New Bucket" 
                 extraActions={
-                    <button 
-                        onClick={onConsolidateBuckets}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors mr-2"
-                    >
-                        <RiShareForwardLine size={14} /> Transfer Files
-                    </button>
+                    <div className="flex items-center gap-2 mr-2">
+                        <a 
+                            href={consoleLinks.storage(activeProject)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                        >
+                            <ExternalLinkIcon size={14} /> Open in Console
+                        </a>
+                        <button 
+                            onClick={onConsolidateBuckets}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <RiShareForwardLine size={14} /> Transfer Files
+                        </button>
+                    </div>
                 }
             />
         );
@@ -48,7 +60,17 @@ export const StorageTab: React.FC<StorageTabProps> = ({
 
     return (
         <>
-            <Breadcrumb items={[{ label: 'Storage', onClick: () => onSelectBucket(null) }, { label: selectedBucket.name }]} />
+            <div className="flex justify-between items-start">
+                <Breadcrumb items={[{ label: 'Storage', onClick: () => onSelectBucket(null) }, { label: selectedBucket.name }]} />
+                <a 
+                    href={consoleLinks.bucket(activeProject, selectedBucket.$id)} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                >
+                    <ExternalLinkIcon size={14} /> View Bucket in Console
+                </a>
+            </div>
             <ResourceTable<Models.File> 
                 title={`Files in ${selectedBucket.name}`} 
                 data={files} 

@@ -119,4 +119,14 @@ export interface AppwriteFunction {
     commands: string;
 }
 
-export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations';
+export interface BackupOptions {
+    includeDatabases: boolean;
+    includeDocuments: boolean;
+    includeFunctions: boolean;
+    includeFunctionCode: boolean;
+    includeStorageMetadata: boolean;
+    includeUsers: boolean;
+    includeTeams: boolean;
+}
+
+export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations' | 'mcp' | 'backups';

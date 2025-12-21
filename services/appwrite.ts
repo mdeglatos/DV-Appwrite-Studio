@@ -29,6 +29,33 @@ function normalizeEndpoint(endpoint: string): string {
 }
 
 /**
+ * Generates a deep link to the Appwrite Console for a specific resource.
+ * The project segment follows the pattern: project-default-[PROJECT_ID]
+ */
+export function getConsoleUrl(project: AppwriteProject, path: string = ''): string {
+    // Convert https://host/v1 to https://host/console
+    const base = project.endpoint.replace(/\/v1\/?$/, '/console');
+    const projectPart = `project-default-${project.projectId}`;
+    return `${base}/${projectPart}${path}`;
+}
+
+export const consoleLinks = {
+    overview: (p: AppwriteProject) => getConsoleUrl(p, '/overview'),
+    databases: (p: AppwriteProject) => getConsoleUrl(p, '/databases'),
+    database: (p: AppwriteProject, dbId: string) => getConsoleUrl(p, `/databases/database-${dbId}`),
+    collection: (p: AppwriteProject, dbId: string, collId: string) => getConsoleUrl(p, `/databases/database-${dbId}/collection-${collId}`),
+    storage: (p: AppwriteProject) => getConsoleUrl(p, '/storage'),
+    bucket: (p: AppwriteProject, bucketId: string) => getConsoleUrl(p, `/storage/bucket-${bucketId}`),
+    functions: (p: AppwriteProject) => getConsoleUrl(p, '/functions'),
+    function: (p: AppwriteProject, funcId: string) => getConsoleUrl(p, `/functions/function-${funcId}`),
+    functionDomains: (p: AppwriteProject, funcId: string) => getConsoleUrl(p, `/functions/function-${funcId}/domains`),
+    users: (p: AppwriteProject) => getConsoleUrl(p, '/auth/users'),
+    teams: (p: AppwriteProject) => getConsoleUrl(p, '/auth/teams'),
+    settings: (p: AppwriteProject) => getConsoleUrl(p, '/settings'),
+    apiKeys: (p: AppwriteProject) => getConsoleUrl(p, '/overview/keys'),
+};
+
+/**
  * Enhanced error translator for browser-specific fetch issues.
  */
 export function handleFetchError(error: any): string {

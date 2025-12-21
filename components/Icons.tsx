@@ -2,8 +2,9 @@
 import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
-import { FaUser } from 'react-icons/fa';
-import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine } from 'react-icons/ri';
+import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
+// Added RiGlobalLine as _RiGlobalLine to the imports from react-icons/ri to allow exporting it as RiGlobalLine component
+import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiPlugLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine } from 'react-icons/ri';
 
 interface IconProps {
     size?: number;
@@ -47,6 +48,9 @@ export const SourcesIcon: React.FC<IconProps> = ({ size = 16, className }) => <R
 export const WarningIcon: React.FC<IconProps> = ({ size = 24, className }) => <RiErrorWarningLine size={size} className={`text-red-400 ${className || ''}`} />;
 export const EyeIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiEyeLine size={size} className={className} />;
 
+export const ExternalLinkIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiExternalLinkLine size={size} className={className} />;
+export const LinksIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiLinksLine size={size} className={className} />;
+
 // New Icons for Code Viewer
 export const FolderIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiFolderLine size={size} className={className} />;
 export const FileAddIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiFileAddLine size={size} className={className} />;
@@ -63,3 +67,13 @@ export const TeamIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiGr
 export const MigrationIcon: React.FC<IconProps> = ({ size = 20, className }) => <_RiShareForwardLine size={size} className={className} />;
 export const RiShareForwardLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiShareForwardLine size={size} className={className} />;
 export const RiRocketLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiRocketLine size={size} className={className} />;
+
+export const McpIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiPlugLine size={size} className={className} />;
+export const CommandLineIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiCommandLine size={size} className={className} />;
+// Added export for RiGlobalLine to fix the import error in McpTab.tsx
+export const RiGlobalLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiGlobalLine size={size} className={className} />;
+
+export const BackupIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiHistoryLine size={size} className={className} />;
+export const CloudIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiCloudLine size={size} className={className} />;
+export const DownloadCloudIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiDownloadCloud2Line size={size} className={className} />;
+export const UploadCloudIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiUploadCloud2Line size={size} className={className} />;

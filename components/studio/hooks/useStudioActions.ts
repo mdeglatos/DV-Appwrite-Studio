@@ -261,7 +261,8 @@ export function useStudioActions(
                 try {
                     // 1. Fetch latest function data to get accurate deployment pointer
                     const latestFunc = await sdk.get(selectedFunction.$id);
-                    let activeDeploymentId = latestFunc.deployment;
+                    // Fix: Cast latestFunc to any to avoid property access errors caused by shadowing of the native Function type or SDK version discrepancies
+                    let activeDeploymentId = (latestFunc as any).deployment;
 
                     // 2. Fetch all deployments
                     const res = await sdk.listDeployments(selectedFunction.$id, [Query.limit(100), Query.orderDesc('$createdAt')]);
@@ -332,7 +333,8 @@ export function useStudioActions(
                     logCallback(`   - Processing "${func.name}"...`);
                     try {
                         // 1. Find deployment ID (Active pointer or fallback to latest)
-                        let deploymentId = func.deployment;
+                        // Fix: Cast func to any to ensure safe access to the deployment property
+                        let deploymentId = (func as any).deployment;
                         if (!deploymentId) {
                             try {
                                 const deps = await sdk.listDeployments(func.$id, [Query.limit(1), Query.orderDesc('$createdAt')]);

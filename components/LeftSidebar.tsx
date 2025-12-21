@@ -5,12 +5,13 @@ import type { NewAppwriteProject } from '../services/projectService';
 import { 
     AddIcon, DeleteIcon, CloseIcon, ToolsIcon, ProjectsIcon, ChevronDownIcon, 
     KeyIcon, SettingsIcon, DashboardIcon, DatabaseIcon, StorageIcon, 
-    FunctionIcon, TeamIcon, EditIcon, WarningIcon
+    FunctionIcon, TeamIcon, EditIcon, WarningIcon, McpIcon, BackupIcon,
+    RiShareForwardLine
 } from './Icons';
-import { toolDefinitionGroups } from '../tools';
+import { ToolConfiguration } from './studio/ui/ToolConfiguration';
 import { Modal } from './Modal';
 
-// Sub-component for a single tool toggle switch
+// Sub-component for a single tool toggle switch (kept for local form inputs if needed, but primary tools use shared component)
 const ToolToggle: React.FC<{
     label: string;
     isChecked: boolean;
@@ -132,7 +133,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     studioNav: true,
   });
 
-  const [expandedToolCategories, setExpandedToolCategories] = useState<{ [key: string]: boolean }>({});
   const [editingProject, setEditingProject] = useState<AppwriteProject | null>(null);
 
   useEffect(() => {
@@ -169,42 +169,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         setEditingProject(null);
     }
   };
-
-  const handleToolChange = (toolName: string, isChecked: boolean) => {
-    onToolsChange({ ...activeTools, [toolName]: isChecked });
-  };
-    
-  const toggleToolCategory = (category: string) => {
-    setExpandedToolCategories(prev => ({ ...prev, [category]: !prev[category] }));
-  };
-
-  const handleEnableAllTools = () => {
-    const newTools: { [key: string]: boolean } = { search: true };
-    Object.values(toolDefinitionGroups).flat().forEach(tool => {
-        newTools[tool.name] = true;
-    });
-    onToolsChange(newTools);
-  };
-
-  const handleDisableAllTools = () => {
-    const newTools: { [key: string]: boolean } = { search: false };
-    Object.values(toolDefinitionGroups).flat().forEach(tool => {
-        newTools[tool.name] = false;
-    });
-    onToolsChange(newTools);
-  };
-
-  const handleEnableCategory = (tools: any[]) => {
-    const newTools = { ...activeTools };
-    tools.forEach(t => newTools[t.name] = true);
-    onToolsChange(newTools);
-  };
-
-  const handleDisableCategory = (tools: any[]) => {
-    const newTools = { ...activeTools };
-    tools.forEach(t => newTools[t.name] = false);
-    onToolsChange(newTools);
-  };
   
   const hasGeminiSettingsChanged = (apiKeyInput.trim() !== (geminiApiKey || '')) || (modelInput !== geminiModel) || (thinkingInput !== geminiThinkingEnabled);
   
@@ -221,12 +185,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setThinkingInput(geminiThinkingEnabled);
   };
 
-  const getIndicatorInfo = (checked: number, total: number) => {
-    if (checked === 0) return { className: 'bg-gray-700', title: 'None' };
-    if (checked === total && total > 0) return { className: 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]', title: 'All' };
-    return { className: 'bg-yellow-500', title: 'Partial' };
-  };
-
   const studioTabs: { id: StudioTab, label: string, icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <DashboardIcon /> },
     { id: 'database', label: 'Databases', icon: <DatabaseIcon /> },
@@ -234,6 +192,9 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     { id: 'functions', label: 'Functions', icon: <FunctionIcon /> },
     { id: 'users', label: 'Auth & Users', icon: <TeamIcon /> },
     { id: 'teams', label: 'Teams', icon: <TeamIcon /> },
+    { id: 'migrations', label: 'Migrations', icon: <RiShareForwardLine /> },
+    { id: 'mcp', label: 'MCP Server', icon: <McpIcon /> },
+    { id: 'backups', label: 'Backups', icon: <BackupIcon /> },
   ];
 
   const closeEditingModal = useCallback(() => {
@@ -293,7 +254,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     onClick={() => onSelect(p)}
                     className={`group flex items-center justify-between gap-2 p-2 rounded-lg transition-all cursor-pointer border border-transparent ${
                       activeProject?.$id === p.$id
-                        ? 'bg-cyan-950/40 border-cyan-500/20 shadow-sm text-cyan-200'
+                        ? 'bg-cyan-950/40 border-cyan-500/30 shadow-sm text-cyan-200'
                         : 'hover:bg-gray-800/50 hover:border-gray-700/50 text-gray-400'
                     }`}
                   >
@@ -349,96 +310,19 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 </CollapsibleSection>
             )}
 
-            {/* AGENT MODE TOOLS & SETTINGS */}
+            {/* AGENT MODE TOOLS & SETTINGS - Using Shared Component */}
             {viewMode === 'agent' && (
                 <>
                     <CollapsibleSection
-                    title="Tools"
-                    icon={<ToolsIcon />}
-                    isExpanded={expandedSections.tools}
-                    onToggle={() => toggleSection('tools')}
+                        title="Tools"
+                        icon={<ToolsIcon />}
+                        isExpanded={expandedSections.tools}
+                        onToggle={() => toggleSection('tools')}
                     >
-                    <div className="flex gap-2 mb-3">
-                        <button 
-                            type="button"
-                            onClick={handleEnableAllTools}
-                            className="flex-1 py-1.5 rounded bg-gray-800 border border-gray-700 hover:bg-cyan-900/30 hover:border-cyan-500/30 hover:text-cyan-200 text-xs text-gray-400 transition-all font-medium"
-                        >
-                            Enable All
-                        </button>
-                        <button 
-                            type="button"
-                            onClick={handleDisableAllTools}
-                            className="flex-1 py-1.5 rounded bg-gray-800 border border-gray-700 hover:bg-red-900/20 hover:border-red-500/30 hover:text-red-200 text-xs text-gray-400 transition-all font-medium"
-                        >
-                            Disable All
-                        </button>
-                    </div>
-
-                    <div className="space-y-2">
-                        <div className="bg-gray-900/30 rounded-lg border border-gray-800/50">
-                            <ToolToggle
-                                label="Web Search"
-                                isChecked={activeTools['search'] ?? false}
-                                onChange={(isChecked) => handleToolChange('search', isChecked)}
-                            />
-                        </div>
-
-                        {Object.entries(toolDefinitionGroups).map(([category, tools]) => {
-                            const categoryToolNames = tools.map(t => t.name);
-                            const checkedCount = categoryToolNames.filter(tool => activeTools[tool]).length;
-                            const totalCount = categoryToolNames.length;
-                            const isExpanded = expandedToolCategories[category] ?? false;
-                            const indicator = getIndicatorInfo(checkedCount, totalCount);
-
-                            return (
-                                <div key={category} className="bg-gray-900/30 rounded-lg border border-gray-800/50 overflow-hidden">
-                                    <div className="group px-3 py-2 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => toggleToolCategory(category)}>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2.5">
-                                                <span className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${indicator.className}`} />
-                                                <span className="text-xs font-medium capitalize text-gray-400 group-hover:text-gray-300">{category}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="hidden group-hover:flex items-center gap-1 mr-1">
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleEnableCategory(tools); }}
-                                                        className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 hover:bg-cyan-900/50 text-gray-500 hover:text-cyan-400 border border-gray-700 transition-colors"
-                                                        title="Enable all in category"
-                                                    >
-                                                        On
-                                                    </button>
-                                                    <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleDisableCategory(tools); }}
-                                                        className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 hover:bg-red-900/50 text-gray-500 hover:text-red-400 border border-gray-700 transition-colors"
-                                                        title="Disable all in category"
-                                                    >
-                                                        Off
-                                                    </button>
-                                                </div>
-                                                <span className="text-[10px] text-gray-600 font-mono">{checkedCount}/{totalCount}</span>
-                                                <div className={`text-gray-600 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                                                    <ChevronDownIcon size={12} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {isExpanded && (
-                                        <div className="border-t border-gray-800/50 bg-black/20 p-1">
-                                            {tools.map(tool => (
-                                                <ToolToggle
-                                                    key={tool.name}
-                                                    label={tool.name}
-                                                    isChecked={activeTools[tool.name] ?? false}
-                                                    onChange={(isChecked) => handleToolChange(tool.name, isChecked)}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                        <ToolConfiguration 
+                            activeTools={activeTools} 
+                            onToolsChange={onToolsChange} 
+                        />
                     </CollapsibleSection>
 
                     <CollapsibleSection

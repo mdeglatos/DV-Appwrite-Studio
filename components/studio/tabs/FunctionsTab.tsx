@@ -1,13 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import type { AppwriteFunction } from '../../../types';
+import type { AppwriteFunction, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon } from '../../Icons';
+// Removed unused and non-exported 'RiLinksLine'
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon, ExternalLinkIcon, RiGlobalLine } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
+import { consoleLinks } from '../../../services/appwrite';
 
 interface FunctionsTabProps {
+    activeProject: AppwriteProject;
     functions: AppwriteFunction[];
     selectedFunction: AppwriteFunction | null;
     deployments: Models.Deployment[];
@@ -44,7 +47,7 @@ const formatBytes = (bytes: number, decimals = 1) => {
 };
 
 export const FunctionsTab: React.FC<FunctionsTabProps> = ({
-    functions, selectedFunction, deployments, executions,
+    activeProject, functions, selectedFunction, deployments, executions,
     onCreateFunction, onDeleteFunction, onSelectFunction,
     onActivateDeployment,
     onDeleteAllExecutions, onViewExecution,
@@ -70,14 +73,24 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                 onSelect={(item) => onSelectFunction(item)} 
                 createLabel="Create Function" 
                 extraActions={
-                    onRedeployAll && (
-                        <button 
-                            onClick={onRedeployAll}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors mr-2"
+                    <div className="flex items-center gap-2 mr-2">
+                        <a 
+                            href={consoleLinks.functions(activeProject)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
                         >
-                            <RefreshIcon size={14} /> Redeploy All
-                        </button>
-                    )
+                            <ExternalLinkIcon size={14} /> Console
+                        </a>
+                        {onRedeployAll && (
+                            <button 
+                                onClick={onRedeployAll}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors"
+                            >
+                                <RefreshIcon size={14} /> Redeploy All
+                            </button>
+                        )}
+                    </div>
                 }
                 renderExtra={(f) => (
                     <div className="flex items-center gap-3">
@@ -98,7 +111,27 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
 
     return (
         <>
-            <Breadcrumb items={[{ label: 'Functions', onClick: () => onSelectFunction(null) }, { label: selectedFunction.name }]} />
+            <div className="flex justify-between items-start">
+                <Breadcrumb items={[{ label: 'Functions', onClick: () => onSelectFunction(null) }, { label: selectedFunction.name }]} />
+                <div className="flex gap-2">
+                     <a 
+                        href={consoleLinks.functionDomains(activeProject, selectedFunction.$id)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 hover:bg-blue-900/40 border border-blue-800 text-blue-300 rounded-lg text-xs font-bold transition-all"
+                    >
+                        <RiGlobalLine size={14} /> Domains
+                    </a>
+                    <a 
+                        href={consoleLinks.function(activeProject, selectedFunction.$id)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                    >
+                        <ExternalLinkIcon size={14} /> View in Console
+                    </a>
+                </div>
+            </div>
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 bg-gray-900/30 p-4 rounded-xl border border-gray-800/50">
                 <div className="flex items-center gap-4">
@@ -203,7 +236,8 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                                     </div>
                                     <div className="flex items-center gap-1.5 text-[10px] text-gray-500 italic">
                                         <TerminalIcon size={10} />
-                                        <span className="truncate" title={d.commands}>{d.commands || 'No build command'}</span>
+                                        {/* Fix: Cast d to any to access commands property which might be missing in some SDK type definitions */}
+                                        <span className="truncate" title={(d as any).commands}>{(d as any).commands || 'No build command'}</span>
                                     </div>
                                 </div>
 

@@ -279,6 +279,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                                     setIsCodeViewerSidebarOpen(true);
                                 }}
                                 logCallback={logCallback}
+                                activeTools={activeTools}
                             />
                         ) : (
                              <div className="flex flex-col items-center justify-center h-full text-center p-8 overflow-y-auto">

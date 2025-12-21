@@ -14,6 +14,8 @@ import { FunctionsTab } from './studio/tabs/FunctionsTab';
 import { UsersTab } from './studio/tabs/UsersTab';
 import { TeamsTab } from './studio/tabs/TeamsTab';
 import { MigrationsTab } from './studio/tabs/MigrationsTab';
+import { McpTab } from './studio/tabs/McpTab';
+import { BackupsTab } from './studio/tabs/BackupsTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
 
@@ -34,11 +36,12 @@ interface StudioProps {
     onTabChange: (tab: StudioTab) => void;
     onEditCode: (func: AppwriteFunction) => void;
     logCallback: (msg: string) => void;
+    activeTools: { [key: string]: boolean };
 }
 
 export const Studio: React.FC<StudioProps> = ({ 
     activeProject, projects, databases, buckets, functions, 
-    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback
+    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback, activeTools
 }) => {
     
     // 1. Initialize Core Logic Hooks
@@ -76,13 +79,14 @@ export const Studio: React.FC<StudioProps> = ({
             <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
                  {(dataLoading || modalLoading) && (
                     <div className="absolute top-4 right-4 z-10">
-                        <LoadingSpinnerIcon className="text-cyan-500" />
+                        <LoadingSpinnerIcon />
                     </div>
                  )}
                 
                 <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-10">
                     {activeTab === 'overview' && (
                         <OverviewTab 
+                            activeProject={activeProject}
                             databases={databases} buckets={buckets} functions={functions} 
                             users={users} teams={teams} onTabChange={onTabChange} 
                         />
@@ -90,6 +94,7 @@ export const Studio: React.FC<StudioProps> = ({
 
                     {activeTab === 'database' && (
                         <DatabasesTab 
+                            activeProject={activeProject}
                             databases={databases} selectedDb={selectedDb} selectedCollection={selectedCollection}
                             collections={collections} documents={documents} attributes={attributes} indexes={indexes}
                             onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
@@ -103,6 +108,7 @@ export const Studio: React.FC<StudioProps> = ({
 
                     {activeTab === 'storage' && (
                         <StorageTab 
+                            activeProject={activeProject}
                             buckets={buckets} selectedBucket={selectedBucket} files={files}
                             onCreateBucket={studioActions.handleCreateBucket} onDeleteBucket={studioActions.handleDeleteBucket} onSelectBucket={setSelectedBucket}
                             onDeleteFile={studioActions.handleDeleteFile}
@@ -112,6 +118,7 @@ export const Studio: React.FC<StudioProps> = ({
 
                     {activeTab === 'functions' && (
                         <FunctionsTab 
+                            activeProject={activeProject}
                             functions={functions} selectedFunction={selectedFunction} 
                             deployments={deployments} executions={executions}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
@@ -126,11 +133,12 @@ export const Studio: React.FC<StudioProps> = ({
                     )}
 
                     {activeTab === 'users' && (
-                        <UsersTab users={users} onCreateUser={studioActions.handleCreateUser} onDeleteUser={studioActions.handleDeleteUser} />
+                        <UsersTab activeProject={activeProject} users={users} onCreateUser={studioActions.handleCreateUser} onDeleteUser={studioActions.handleDeleteUser} />
                     )}
 
                     {activeTab === 'teams' && (
                         <TeamsTab 
+                            activeProject={activeProject}
                             teams={teams} selectedTeam={selectedTeam} memberships={memberships}
                             onCreateTeam={studioActions.handleCreateTeam} onDeleteTeam={studioActions.handleDeleteTeam} onSelectTeam={setSelectedTeam}
                             onCreateMembership={studioActions.handleCreateMembership} onDeleteMembership={studioActions.handleDeleteMembership}
@@ -139,6 +147,14 @@ export const Studio: React.FC<StudioProps> = ({
 
                     {activeTab === 'migrations' && (
                         <MigrationsTab activeProject={activeProject} projects={projects} />
+                    )}
+
+                    {activeTab === 'mcp' && (
+                        <McpTab activeProject={activeProject} />
+                    )}
+
+                    {activeTab === 'backups' && (
+                        <BackupsTab activeProject={activeProject} logCallback={logCallback} />
                     )}
                 </div>
             </div>
