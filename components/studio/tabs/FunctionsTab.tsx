@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 // Removed unused and non-exported 'RiLinksLine'
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon, ExternalLinkIcon, RiGlobalLine } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -30,8 +30,10 @@ interface FunctionsTabProps {
     onCleanupOldDeployments?: () => void;
     onRedeployAll?: () => void;
     
-    // New prop for code editing
+    // New prop for code editing and actions
     onEditCode?: (f: AppwriteFunction) => void;
+    onRedeploy?: (f: AppwriteFunction) => void;
+    onRefresh?: () => void;
 }
 
 /**
@@ -54,7 +56,9 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     onBulkDeleteDeployments,
     onCleanupOldDeployments,
     onRedeployAll,
-    onEditCode
+    onEditCode,
+    onRedeploy,
+    onRefresh
 }) => {
     const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([]);
 
@@ -114,6 +118,14 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
             <div className="flex justify-between items-start">
                 <Breadcrumb items={[{ label: 'Functions', onClick: () => onSelectFunction(null) }, { label: selectedFunction.name }]} />
                 <div className="flex gap-2">
+                    {onRefresh && (
+                        <button
+                            onClick={onRefresh}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                        >
+                            <RefreshIcon size={14} /> Refresh
+                        </button>
+                    )}
                      <a 
                         href={consoleLinks.functionDomains(activeProject, selectedFunction.$id)} 
                         target="_blank" 
@@ -152,14 +164,24 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                         </div>
                      </div>
                 </div>
-                 {onEditCode && (
-                    <button
-                        onClick={() => onEditCode(selectedFunction)}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-purple-900/20 transition-all transform hover:scale-105"
-                    >
-                        <CodeIcon size={16} /> Edit Source & Deploy
-                    </button>
-                )}
+                <div className="flex gap-2">
+                    {onRedeploy && (
+                        <button
+                            onClick={() => onRedeploy(selectedFunction)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg border border-gray-600 transition-all hover:border-gray-500"
+                        >
+                            <RiRocketLine size={16} /> Redeploy
+                        </button>
+                    )}
+                    {onEditCode && (
+                        <button
+                            onClick={() => onEditCode(selectedFunction)}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-purple-900/20 transition-all transform hover:scale-105"
+                        >
+                            <CodeIcon size={16} /> Edit Source & Deploy
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="space-y-8">

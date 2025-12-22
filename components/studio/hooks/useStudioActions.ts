@@ -315,6 +315,67 @@ export function useStudioActions(
         });
     };
 
+    const handleRedeployFunction = (func: AppwriteFunction) => {
+        confirmAction(
+            "Redeploy Function",
+            `Create a new deployment for "${func.name}" using the active/latest source code?`,
+            async () => {
+                setModalLoading(true);
+                const sdk = getSdkFunctions(activeProject);
+                
+                try {
+                    // Logic to get code and deploy
+                    let deploymentId = (func as any).deployment;
+                    if (!deploymentId) {
+                        const deps = await sdk.listDeployments(func.$id, [Query.limit(1), Query.orderDesc('$createdAt')]);
+                        if (deps.deployments.length > 0) {
+                            deploymentId = deps.deployments[0].$id;
+                        }
+                    }
+
+                    if (!deploymentId) {
+                        throw new Error("No deployments found to redeploy from.");
+                    }
+
+                    const files = await downloadAndUnpackDeployment(activeProject, func.$id, deploymentId);
+                    if (!files || files.length === 0) {
+                        throw new Error("Deployment source empty or unavailable.");
+                    }
+
+                    const sanitizedFiles = files.map(f => ({
+                        ...f,
+                        name: f.name.replace(/^\.\//, '')
+                    }));
+
+                    let finalCommands = func.commands;
+                    const hasPackageJson = sanitizedFiles.some(f => f.name === 'package.json');
+                    const isNode = func.runtime && func.runtime.startsWith('node');
+                    
+                    if (!finalCommands && isNode && hasPackageJson) {
+                        finalCommands = 'npm install';
+                    }
+
+                    await deployCodeFromString(
+                        activeProject, 
+                        func.$id, 
+                        sanitizedFiles, 
+                        true, // activate
+                        func.entrypoint, 
+                        finalCommands
+                    );
+                    
+                    logCallback(`Studio: Redeployed "${func.name}" successfully.`);
+                    fetchFunctionDetails(func.$id); // Refresh
+                } catch (e: any) {
+                    logCallback(`Studio Error: ${e.message}`);
+                    alert(`Failed to redeploy: ${e.message}`);
+                } finally {
+                    setModalLoading(false);
+                }
+            }
+        );
+    };
+
     const handleRedeployAllFunctions = (allFunctions: AppwriteFunction[]) => {
         if (allFunctions.length === 0) return;
         confirmAction(
@@ -466,7 +527,7 @@ export function useStudioActions(
         handleCreateAttribute, handleDeleteAttribute, handleCreateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleDeleteFile,
         handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleCleanupOldDeployments, handleDeleteAllExecutions,
-        handleRedeployAllFunctions,
+        handleRedeployAllFunctions, handleRedeployFunction,
         handleCreateUser, handleDeleteUser,
         handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership
     };

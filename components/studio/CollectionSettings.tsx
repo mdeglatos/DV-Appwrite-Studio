@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { Models } from 'appwrite';
+import type { Models } from 'node-appwrite';
 import { SettingsIcon, LoadingSpinnerIcon, CheckIcon, WarningIcon } from '../Icons';
 
 interface CollectionSettingsProps {

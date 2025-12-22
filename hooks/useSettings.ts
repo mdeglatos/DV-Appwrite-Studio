@@ -9,8 +9,8 @@ import { toolDefinitionGroups } from '../tools';
 const allIndividualToolNames = Object.values(toolDefinitionGroups).flat().map(tool => tool.name);
 const allToolNames = ['search', ...allIndividualToolNames];
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'];
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODELS = ['gemini-3-flash', 'gemini-3-pro'];
+const DEFAULT_GEMINI_MODEL = 'gemini-3-flash';
 
 export function useSettings(currentUser: Models.User<UserPrefs>, refreshUser: () => Promise<void>, logCallback: (log: string) => void) {
     const [activeTools, setActiveTools] = useState(() => {

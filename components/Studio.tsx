@@ -129,6 +129,8 @@ export const Studio: React.FC<StudioProps> = ({
                             onCleanupOldDeployments={studioActions.handleCleanupOldDeployments}
                             onEditCode={onEditCode}
                             onRedeployAll={() => studioActions.handleRedeployAllFunctions(functions)}
+                            onRedeploy={(func) => studioActions.handleRedeployFunction(func)}
+                            onRefresh={() => selectedFunction && studioData.fetchFunctionDetails(selectedFunction.$id)}
                         />
                     )}
 
