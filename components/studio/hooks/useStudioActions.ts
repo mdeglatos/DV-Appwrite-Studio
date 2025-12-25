@@ -145,9 +145,156 @@ export function useStudioActions(
                     onFinish();
                 });
                 break;
-            // Additional types handled similarly...
+            case 'float':
+                openForm("Create Float Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }], async (d: any) => {
+                    await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, undefined, d.array);
+                    onFinish();
+                });
+                break;
+            case 'email':
+                openForm("Create Email Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
+                    await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    onFinish();
+                });
+                break;
+            case 'url':
+                openForm("Create URL Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
+                    await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    onFinish();
+                });
+                break;
+            case 'ip':
+                openForm("Create IP Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
+                    await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    onFinish();
+                });
+                break;
+            case 'datetime':
+                openForm("Create Datetime Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
+                    await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    onFinish();
+                });
+                break;
+            case 'enum':
+                openForm("Create Enum Attribute", [...baseFields, { name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', required: true }, { name: 'default', label: 'Default' }], async (d: any) => {
+                    const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
+                    await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default, d.array);
+                    onFinish();
+                });
+                break;
+            case 'relationship':
+                openForm("Create Relationship", [
+                    { name: 'relatedCollectionId', label: 'Related Collection ID', required: true },
+                    { name: 'type', label: 'Type', type: 'select', options: [{label: 'One to One', value: 'oneToOne'}, {label: 'One to Many', value: 'oneToMany'}, {label: 'Many to One', value: 'manyToOne'}, {label: 'Many to Many', value: 'manyToMany'}], required: true },
+                    { name: 'twoWay', label: 'Two Way', type: 'checkbox', defaultValue: false },
+                    { name: 'key', label: 'Key', required: true },
+                    { name: 'twoWayKey', label: 'Two Way Key' },
+                    { name: 'onDelete', label: 'On Delete', type: 'select', options: [{label: 'Restrict', value: 'restrict'}, {label: 'Cascade', value: 'cascade'}, {label: 'Set Null', value: 'setNull'}] }
+                ], async (d: any) => {
+                    await sdk.createRelationshipAttribute(dbId, collId, d.relatedCollectionId, d.type, d.twoWay, d.key, d.twoWayKey, d.onDelete);
+                    onFinish();
+                });
+                break;
             default:
                 alert(`Attribute type ${type} creation is available in the full Appwrite console.`);
+        }
+    };
+
+    const handleUpdateAttribute = (attr: any) => {
+        if (!selectedDb || !selectedCollection) return;
+        const sdk = getSdkDatabases(activeProject);
+        const dbId = selectedDb.$id;
+        const collId = selectedCollection.$id;
+        const key = attr.key;
+
+        const requiredField: FormField = { name: 'required', label: 'Required', type: 'checkbox', defaultValue: attr.required };
+        const defaultField: FormField = { name: 'default', label: 'Default Value', defaultValue: attr.default };
+        
+        const onFinish = () => fetchCollectionDetails(dbId, collId);
+
+        switch (attr.type) {
+            case 'string':
+                openForm(`Edit String: ${key}`, [requiredField, defaultField], async (d: any) => {
+                    await sdk.updateStringAttribute(dbId, collId, key, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'integer':
+                openForm(`Edit Integer: ${key}`, [
+                    requiredField,
+                    { name: 'min', label: 'Min', type: 'number', defaultValue: attr.min }, 
+                    { name: 'max', label: 'Max', type: 'number', defaultValue: attr.max },
+                    { name: 'default', label: 'Default', type: 'number', defaultValue: attr.default }
+                ], async (d: any) => {
+                    await sdk.updateIntegerAttribute(dbId, collId, key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default ? Number(d.default) : undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'float':
+                 openForm(`Edit Float: ${key}`, [
+                    requiredField,
+                    { name: 'min', label: 'Min', type: 'number', defaultValue: attr.min }, 
+                    { name: 'max', label: 'Max', type: 'number', defaultValue: attr.max },
+                    { name: 'default', label: 'Default', type: 'number', defaultValue: attr.default }
+                ], async (d: any) => {
+                    await sdk.updateFloatAttribute(dbId, collId, key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default ? Number(d.default) : undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'boolean':
+                openForm(`Edit Boolean: ${key}`, [
+                    requiredField,
+                    { name: 'default', label: 'Default', type: 'checkbox', defaultValue: attr.default }
+                ], async (d: any) => {
+                    await sdk.updateBooleanAttribute(dbId, collId, key, d.required, d.default);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'email':
+                openForm(`Edit Email: ${key}`, [requiredField, defaultField], async (d: any) => {
+                    await sdk.updateEmailAttribute(dbId, collId, key, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'url':
+                openForm(`Edit URL: ${key}`, [requiredField, defaultField], async (d: any) => {
+                    await sdk.updateUrlAttribute(dbId, collId, key, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'ip':
+                openForm(`Edit IP: ${key}`, [requiredField, defaultField], async (d: any) => {
+                    await sdk.updateIpAttribute(dbId, collId, key, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'datetime':
+                openForm(`Edit Datetime: ${key}`, [requiredField, defaultField], async (d: any) => {
+                    await sdk.updateDatetimeAttribute(dbId, collId, key, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'enum':
+                openForm(`Edit Enum: ${key}`, [
+                    { name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', defaultValue: attr.elements?.join(', '), required: true },
+                    requiredField,
+                    defaultField
+                ], async (d: any) => {
+                    const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
+                    await sdk.updateEnumAttribute(dbId, collId, key, els, d.required, d.default || undefined);
+                    onFinish();
+                }, "Update");
+                break;
+            case 'relationship':
+                 openForm(`Edit Relationship: ${key}`, [
+                    { name: 'onDelete', label: 'On Delete', type: 'select', defaultValue: attr.onDelete, options: [{label: 'Restrict', value: 'restrict'}, {label: 'Cascade', value: 'cascade'}, {label: 'Set Null', value: 'setNull'}] }
+                ], async (d: any) => {
+                    await sdk.updateRelationshipAttribute(dbId, collId, key, d.onDelete);
+                    onFinish();
+                }, "Update");
+                break;
+            default:
+                alert(`Editing for attribute type "${attr.type}" is not fully supported.`);
         }
     };
 
@@ -524,7 +671,7 @@ export function useStudioActions(
         handleCreateDatabase, handleDeleteDatabase,
         handleCreateCollection, handleUpdateCollectionSettings, handleDeleteCollection,
         handleCreateDocument, handleUpdateDocument, handleDeleteDocument,
-        handleCreateAttribute, handleDeleteAttribute, handleCreateIndex, handleDeleteIndex,
+        handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleDeleteFile,
         handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleCleanupOldDeployments, handleDeleteAllExecutions,
         handleRedeployAllFunctions, handleRedeployFunction,

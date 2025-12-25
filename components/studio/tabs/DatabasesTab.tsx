@@ -34,6 +34,7 @@ interface DatabasesTabProps {
     onDeleteDocument: (doc: Models.Document) => void;
     
     onCreateAttribute: (type: string) => void;
+    onUpdateAttribute: (attr: any) => void;
     onDeleteAttribute: (attr: any) => void;
     
     onCreateIndex: () => void;
@@ -48,7 +49,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     onCreateDatabase, onDeleteDatabase, onSelectDb,
     onCreateCollection, onDeleteCollection, onSelectCollection,
     onCreateDocument, onUpdateDocument, onDeleteDocument,
-    onCreateAttribute, onDeleteAttribute,
+    onCreateAttribute, onUpdateAttribute, onDeleteAttribute,
     onCreateIndex, onDeleteIndex,
     onUpdateCollectionSettings
 }) => {
@@ -175,6 +176,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         onDelete={(item) => onDeleteAttribute(item)} 
                         createLabel="Add Attribute"
                         onCreate={() => onCreateAttribute(attributeType)}
+                        onEdit={onUpdateAttribute}
                         extraActions={
                             <div className="relative mr-2">
                                 <select 

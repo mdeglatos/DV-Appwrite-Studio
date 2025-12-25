@@ -100,7 +100,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
                             onCreateCollection={studioActions.handleCreateCollection} onDeleteCollection={studioActions.handleDeleteCollection} onSelectCollection={setSelectedCollection}
                             onCreateDocument={studioActions.handleCreateDocument} onUpdateDocument={studioActions.handleUpdateDocument} onDeleteDocument={studioActions.handleDeleteDocument}
-                            onCreateAttribute={studioActions.handleCreateAttribute} onDeleteAttribute={studioActions.handleDeleteAttribute}
+                            onCreateAttribute={studioActions.handleCreateAttribute} onUpdateAttribute={studioActions.handleUpdateAttribute} onDeleteAttribute={studioActions.handleDeleteAttribute}
                             onCreateIndex={studioActions.handleCreateIndex} onDeleteIndex={studioActions.handleDeleteIndex}
                             onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
                         />
