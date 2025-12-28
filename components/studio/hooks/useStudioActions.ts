@@ -5,6 +5,8 @@ import type { AppwriteProject, Database, Bucket, AppwriteFunction } from '../../
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tools/functionsTools';
+import React from 'react';
+import { DocumentEditor } from '../ui/DocumentEditor';
 
 export function useStudioActions(
     activeProject: AppwriteProject,
@@ -20,7 +22,7 @@ export function useStudioActions(
         fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships 
     } = data;
 
-    const { confirmAction, openForm, setModalLoading } = modals;
+    const { confirmAction, openForm, setModalLoading, setModal, openCustomModal, closeModal } = modals;
 
     // -- Database --
     const handleCreateDatabase = () => {
@@ -93,16 +95,20 @@ export function useStudioActions(
 
     const handleUpdateDocument = (doc: Models.Document) => {
         if (!selectedDb || !selectedCollection) return;
-        const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...dataFields } = doc;
-        openForm("Edit Document", [
-            { name: 'data', label: 'JSON Data', type: 'textarea', defaultValue: JSON.stringify(dataFields, null, 2), required: true },
-            { name: 'permissions', label: 'Permissions', defaultValue: $permissions.join(', ') }
-        ], async (formData: any) => {
-            const updatedData = JSON.parse(formData.data);
-            const permsArray = formData.permissions ? formData.permissions.split(',').map((p: string) => p.trim()).filter(Boolean) : undefined;
-            await getSdkDatabases(activeProject).updateDocument(selectedDb.$id, selectedCollection.$id, doc.$id, updatedData, permsArray);
-            fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
-        }, "Save Changes");
+        
+        openCustomModal(
+            "Edit Document", 
+            React.createElement(DocumentEditor, {
+                document: doc,
+                onCancel: closeModal,
+                onSave: async (updatedData: any, permsArray: string[]) => {
+                    await getSdkDatabases(activeProject).updateDocument(selectedDb.$id, selectedCollection.$id, doc.$id, updatedData, permsArray);
+                    fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
+                    closeModal();
+                }
+            }),
+            '3xl'
+        );
     };
 
     const handleDeleteDocument = (doc: Models.Document) => {
@@ -450,15 +456,55 @@ export function useStudioActions(
 
     const handleDeleteAllExecutions = () => {
         if (!selectedFunction) return;
-        confirmAction("Clear All Execution History", `Delete ALL logs for "${selectedFunction.name}"?`, async () => {
+        confirmAction("Clear All Execution History", `Delete ALL logs for "${selectedFunction.name}"? This may take some time for large histories.`, async () => {
             const sdk = getSdkFunctions(activeProject);
-            while (true) {
-                const res = await sdk.listExecutions(selectedFunction.$id, [Query.limit(100)]);
-                if (res.executions.length === 0) break;
-                await Promise.all(res.executions.map(ex => sdk.deleteExecution(selectedFunction.$id, ex.$id)));
-                if (res.executions.length < 100) break;
+            const BATCH_SIZE = 100; // Max allowed by API for efficiency
+            let totalPurged = 0;
+            
+            logCallback(`🚀 Turbo Purge: Starting high-speed execution log cleanup for "${selectedFunction.name}"...`);
+            setModalLoading(true);
+
+            try {
+                while (true) {
+                    // 1. Fetch next batch
+                    const res = await sdk.listExecutions(selectedFunction.$id, [Query.limit(BATCH_SIZE)]);
+                    const executions = res.executions;
+                    const serverTotal = res.total;
+                    
+                    if (executions.length === 0) break;
+
+                    // 2. Update UI with granular progress
+                    const progressMsg = `Turbo Purge: Deleted ${totalPurged} of approx. ${serverTotal} logs...`;
+                    setModal((prev: any) => ({ ...prev, message: progressMsg, confirmLabel: 'Purging...' }));
+                    logCallback(`   - ${progressMsg}`);
+
+                    // 3. Delete concurrently with resilience to 404 race conditions
+                    const results = await Promise.allSettled(
+                        executions.map(ex => sdk.deleteExecution(selectedFunction.$id, ex.$id))
+                    );
+                    
+                    const batchSuccess = results.filter(r => r.status === 'fulfilled').length;
+                    totalPurged += batchSuccess;
+                    
+                    // Safety: If we listed items but managed to delete 0 of them, stop to avoid infinite loop
+                    if (batchSuccess === 0 && executions.length > 0) {
+                        logCallback(`   ⚠️ Purge stalled. Likely permission issue or backend state mismatch.`);
+                        break;
+                    }
+
+                    // If we got fewer than the batch size, we are done
+                    if (executions.length < BATCH_SIZE) break;
+                    
+                    // Immediate next iteration - no throttle for Turbo mode
+                }
+                
+                logCallback(`✅ Purge Complete: Successfully removed ${totalPurged} execution logs.`);
+            } catch (e: any) {
+                logCallback(`❌ Turbo Purge interrupted after ${totalPurged} items: ${e.message}`);
+            } finally {
+                setModalLoading(false);
+                fetchFunctionDetails(selectedFunction.$id);
             }
-            fetchFunctionDetails(selectedFunction.$id);
         });
     };
 

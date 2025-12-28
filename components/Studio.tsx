@@ -18,6 +18,7 @@ import { McpTab } from './studio/tabs/McpTab';
 import { BackupsTab } from './studio/tabs/BackupsTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
+import { DocumentDetails } from './studio/ui/DocumentDetails';
 
 // Hooks
 import { useStudioData } from './studio/hooks/useStudioData';
@@ -63,9 +64,21 @@ export const Studio: React.FC<StudioProps> = ({
 
     const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal } = studioModals;
 
-    // Special handler that needs local UI component
+    // Special handlers that need local UI components
     const handleViewExecution = (exec: Models.Execution) => {
         openCustomModal("Execution Details", <ExecutionDetails execution={exec} />, '3xl');
+    };
+
+    const handleViewDocument = (doc: Models.Document) => {
+        openCustomModal(
+            "Document Preview", 
+            <DocumentDetails 
+                document={doc} 
+                onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
+                onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
+            />, 
+            '3xl'
+        );
     };
 
     return (
@@ -77,7 +90,7 @@ export const Studio: React.FC<StudioProps> = ({
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
-                 {(dataLoading || modalLoading) && (
+                 {(dataLoading) && (
                     <div className="absolute top-4 right-4 z-10">
                         <LoadingSpinnerIcon />
                     </div>
@@ -100,6 +113,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
                             onCreateCollection={studioActions.handleCreateCollection} onDeleteCollection={studioActions.handleDeleteCollection} onSelectCollection={setSelectedCollection}
                             onCreateDocument={studioActions.handleCreateDocument} onUpdateDocument={studioActions.handleUpdateDocument} onDeleteDocument={studioActions.handleDeleteDocument}
+                            onViewDocument={handleViewDocument}
                             onCreateAttribute={studioActions.handleCreateAttribute} onUpdateAttribute={studioActions.handleUpdateAttribute} onDeleteAttribute={studioActions.handleDeleteAttribute}
                             onCreateIndex={studioActions.handleCreateIndex} onDeleteIndex={studioActions.handleDeleteIndex}
                             onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
@@ -215,15 +229,25 @@ export const Studio: React.FC<StudioProps> = ({
                         )}
 
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-700 mt-6">
-                            {!modal.hideCancel && <button onClick={closeModal} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>}
+                            {!modal.hideCancel && (
+                                <button 
+                                    onClick={closeModal} 
+                                    disabled={modalLoading}
+                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors disabled:opacity-30"
+                                >
+                                    Cancel
+                                </button>
+                            )}
                             <button 
                                 onClick={async () => {
                                     if(modal.type === 'custom') { closeModal(); return; }
                                     if(modal.onConfirm) await modal.onConfirm(modal.type === 'form' ? formValues : undefined);
                                     closeModal();
                                 }}
-                                className={`px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors flex items-center gap-2 ${modal.confirmClass || 'bg-cyan-600 hover:bg-cyan-500'}`}
+                                disabled={modalLoading}
+                                className={`px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors flex items-center gap-2 ${modal.confirmClass || 'bg-cyan-600 hover:bg-cyan-500'} disabled:opacity-70 disabled:cursor-not-allowed`}
                             >
+                                {modalLoading ? <LoadingSpinnerIcon size={14} /> : null}
                                 {modal.confirmLabel || 'Confirm'}
                             </button>
                         </div>

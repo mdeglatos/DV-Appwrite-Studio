@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -32,6 +32,7 @@ interface DatabasesTabProps {
     onCreateDocument: () => void;
     onUpdateDocument: (doc: Models.Document) => void;
     onDeleteDocument: (doc: Models.Document) => void;
+    onViewDocument: (doc: Models.Document) => void; // New prop
     
     onCreateAttribute: (type: string) => void;
     onUpdateAttribute: (attr: any) => void;
@@ -48,7 +49,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     documents, attributes, indexes,
     onCreateDatabase, onDeleteDatabase, onSelectDb,
     onCreateCollection, onDeleteCollection, onSelectCollection,
-    onCreateDocument, onUpdateDocument, onDeleteDocument,
+    onCreateDocument, onUpdateDocument, onDeleteDocument, onViewDocument,
     onCreateAttribute, onUpdateAttribute, onDeleteAttribute,
     onCreateIndex, onDeleteIndex,
     onUpdateCollectionSettings
@@ -164,9 +165,27 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         onCreate={onCreateDocument} 
                         onDelete={onDeleteDocument} 
                         onEdit={onUpdateDocument}
+                        extraActions={
+                            <div className="flex gap-2 mr-2">
+                                <span className="text-[10px] text-gray-500 italic mt-1.5">Viewing {documents.length} latest</span>
+                            </div>
+                        }
+                        onSelect={onViewDocument} // Make rows clickable for preview too
                         createLabel="Add Document" 
-                        renderName={(doc) => <span className="font-mono text-xs text-gray-300">{JSON.stringify(doc).slice(0, 80)}...</span>} 
-                        headers={['ID', 'Data Preview', '', 'Actions']}
+                        renderName={(doc) => {
+                             const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
+                             return <span className="font-mono text-xs text-gray-400 truncate">{JSON.stringify(rest)}</span>;
+                        }} 
+                        headers={['ID', 'Data Payload', '', 'Actions']}
+                        renderExtra={(doc) => (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onViewDocument(doc); }}
+                                className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                                title="Quick Preview"
+                            >
+                                <EyeIcon size={16} />
+                            </button>
+                        )}
                     />
                 )}
 

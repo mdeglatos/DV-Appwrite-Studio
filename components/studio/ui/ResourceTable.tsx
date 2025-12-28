@@ -62,6 +62,8 @@ export const ResourceTable = <T extends { $id: string }>({
         }
     };
 
+    const hasActions = onDelete || onEdit || renderExtra;
+
     return (
         <div className={`bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden animate-fade-in flex flex-col shadow-sm ${autoHeight ? '' : 'h-full'}`}>
             {(title || onCreate || extraActions) && (
@@ -78,11 +80,11 @@ export const ResourceTable = <T extends { $id: string }>({
                 </div>
             )}
             <div className={`overflow-x-auto custom-scrollbar ${autoHeight ? '' : 'flex-1'}`}>
-                <table className="w-full text-left text-sm text-gray-400">
+                <table className="w-full text-left text-sm text-gray-400 table-fixed min-w-[700px]">
                     <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-500 sticky top-0 z-10 backdrop-blur-md">
                         <tr>
                             {selection && (
-                                <th className="px-6 py-3 w-4">
+                                <th className="px-6 py-3 w-16">
                                     <input 
                                         type="checkbox" 
                                         className="rounded bg-gray-800 border-gray-600 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
@@ -92,19 +94,18 @@ export const ResourceTable = <T extends { $id: string }>({
                                     />
                                 </th>
                             )}
-                            <th className="px-6 py-3">{headers[0]}</th>
-                            <th className="px-6 py-3">{headers[1]}</th>
-                            {renderExtra && <th className="px-6 py-3">{headers[2]}</th>}
-                            {(onDelete || onSelect || onEdit) && <th className="px-6 py-3 text-right">{headers[3]}</th>}
+                            {hasActions && <th className="px-6 py-3 w-36">{headers[3] || 'Actions'}</th>}
+                            <th className="px-6 py-3 w-48">{headers[0]}</th>
+                            <th className="px-6 py-3 min-w-[250px]">{headers[1]}</th>
+                            {renderExtra && !onDelete && !onEdit && <th className="px-6 py-3 w-48">{headers[2]}</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
                         {data.length === 0 ? (
-                            <tr><td colSpan={selection ? 5 : 4} className="px-6 py-12 text-center text-gray-500 italic">No items found.</td></tr>
+                            <tr><td colSpan={selection ? 6 : 5} className="px-6 py-12 text-center text-gray-500 italic">No items found.</td></tr>
                         ) : (
                             data.map((item) => {
                                 const isActive = isRowActive ? isRowActive(item) : false;
-                                // Cast to any to access potential name/key properties safely since we removed the partial constraint
                                 const displayIdentifier = renderName ? renderName(item) : ((item as any).name || (item as any).key || 'Unknown');
                                 
                                 return (
@@ -123,27 +124,17 @@ export const ResourceTable = <T extends { $id: string }>({
                                                 />
                                             </td>
                                         )}
-                                        <td className="px-6 py-3 font-mono text-xs text-gray-500 max-w-[150px] truncate group" title={item.$id}>
-                                            <div className="flex items-center">
-                                                <span className="truncate">{item.$id}</span>
-                                                <CopyButton text={item.$id} className="opacity-0 group-hover:opacity-100 ml-2 transition-opacity flex-shrink-0" />
-                                                {isActive && <span className="ml-2 text-[10px] bg-green-500 text-black px-1.5 py-0.5 rounded font-bold flex-shrink-0">ACTIVE</span>}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3 font-medium text-gray-200">
-                                            {displayIdentifier}
-                                        </td>
-                                        {renderExtra && <td className="px-6 py-3">{renderExtra(item)}</td>}
-                                        {(onDelete || onSelect || onEdit) && (
-                                            <td className="px-6 py-3 text-right" onClick={e => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-1">
+                                        {hasActions && (
+                                            <td className="px-6 py-3" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center gap-1">
+                                                    {renderExtra && renderExtra(item)}
                                                     {onEdit && (
                                                         <button 
                                                             onClick={() => onEdit(item)}
                                                             className="text-gray-500 hover:text-cyan-400 p-1.5 rounded hover:bg-gray-800 transition-colors"
                                                             title="Edit"
                                                         >
-                                                            <EditIcon />
+                                                            <EditIcon size={16} />
                                                         </button>
                                                     )}
                                                     {onDelete && (
@@ -152,12 +143,25 @@ export const ResourceTable = <T extends { $id: string }>({
                                                             className="text-gray-500 hover:text-red-400 p-1.5 rounded hover:bg-gray-800 transition-colors"
                                                             title="Delete"
                                                         >
-                                                            <DeleteIcon />
+                                                            <DeleteIcon size={16} />
                                                         </button>
                                                     )}
                                                 </div>
                                             </td>
                                         )}
+                                        <td className="px-6 py-3 font-mono text-xs text-gray-500 truncate group" title={item.$id}>
+                                            <div className="flex items-center">
+                                                <span className="truncate">{item.$id}</span>
+                                                <CopyButton text={item.$id} className="opacity-0 group-hover:opacity-100 ml-2 transition-opacity flex-shrink-0" />
+                                                {isActive && <span className="ml-2 text-[10px] bg-green-500 text-black px-1.5 py-0.5 rounded font-bold flex-shrink-0">ACTIVE</span>}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-3 font-medium text-gray-200">
+                                            <div className="truncate max-w-full">
+                                                {displayIdentifier}
+                                            </div>
+                                        </td>
+                                        {renderExtra && !onDelete && !onEdit && <td className="px-6 py-3">{renderExtra(item)}</td>}
                                     </tr>
                                 );
                             })
