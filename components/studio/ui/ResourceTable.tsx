@@ -13,6 +13,7 @@ interface ResourceTableProps<T> {
     createLabel?: string;
     renderName?: (item: T) => React.ReactNode;
     renderExtra?: (item: T) => React.ReactNode;
+    renderExtraActions?: (item: T) => React.ReactNode; 
     headers?: string[];
     extraActions?: React.ReactNode;
     
@@ -25,6 +26,7 @@ interface ResourceTableProps<T> {
     isRowActive?: (item: T) => boolean;
     // Layout
     autoHeight?: boolean;
+    allowWrap?: boolean; // New prop for content wrapping
 }
 
 export const ResourceTable = <T extends { $id: string }>({ 
@@ -37,11 +39,13 @@ export const ResourceTable = <T extends { $id: string }>({
     createLabel = "Create",
     renderName,
     renderExtra,
-    headers = ['ID', 'Name / Key', 'Details', 'Actions'],
+    renderExtraActions,
+    headers = ['Actions', 'ID', 'Primary Info', 'Metadata'],
     extraActions,
     selection,
     isRowActive,
     autoHeight = false,
+    allowWrap = false,
 }: ResourceTableProps<T>) => {
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,7 +66,7 @@ export const ResourceTable = <T extends { $id: string }>({
         }
     };
 
-    const hasActions = onDelete || onEdit || renderExtra;
+    const hasActions = onDelete || onEdit || renderExtraActions;
 
     return (
         <div className={`bg-gray-800/30 border border-gray-700/50 rounded-xl overflow-hidden animate-fade-in flex flex-col shadow-sm ${autoHeight ? '' : 'h-full'}`}>
@@ -80,7 +84,7 @@ export const ResourceTable = <T extends { $id: string }>({
                 </div>
             )}
             <div className={`overflow-x-auto custom-scrollbar ${autoHeight ? '' : 'flex-1'}`}>
-                <table className="w-full text-left text-sm text-gray-400 table-fixed min-w-[700px]">
+                <table className={`w-full text-left text-sm text-gray-400 ${allowWrap ? '' : 'table-fixed'} min-w-[850px]`}>
                     <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-500 sticky top-0 z-10 backdrop-blur-md">
                         <tr>
                             {selection && (
@@ -94,15 +98,16 @@ export const ResourceTable = <T extends { $id: string }>({
                                     />
                                 </th>
                             )}
-                            {hasActions && <th className="px-6 py-3 w-36">{headers[3] || 'Actions'}</th>}
-                            <th className="px-6 py-3 w-48">{headers[0]}</th>
-                            <th className="px-6 py-3 min-w-[250px]">{headers[1]}</th>
-                            {renderExtra && !onDelete && !onEdit && <th className="px-6 py-3 w-48">{headers[2]}</th>}
+                            {/* Adjusted Action column to prevent overlap */}
+                            {hasActions && <th className="px-6 py-3 w-40">{headers[0]}</th>}
+                            <th className="px-6 py-3 w-56">{headers[1]}</th>
+                            <th className={`px-6 py-3 ${allowWrap ? '' : 'w-72'}`}>{headers[2]}</th>
+                            <th className={`px-6 py-3 ${allowWrap ? '' : 'min-w-[200px]'}`}>{headers[3]}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
                         {data.length === 0 ? (
-                            <tr><td colSpan={selection ? 6 : 5} className="px-6 py-12 text-center text-gray-500 italic">No items found.</td></tr>
+                            <tr><td colSpan={selection ? 5 : 4} className="px-6 py-12 text-center text-gray-500 italic">No items found.</td></tr>
                         ) : (
                             data.map((item) => {
                                 const isActive = isRowActive ? isRowActive(item) : false;
@@ -115,7 +120,7 @@ export const ResourceTable = <T extends { $id: string }>({
                                         onClick={() => onSelect && onSelect(item)}
                                     >
                                         {selection && (
-                                            <td className="px-6 py-3" onClick={e => e.stopPropagation()}>
+                                            <td className="px-6 py-3 align-top" onClick={e => e.stopPropagation()}>
                                                 <input 
                                                     type="checkbox" 
                                                     className="rounded bg-gray-800 border-gray-600 text-cyan-600 focus:ring-cyan-500 cursor-pointer"
@@ -124,19 +129,11 @@ export const ResourceTable = <T extends { $id: string }>({
                                                 />
                                             </td>
                                         )}
+                                        
+                                        {/* 1. Actions Column: Delete then Edit */}
                                         {hasActions && (
-                                            <td className="px-6 py-3" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-1">
-                                                    {renderExtra && renderExtra(item)}
-                                                    {onEdit && (
-                                                        <button 
-                                                            onClick={() => onEdit(item)}
-                                                            className="text-gray-500 hover:text-cyan-400 p-1.5 rounded hover:bg-gray-800 transition-colors"
-                                                            title="Edit"
-                                                        >
-                                                            <EditIcon size={16} />
-                                                        </button>
-                                                    )}
+                                            <td className="px-6 py-3 align-top" onClick={e => e.stopPropagation()}>
+                                                <div className="flex items-center gap-1.5">
                                                     {onDelete && (
                                                         <button 
                                                             onClick={() => onDelete(item)}
@@ -146,22 +143,42 @@ export const ResourceTable = <T extends { $id: string }>({
                                                             <DeleteIcon size={16} />
                                                         </button>
                                                     )}
+                                                    {onEdit && (
+                                                        <button 
+                                                            onClick={() => onEdit(item)}
+                                                            className="text-gray-500 hover:text-cyan-400 p-1.5 rounded hover:bg-gray-800 transition-colors"
+                                                            title="Edit"
+                                                        >
+                                                            <EditIcon size={16} />
+                                                        </button>
+                                                    )}
+                                                    {renderExtraActions && renderExtraActions(item)}
                                                 </div>
                                             </td>
                                         )}
-                                        <td className="px-6 py-3 font-mono text-xs text-gray-500 truncate group" title={item.$id}>
-                                            <div className="flex items-center">
-                                                <span className="truncate">{item.$id}</span>
+
+                                        {/* 2. ID Column */}
+                                        <td className="px-6 py-3 font-mono text-xs text-gray-500 group align-top overflow-hidden" title={item.$id}>
+                                            <div className={`flex items-start ${allowWrap ? '' : 'max-w-full'}`}>
+                                                <span className={allowWrap ? 'break-all' : 'truncate block'}>{item.$id}</span>
                                                 <CopyButton text={item.$id} className="opacity-0 group-hover:opacity-100 ml-2 transition-opacity flex-shrink-0" />
                                                 {isActive && <span className="ml-2 text-[10px] bg-green-500 text-black px-1.5 py-0.5 rounded font-bold flex-shrink-0">ACTIVE</span>}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-3 font-medium text-gray-200">
-                                            <div className="truncate max-w-full">
+
+                                        {/* 3. Primary Info Column */}
+                                        <td className="px-6 py-3 font-medium text-gray-200 align-top">
+                                            <div className={allowWrap ? 'whitespace-pre-wrap break-words leading-relaxed' : 'truncate block'}>
                                                 {displayIdentifier}
                                             </div>
                                         </td>
-                                        {renderExtra && !onDelete && !onEdit && <td className="px-6 py-3">{renderExtra(item)}</td>}
+
+                                        {/* 4. Metadata Column */}
+                                        <td className="px-6 py-3 align-top">
+                                            <div className={allowWrap ? 'whitespace-pre-wrap' : ''}>
+                                                {renderExtra && renderExtra(item)}
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })

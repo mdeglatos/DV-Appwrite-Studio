@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -32,7 +32,7 @@ interface DatabasesTabProps {
     onCreateDocument: () => void;
     onUpdateDocument: (doc: Models.Document) => void;
     onDeleteDocument: (doc: Models.Document) => void;
-    onViewDocument: (doc: Models.Document) => void; // New prop
+    onViewDocument: (doc: Models.Document) => void;
     
     onCreateAttribute: (type: string) => void;
     onUpdateAttribute: (attr: any) => void;
@@ -56,11 +56,22 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
 }) => {
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
+    const [allowWrap, setAllowWrap] = useState(false);
 
     // Reset tab when collection changes
     useEffect(() => {
         setCollectionTab('documents');
     }, [selectedCollection?.$id]);
+
+    const wrapToggle = (
+        <button 
+            onClick={() => setAllowWrap(!allowWrap)}
+            title={allowWrap ? "Switch to Compact View" : "Switch to Full wrapping View"}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all ${allowWrap ? 'bg-cyan-500 text-black border-cyan-400' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'}`}
+        >
+            <RiLayoutMasonryLine size={14} /> {allowWrap ? 'Full View' : 'Compact'}
+        </button>
+    );
 
     if (!selectedDb) {
         return (
@@ -71,6 +82,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                 onDelete={onDeleteDatabase} 
                 onSelect={(item) => onSelectDb(item)} 
                 createLabel="New DB" 
+                headers={['Actions', 'Database ID', 'Name', 'Status']}
                 extraActions={
                     <a 
                         href={consoleLinks.databases(activeProject)} 
@@ -81,6 +93,11 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         <ExternalLinkIcon size={14} /> Open in Console
                     </a>
                 }
+                renderExtra={(db) => (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${db.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                        {db.enabled ? 'Active' : 'Disabled'}
+                    </span>
+                )}
             />
         );
     }
@@ -106,6 +123,12 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     onDelete={onDeleteCollection} 
                     onSelect={onSelectCollection} 
                     createLabel="New Collection" 
+                    headers={['Actions', 'Collection ID', 'Name', 'Status']}
+                    renderExtra={(c) => (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${c.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                            {c.enabled ? 'Active' : 'Disabled'}
+                        </span>
+                    )}
                 />
             </>
         );
@@ -165,19 +188,21 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         onCreate={onCreateDocument} 
                         onDelete={onDeleteDocument} 
                         onEdit={onUpdateDocument}
-                        extraActions={
-                            <div className="flex gap-2 mr-2">
-                                <span className="text-[10px] text-gray-500 italic mt-1.5">Viewing {documents.length} latest</span>
-                            </div>
-                        }
-                        onSelect={onViewDocument} // Make rows clickable for preview too
+                        onSelect={onViewDocument} 
                         createLabel="Add Document" 
+                        allowWrap={allowWrap}
+                        headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
+                        extraActions={wrapToggle}
                         renderName={(doc) => {
                              const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
-                             return <span className="font-mono text-xs text-gray-400 truncate">{JSON.stringify(rest)}</span>;
+                             return <span className="font-mono text-xs text-gray-400 block">{JSON.stringify(rest)}</span>;
                         }} 
-                        headers={['ID', 'Data Payload', '', 'Actions']}
                         renderExtra={(doc) => (
+                             <span className="text-[10px] text-gray-600 font-mono">
+                                {new Date(doc.$createdAt).toLocaleString()}
+                             </span>
+                        )}
+                        renderExtraActions={(doc) => (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onViewDocument(doc); }}
                                 className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
@@ -193,52 +218,83 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     <ResourceTable<any> 
                         data={attributes} 
                         onDelete={(item) => onDeleteAttribute(item)} 
-                        createLabel="Add Attribute"
-                        onCreate={() => onCreateAttribute(attributeType)}
                         onEdit={onUpdateAttribute}
+                        onCreate={() => onCreateAttribute(attributeType)}
+                        createLabel="Add Attribute"
+                        allowWrap={allowWrap}
+                        headers={['Actions', 'Key', 'Data Type', 'Config & Status']}
                         extraActions={
-                            <div className="relative mr-2">
-                                <select 
-                                    value={attributeType} 
-                                    onChange={e => setAttributeType(e.target.value)}
-                                    className="bg-gray-800 border border-gray-600 text-gray-300 text-xs rounded-lg px-3 py-1.5 outline-none focus:border-cyan-500 appearance-none pr-8 cursor-pointer"
-                                >
-                                    <option value="string">String</option>
-                                    <option value="integer">Integer</option>
-                                    <option value="float">Float</option>
-                                    <option value="boolean">Boolean</option>
-                                    <option value="email">Email</option>
-                                    <option value="url">URL</option>
-                                    <option value="ip">IP</option>
-                                    <option value="enum">Enum</option>
-                                    <option value="datetime">Datetime</option>
-                                    <option value="relationship">Relationship</option>
-                                </select>
-                                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-500">
-                                    <ChevronDownIcon size={12} />
+                            <div className="flex items-center gap-2 mr-2">
+                                {wrapToggle}
+                                <div className="relative">
+                                    <select 
+                                        value={attributeType} 
+                                        onChange={e => setAttributeType(e.target.value)}
+                                        className="bg-gray-800 border border-gray-600 text-gray-300 text-xs rounded-lg px-3 py-1.5 outline-none focus:border-cyan-500 appearance-none pr-8 cursor-pointer"
+                                    >
+                                        <option value="string">String</option>
+                                        <option value="integer">Integer</option>
+                                        <option value="float">Float</option>
+                                        <option value="boolean">Boolean</option>
+                                        <option value="email">Email</option>
+                                        <option value="url">URL</option>
+                                        <option value="ip">IP</option>
+                                        <option value="enum">Enum</option>
+                                        <option value="datetime">Datetime</option>
+                                        <option value="relationship">Relationship</option>
+                                    </select>
+                                    <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-500">
+                                        <ChevronDownIcon size={12} />
+                                    </div>
                                 </div>
                             </div>
                         }
-                        renderName={(item) => <span className="font-mono text-cyan-300">{item.key} <span className="text-gray-500">({item.type})</span></span>} 
-                        headers={['Key', 'Type', 'Details', 'Actions']}
+                        renderName={(item) => (
+                            <span className="px-2 py-0.5 bg-gray-900 border border-gray-700 rounded text-[11px] font-mono text-cyan-300 uppercase tracking-tight">
+                                {item.type}
+                            </span>
+                        )} 
                         renderExtra={(item) => (
-                            <div className="flex gap-2">
-                                {item.required && <span className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded">Req</span>}
-                                {item.array && <span className="text-[10px] bg-blue-900/30 text-blue-400 px-1.5 py-0.5 rounded">Array</span>}
+                            <div className="flex flex-wrap gap-2">
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${item.required ? 'bg-red-900/30 text-red-400 border border-red-900/20' : 'bg-gray-800 text-gray-500'}`}>
+                                    {item.required ? 'Required' : 'Optional'}
+                                </span>
+                                {item.array && (
+                                    <span className="text-[10px] bg-blue-900/30 text-blue-400 border border-blue-900/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                                        Array
+                                    </span>
+                                )}
+                                {item.default !== undefined && item.default !== null && (
+                                    <span className="text-[10px] text-gray-600 italic">Def: {String(item.default)}</span>
+                                )}
                             </div>
                         )}
                     />
                 )}
 
                 {collectionTab === 'indexes' && (
-                        <ResourceTable<any> 
+                    <ResourceTable<any> 
                         data={indexes} 
                         onDelete={(item) => onDeleteIndex(item)} 
                         onCreate={onCreateIndex} 
                         createLabel="Add Index"
-                        renderName={(item) => <span className="font-mono text-yellow-300">{item.key} <span className="text-gray-500">({item.type})</span></span>} 
-                        headers={['Key', 'Type', 'Details', 'Actions']}
-                        renderExtra={(item) => <span className="text-xs text-gray-500">{item.attributes.join(', ')}</span>}
+                        allowWrap={allowWrap}
+                        headers={['Actions', 'Index Key', 'Type', 'Attributes (IDs)']}
+                        extraActions={wrapToggle}
+                        renderName={(item) => (
+                            <span className="px-2 py-0.5 bg-gray-900 border border-gray-700 rounded text-[11px] font-mono text-yellow-300 uppercase tracking-tight">
+                                {item.type}
+                            </span>
+                        )} 
+                        renderExtra={(item) => (
+                            <div className="flex flex-wrap gap-1">
+                                {item.attributes.map((attrId: string) => (
+                                    <span key={attrId} className="px-1.5 py-0.5 bg-gray-900 border border-gray-700 rounded text-[10px] font-mono text-gray-400">
+                                        {attrId}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     />
                 )}
 

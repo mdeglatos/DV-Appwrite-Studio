@@ -3,8 +3,7 @@ import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
 import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
-// Added RiGlobalLine as _RiGlobalLine to the imports from react-icons/ri to allow exporting it as RiGlobalLine component
-import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiPlugLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine } from 'react-icons/ri';
+import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiPlugLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine } from 'react-icons/ri';
 
 interface IconProps {
     size?: number;
@@ -58,7 +57,8 @@ export const FolderAddIcon: React.FC<IconProps> = ({ size = 18, className }) => 
 export const EditIcon: React.FC<IconProps> = ({ size = 14, className }) => <RiPencilLine size={size} className={className} />;
 
 // Studio / Manual Control Icons
-export const StudioIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiLayoutMasonryLine size={size} className={className} />;
+export const StudioIcon: React.FC<IconProps> = ({ size = 20, className }) => <_RiLayoutMasonryLine size={size} className={className} />;
+export const RiLayoutMasonryLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiLayoutMasonryLine size={size} className={className} />;
 export const DashboardIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiDashboardLine size={size} className={className} />;
 export const DatabaseIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiDatabase2Line size={size} className={className} />;
 export const StorageIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiHardDrive2Line size={size} className={className} />;

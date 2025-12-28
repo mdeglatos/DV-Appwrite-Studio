@@ -30,20 +30,20 @@ export const DocumentDetails: React.FC<DocumentDetailsProps> = ({ document, onEd
             {/* Quick Actions Header */}
             {(onEdit || onDelete) && (
                 <div className="flex items-center justify-end gap-3 pb-2">
-                    {onEdit && (
-                        <button 
-                            onClick={() => onEdit(document)}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-cyan-900/30 text-cyan-400 border border-gray-700 hover:border-cyan-500/50 rounded-xl text-xs font-bold transition-all"
-                        >
-                            <EditIcon size={14} /> Edit Document
-                        </button>
-                    )}
                     {onDelete && (
                         <button 
                             onClick={() => onDelete(document)}
                             className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-red-900/30 text-red-400 border border-gray-700 hover:border-red-500/50 rounded-xl text-xs font-bold transition-all"
                         >
                             <DeleteIcon size={14} /> Delete
+                        </button>
+                    )}
+                    {onEdit && (
+                        <button 
+                            onClick={() => onEdit(document)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-cyan-900/30 text-cyan-400 border border-gray-700 hover:border-cyan-500/50 rounded-xl text-xs font-bold transition-all"
+                        >
+                            <EditIcon size={14} /> Edit Document
                         </button>
                     )}
                 </div>
