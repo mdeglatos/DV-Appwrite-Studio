@@ -129,4 +129,4 @@ export interface BackupOptions {
     includeTeams: boolean;
 }
 
-export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations' | 'mcp' | 'backups';
+export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations' | 'backups';

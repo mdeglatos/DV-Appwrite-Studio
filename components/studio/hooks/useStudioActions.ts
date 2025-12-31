@@ -7,6 +7,9 @@ import type { FormField } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tools/functionsTools';
 import React from 'react';
 import { DocumentEditor } from '../ui/DocumentEditor';
+import { DocumentCreateForm } from '../ui/DocumentCreateForm';
+import { CodeIcon, CheckIcon, CopyIcon, WarningIcon } from '../../Icons';
+import { BACKUP_BUCKET_ID, BackupService } from '../../../services/backupService';
 
 export function useStudioActions(
     activeProject: AppwriteProject,
@@ -19,7 +22,8 @@ export function useStudioActions(
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
         fetchCollections, fetchCollectionDetails, fetchFiles, 
-        fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships 
+        fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships,
+        attributes // Access current attributes from useStudioData
     } = data;
 
     const { confirmAction, openForm, setModalLoading, setModal, openCustomModal, closeModal } = modals;
@@ -41,6 +45,69 @@ export function useStudioActions(
             await getSdkDatabases(activeProject).delete(db.$id);
             refreshData();
         });
+    };
+
+    const handleCopyDatabaseSchema = async (db: Database) => {
+        logCallback(`Studio: Generating full schema for database "${db.name}"...`);
+        setModalLoading(true);
+        const sdk = getSdkDatabases(activeProject);
+        
+        try {
+            const collectionsRes = await sdk.listCollections(db.$id, [Query.limit(100)]);
+            const fullSchema: any = {
+                databaseId: db.$id,
+                name: db.name,
+                collections: []
+            };
+
+            for (const col of collectionsRes.collections) {
+                logCallback(`   - Inspecting collection: ${col.name}`);
+                fullSchema.collections.push({
+                    $id: col.$id,
+                    name: col.name,
+                    enabled: col.enabled,
+                    documentSecurity: col.documentSecurity,
+                    permissions: col.$permissions,
+                    attributes: col.attributes.map((a: any) => {
+                        const { $createdAt, $updatedAt, ...rest } = a;
+                        return rest;
+                    }),
+                    indexes: col.indexes.map((i: any) => {
+                        const { $createdAt, $updatedAt, ...rest } = i;
+                        return rest;
+                    })
+                });
+            }
+
+            const jsonSchema = JSON.stringify(fullSchema, null, 2);
+            
+            openCustomModal(
+                "Database Blueprint",
+                React.createElement('div', { className: "space-y-4" },
+                    React.createElement('p', { className: "text-xs text-gray-400" }, "Copy this JSON to replicate this schema elsewhere or use it as a prompt context for AI."),
+                    React.createElement('div', { className: "relative group" },
+                        React.createElement('div', { className: "bg-[#0d1117] rounded-xl border border-gray-700 p-4 overflow-hidden shadow-inner" },
+                            React.createElement('pre', { className: "text-[11px] font-mono text-cyan-200/70 overflow-y-auto max-h-[50vh] custom-scrollbar leading-relaxed" }, jsonSchema)
+                        ),
+                        React.createElement('button', {
+                            onClick: () => {
+                                navigator.clipboard.writeText(jsonSchema);
+                                logCallback("Studio: Schema copied to clipboard.");
+                            },
+                            className: "absolute top-3 right-3 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-xs font-bold border border-gray-600 flex items-center gap-2 transition-all shadow-xl"
+                        }, 
+                            React.createElement(CopyIcon, { size: 14 }),
+                            " Copy JSON"
+                        )
+                    )
+                ),
+                '3xl'
+            );
+        } catch (e: any) {
+            logCallback(`❌ Failed to generate schema: ${e.message}`);
+        } finally {
+            setModalLoading(false);
+        }
     };
 
     // -- Collection --
@@ -70,7 +137,7 @@ export function useStudioActions(
 
     const handleDeleteCollection = (coll: Models.Collection) => {
         if (!selectedDb) return;
-        confirmAction("Delete Collection", `Delete collection "${coll.name}"?`, async () => {
+        confirmAction("Delete Collection", `Delete collection "${coll.name}"? This is permanent and deletes all contained documents.`, async () => {
             await getSdkDatabases(activeProject).deleteCollection(selectedDb.$id, coll.$id);
             fetchCollections(selectedDb.$id);
             setSelectedCollection(null);
@@ -80,17 +147,28 @@ export function useStudioActions(
     // -- Documents --
     const handleCreateDocument = () => {
         if (!selectedDb || !selectedCollection) return;
-        openForm("Create Document", [
-            { name: 'documentId', label: 'Document ID', defaultValue: 'unique()', required: true },
-            { name: 'data', label: 'JSON Data', type: 'textarea', placeholder: '{"key": "value"}', required: true },
-            { name: 'permissions', label: 'Permissions (Comma Separated)', placeholder: 'e.g. read("any")' }
-        ], async (formData: any) => {
-            const id = formData.documentId === 'unique()' ? ID.unique() : formData.documentId;
-            const docData = JSON.parse(formData.data);
-            const permsArray = formData.permissions ? formData.permissions.split(',').map((p: string) => p.trim()).filter(Boolean) : undefined;
-            await getSdkDatabases(activeProject).createDocument(selectedDb.$id, selectedCollection.$id, id, docData, permsArray);
-            fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
-        });
+
+        openCustomModal(
+            `Add to ${selectedCollection.name}`,
+            React.createElement(DocumentCreateForm, {
+                attributes: attributes, // From useStudioData
+                onCancel: closeModal,
+                onSave: async (docId: string, docData: any, permsArray: string[]) => {
+                    const id = docId === 'unique()' ? ID.unique() : docId;
+                    await getSdkDatabases(activeProject).createDocument(
+                        selectedDb.$id, 
+                        selectedCollection.$id, 
+                        id, 
+                        docData, 
+                        permsArray.length > 0 ? permsArray : undefined
+                    );
+                    fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
+                    closeModal();
+                    logCallback(`Studio: Document ${id} created in ${selectedCollection.name}.`);
+                }
+            }),
+            '3xl'
+        );
     };
 
     const handleUpdateDocument = (doc: Models.Document) => {
@@ -135,56 +213,56 @@ export function useStudioActions(
         switch (type) {
             case 'string':
                 openForm("Create String Attribute", [...baseFields, { name: 'size', label: 'Size', type: 'number', defaultValue: 255, required: true }, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, d.default, d.array);
+                    await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
             case 'integer':
-                openForm("Create Integer Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }], async (d: any) => {
-                    await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, undefined, d.array);
+                openForm("Create Integer Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
+                    await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array);
                     onFinish();
                 });
                 break;
             case 'boolean':
-                openForm("Create Boolean Attribute", baseFields, async (d: any) => {
-                    await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, undefined, d.array);
+                openForm("Create Boolean Attribute", [...baseFields, { name: 'default', label: 'Default', type: 'checkbox', defaultValue: false }], async (d: any) => {
+                    await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, d.default, d.array);
                     onFinish();
                 });
                 break;
             case 'float':
-                openForm("Create Float Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }], async (d: any) => {
-                    await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, undefined, d.array);
+                openForm("Create Float Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
+                    await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array);
                     onFinish();
                 });
                 break;
             case 'email':
                 openForm("Create Email Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
             case 'url':
                 openForm("Create URL Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
             case 'ip':
                 openForm("Create IP Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
             case 'datetime':
                 openForm("Create Datetime Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
             case 'enum':
                 openForm("Create Enum Attribute", [...baseFields, { name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', required: true }, { name: 'default', label: 'Default' }], async (d: any) => {
                     const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
-                    await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default, d.array);
+                    await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default || null, d.array);
                     onFinish();
                 });
                 break;
@@ -201,8 +279,6 @@ export function useStudioActions(
                     onFinish();
                 });
                 break;
-            default:
-                alert(`Attribute type ${type} creation is available in the full Appwrite console.`);
         }
     };
 
@@ -211,97 +287,92 @@ export function useStudioActions(
         const sdk = getSdkDatabases(activeProject);
         const dbId = selectedDb.$id;
         const collId = selectedCollection.$id;
-        const key = attr.key;
-
-        const requiredField: FormField = { name: 'required', label: 'Required', type: 'checkbox', defaultValue: attr.required };
-        const defaultField: FormField = { name: 'default', label: 'Default Value', defaultValue: attr.default };
-        
+        const oldKey = attr.key || attr.$id;
         const onFinish = () => fetchCollectionDetails(dbId, collId);
+        
+        // Robust type detection: prefer format (specialized string) over generic type
+        const type = attr.format || attr.type || 'string';
 
-        switch (attr.type) {
-            case 'string':
-                openForm(`Edit String: ${key}`, [requiredField, defaultField], async (d: any) => {
-                    await sdk.updateStringAttribute(dbId, collId, key, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'integer':
-                openForm(`Edit Integer: ${key}`, [
-                    requiredField,
-                    { name: 'min', label: 'Min', type: 'number', defaultValue: attr.min }, 
-                    { name: 'max', label: 'Max', type: 'number', defaultValue: attr.max },
-                    { name: 'default', label: 'Default', type: 'number', defaultValue: attr.default }
-                ], async (d: any) => {
-                    await sdk.updateIntegerAttribute(dbId, collId, key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default ? Number(d.default) : undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'float':
-                 openForm(`Edit Float: ${key}`, [
-                    requiredField,
-                    { name: 'min', label: 'Min', type: 'number', defaultValue: attr.min }, 
-                    { name: 'max', label: 'Max', type: 'number', defaultValue: attr.max },
-                    { name: 'default', label: 'Default', type: 'number', defaultValue: attr.default }
-                ], async (d: any) => {
-                    await sdk.updateFloatAttribute(dbId, collId, key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default ? Number(d.default) : undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'boolean':
-                openForm(`Edit Boolean: ${key}`, [
-                    requiredField,
-                    { name: 'default', label: 'Default', type: 'checkbox', defaultValue: attr.default }
-                ], async (d: any) => {
-                    await sdk.updateBooleanAttribute(dbId, collId, key, d.required, d.default);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'email':
-                openForm(`Edit Email: ${key}`, [requiredField, defaultField], async (d: any) => {
-                    await sdk.updateEmailAttribute(dbId, collId, key, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'url':
-                openForm(`Edit URL: ${key}`, [requiredField, defaultField], async (d: any) => {
-                    await sdk.updateUrlAttribute(dbId, collId, key, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'ip':
-                openForm(`Edit IP: ${key}`, [requiredField, defaultField], async (d: any) => {
-                    await sdk.updateIpAttribute(dbId, collId, key, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'datetime':
-                openForm(`Edit Datetime: ${key}`, [requiredField, defaultField], async (d: any) => {
-                    await sdk.updateDatetimeAttribute(dbId, collId, key, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'enum':
-                openForm(`Edit Enum: ${key}`, [
-                    { name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', defaultValue: attr.elements?.join(', '), required: true },
-                    requiredField,
-                    defaultField
-                ], async (d: any) => {
-                    const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
-                    await sdk.updateEnumAttribute(dbId, collId, key, els, d.required, d.default || undefined);
-                    onFinish();
-                }, "Update");
-                break;
-            case 'relationship':
-                 openForm(`Edit Relationship: ${key}`, [
-                    { name: 'onDelete', label: 'On Delete', type: 'select', defaultValue: attr.onDelete, options: [{label: 'Restrict', value: 'restrict'}, {label: 'Cascade', value: 'cascade'}, {label: 'Set Null', value: 'setNull'}] }
-                ], async (d: any) => {
-                    await sdk.updateRelationshipAttribute(dbId, collId, key, d.onDelete);
-                    onFinish();
-                }, "Update");
-                break;
-            default:
-                alert(`Editing for attribute type "${attr.type}" is not fully supported.`);
+        const fields: FormField[] = [
+            { name: 'key', label: 'Attribute Key', defaultValue: oldKey, required: true, description: 'Modifying this requires a delete-and-recreate cycle.' },
+            { name: 'required', label: 'Required', type: 'checkbox', defaultValue: attr.required },
+            { name: 'array', label: 'Array', type: 'checkbox', defaultValue: attr.array, description: 'Modifying this requires a delete-and-recreate cycle.' },
+            { name: 'default', label: 'Default Value', defaultValue: attr.default }
+        ];
+
+        if (type === 'string') {
+            fields.splice(1, 0, { name: 'size', label: 'Size', type: 'number', defaultValue: attr.size || 255, description: 'Increasing size requires a delete-and-recreate cycle.' });
+        } else if (type === 'integer' || type === 'float') {
+            fields.push({ name: 'min', label: 'Min', type: 'number', defaultValue: attr.min }, { name: 'max', label: 'Max', type: 'number', defaultValue: attr.max });
+        } else if (type === 'enum') {
+            fields.push({ name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', defaultValue: attr.elements?.join(', '), required: true });
+        } else if (type === 'relationship') {
+            openForm(`Edit Relationship: ${oldKey}`, [
+                { name: 'onDelete', label: 'On Delete', type: 'select', defaultValue: attr.onDelete, options: [{label: 'Restrict', value: 'restrict'}, {label: 'Cascade', value: 'cascade'}, {label: 'Set Null', value: 'setNull'}] }
+            ], async (d: any) => {
+                await sdk.updateRelationshipAttribute(dbId, collId, oldKey, d.onDelete);
+                onFinish();
+            }, "Update");
+            return;
         }
+
+        openForm(`Edit Attribute: ${oldKey}`, fields, async (d: any) => {
+            const needsRecreate = d.key !== oldKey || (type === 'string' && Number(d.size) !== attr.size) || !!d.array !== !!attr.array;
+
+            const performUpdate = async () => {
+                if (needsRecreate) {
+                    logCallback(`Studio: Deleting attribute "${oldKey}" from ${collId}...`);
+                    await sdk.deleteAttribute(dbId, collId, oldKey);
+                    
+                    // Add a safety delay for eventually consistent metadata updates
+                    logCallback(`Studio: Waiting for metadata sync...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    logCallback(`Studio: Recreating attribute "${d.key}"...`);
+                    switch (type) {
+                        case 'string': await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, d.default || null, d.array); break;
+                        case 'integer': await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array); break;
+                        case 'float': await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array); break;
+                        case 'boolean': await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, !!d.default, d.array); break;
+                        case 'email': await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
+                        case 'url': await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
+                        case 'ip': await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
+                        case 'datetime': await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
+                        case 'enum': 
+                            const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
+                            await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default || null, d.array); 
+                            break;
+                    }
+                } else {
+                    switch (type) {
+                        case 'string': await sdk.updateStringAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'integer': await sdk.updateIntegerAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined); break;
+                        case 'float': await sdk.updateFloatAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined); break;
+                        case 'boolean': await sdk.updateBooleanAttribute(dbId, collId, oldKey, d.required, !!d.default); break;
+                        case 'email': await sdk.updateEmailAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'url': await sdk.updateUrlAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'ip': await sdk.updateIpAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'datetime': await sdk.updateDatetimeAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'enum': 
+                            const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
+                            await sdk.updateEnumAttribute(dbId, collId, oldKey, els, d.required, d.default || null); 
+                            break;
+                    }
+                }
+                onFinish();
+            };
+
+            if (needsRecreate) {
+                confirmAction(
+                    "Data Loss Warning", 
+                    `You have changed an immutable field. Attribute "${oldKey}" must be DELETED and RECREATED in collection "${collId}". This will permanently CLEAR all data for this attribute in your documents. Proceed?`, 
+                    performUpdate
+                );
+                return true; // Return true to signal Studio to NOT auto-close the modal state
+            } else {
+                await performUpdate();
+            }
+        }, "Update Attribute");
     };
 
     const handleCreateIndex = () => {
@@ -317,10 +388,27 @@ export function useStudioActions(
         });
     };
 
+    const handleUpdateIndex = (idx: any) => {
+        if (!selectedDb || !selectedCollection) return;
+        openForm(`Recreate Index: ${idx.key}`, [
+            { name: 'type', label: 'Type', type: 'select', required: true, defaultValue: idx.type, options: [{label: 'Key', value: 'key'}, {label: 'Unique', value: 'unique'}, {label: 'Fulltext', value: 'fulltext'}] },
+            { name: 'attributes', label: 'Attributes (Comma Separated)', required: true, defaultValue: idx.attributes.join(', ') }
+        ], async (d: any) => {
+            confirmAction("Recreate Index", `Recreating index "${idx.key}" will delete the old version first. Continue?`, async () => {
+                const sdk = getSdkDatabases(activeProject);
+                const attrs = d.attributes.split(',').map((s: string) => s.trim()).filter(Boolean);
+                await sdk.deleteIndex(selectedDb.$id, selectedCollection.$id, idx.key);
+                await sdk.createIndex(selectedDb.$id, selectedCollection.$id, idx.key, d.type, attrs);
+                fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
+            });
+            return true; // Signal to not close modal system
+        }, "Stage Recreate");
+    };
+
     const handleDeleteAttribute = (attr: any) => {
         if (!selectedDb || !selectedCollection) return;
-        confirmAction("Delete Attribute", `Delete attribute "${attr.key}"?`, async () => {
-            await getSdkDatabases(activeProject).deleteAttribute(selectedDb.$id, selectedCollection.$id, attr.key);
+        confirmAction("Delete Attribute", `Delete attribute "${attr.key || attr.$id}"? This clears this attribute's data from all documents.`, async () => {
+            await getSdkDatabases(activeProject).deleteAttribute(selectedDb.$id, selectedCollection.$id, attr.key || attr.$id);
             fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
         });
     };
@@ -337,18 +425,16 @@ export function useStudioActions(
     const handleCreateBucket = () => {
         openForm("Create Bucket", [
             { name: 'bucketId', label: 'Bucket ID', defaultValue: 'unique()', required: true },
-            { name: 'name', label: 'Bucket Name', required: true },
-            { name: 'enabled', label: 'Enabled', type: 'checkbox', defaultValue: true },
-            { name: 'fileSecurity', label: 'File Security', type: 'checkbox', defaultValue: false }
+            { name: 'name', label: 'Bucket Name', required: true }
         ], async (formData: any) => {
             const id = formData.bucketId === 'unique()' ? ID.unique() : formData.bucketId;
-            await getSdkStorage(activeProject).createBucket(id, formData.name, undefined, formData.fileSecurity, formData.enabled);
+            await getSdkStorage(activeProject).createBucket(id, formData.name);
             refreshData();
         });
     };
 
     const handleDeleteBucket = (bucket: Bucket) => {
-        confirmAction("Delete Bucket", `Delete bucket "${bucket.name}"?`, async () => {
+        confirmAction("Delete Bucket", `Delete bucket "${bucket.name}" and all files?`, async () => {
             await getSdkStorage(activeProject).deleteBucket(bucket.$id);
             refreshData();
         });
@@ -374,19 +460,7 @@ export function useStudioActions(
         if (!selectedFunction) return;
         confirmAction("Activate Deployment", "Activate this deployment?", async () => {
             const sdk = getSdkFunctions(activeProject);
-            // 1. Perform activation
             await (sdk as any).updateDeployment(selectedFunction.$id, depId);
-            
-            // 2. CRITICAL REFRESH: Re-fetch function object to update 'deployment' ID in UI state immediately
-            try {
-                const updatedFunc = await sdk.get(selectedFunction.$id);
-                setSelectedFunction(updatedFunc as unknown as AppwriteFunction);
-                logCallback(`Studio: Deployment ${depId} activated for "${selectedFunction.name}".`);
-            } catch (e) {
-                console.error("Failed to refresh function object after activation", e);
-            }
-            
-            // 3. Refresh list details (deployments/executions)
             fetchFunctionDetails(selectedFunction.$id);
         });
     };
@@ -400,328 +474,30 @@ export function useStudioActions(
         });
     };
 
-    const handleCleanupOldDeployments = () => {
-        if (!selectedFunction) return;
-        
-        confirmAction(
-            "Cleanup Old Deployments", 
-            `This will delete ALL deployments for "${selectedFunction.name}" EXCEPT the currently active or latest one. Do you want to proceed?`, 
-            async () => {
-                logCallback(`🧹 Cleanup: Identifying old deployments for "${selectedFunction.name}"...`);
-                setModalLoading(true);
-                const sdk = getSdkFunctions(activeProject);
-                
-                try {
-                    // 1. Fetch latest function data to get accurate deployment pointer
-                    const latestFunc = await sdk.get(selectedFunction.$id);
-                    // Fix: Cast latestFunc to any to avoid property access errors caused by shadowing of the native Function type or SDK version discrepancies
-                    let activeDeploymentId = (latestFunc as any).deployment;
-
-                    // 2. Fetch all deployments
-                    const res = await sdk.listDeployments(selectedFunction.$id, [Query.limit(100), Query.orderDesc('$createdAt')]);
-                    
-                    // 3. Fallback: if no active pointer, use the top of the list (latest)
-                    if (!activeDeploymentId && res.deployments.length > 0) {
-                        activeDeploymentId = res.deployments[0].$id;
-                        logCallback(`   ℹ️ No active pointer. Preserving latest deployment instead: ${activeDeploymentId}`);
-                    }
-
-                    if (!activeDeploymentId) {
-                        logCallback("   - No deployments found to cleanup.");
-                        return;
-                    }
-
-                    // 4. Filter to delete everything except the identified one
-                    const toDelete = res.deployments.filter(d => d.$id !== activeDeploymentId);
-                    
-                    if (toDelete.length === 0) {
-                        logCallback(`   - Only one deployment exists (${activeDeploymentId}). Nothing to cleanup.`);
-                    } else {
-                        logCallback(`   - Preserving active/latest: ${activeDeploymentId}`);
-                        logCallback(`   - Deleting ${toDelete.length} stale deployment(s)...`);
-                        
-                        // Execute deletions
-                        await Promise.all(toDelete.map(d => sdk.deleteDeployment(selectedFunction.$id, d.$id)));
-                        logCallback(`   ✅ Cleanup finished.`);
-                    }
-                } catch (e: any) {
-                    logCallback(`   ❌ Cleanup failed: ${e.message}`);
-                } finally {
-                    setModalLoading(false);
-                    fetchFunctionDetails(selectedFunction.$id);
-                }
-            }
-        );
-    };
-
-    const handleDeleteAllExecutions = () => {
-        if (!selectedFunction) return;
-        confirmAction("Clear All Execution History", `Delete ALL logs for "${selectedFunction.name}"? This may take some time for large histories.`, async () => {
-            const sdk = getSdkFunctions(activeProject);
-            const BATCH_SIZE = 100; // Max allowed by API for efficiency
-            let totalPurged = 0;
-            
-            logCallback(`🚀 Turbo Purge: Starting high-speed execution log cleanup for "${selectedFunction.name}"...`);
-            setModalLoading(true);
-
-            try {
-                while (true) {
-                    // 1. Fetch next batch
-                    const res = await sdk.listExecutions(selectedFunction.$id, [Query.limit(BATCH_SIZE)]);
-                    const executions = res.executions;
-                    const serverTotal = res.total;
-                    
-                    if (executions.length === 0) break;
-
-                    // 2. Update UI with granular progress
-                    const progressMsg = `Turbo Purge: Deleted ${totalPurged} of approx. ${serverTotal} logs...`;
-                    setModal((prev: any) => ({ ...prev, message: progressMsg, confirmLabel: 'Purging...' }));
-                    logCallback(`   - ${progressMsg}`);
-
-                    // 3. Delete concurrently with resilience to 404 race conditions
-                    const results = await Promise.allSettled(
-                        executions.map(ex => sdk.deleteExecution(selectedFunction.$id, ex.$id))
-                    );
-                    
-                    const batchSuccess = results.filter(r => r.status === 'fulfilled').length;
-                    totalPurged += batchSuccess;
-                    
-                    // Safety: If we listed items but managed to delete 0 of them, stop to avoid infinite loop
-                    if (batchSuccess === 0 && executions.length > 0) {
-                        logCallback(`   ⚠️ Purge stalled. Likely permission issue or backend state mismatch.`);
-                        break;
-                    }
-
-                    // If we got fewer than the batch size, we are done
-                    if (executions.length < BATCH_SIZE) break;
-                    
-                    // Immediate next iteration - no throttle for Turbo mode
-                }
-                
-                logCallback(`✅ Purge Complete: Successfully removed ${totalPurged} execution logs.`);
-            } catch (e: any) {
-                logCallback(`❌ Turbo Purge interrupted after ${totalPurged} items: ${e.message}`);
-            } finally {
-                setModalLoading(false);
-                fetchFunctionDetails(selectedFunction.$id);
-            }
+    // -- Backups --
+    const handleDeleteBackup = (file: Models.File) => {
+        confirmAction("Delete Snapshot", `Delete snapshot "${file.name}"?`, async () => {
+            const storage = getSdkStorage(activeProject);
+            await storage.deleteFile(BACKUP_BUCKET_ID, file.$id);
+            refreshData();
         });
     };
 
-    const handleRedeployFunction = (func: AppwriteFunction) => {
-        confirmAction(
-            "Redeploy Function",
-            `Create a new deployment for "${func.name}" using the active/latest source code?`,
-            async () => {
-                setModalLoading(true);
-                const sdk = getSdkFunctions(activeProject);
-                
-                try {
-                    // Logic to get code and deploy
-                    let deploymentId = (func as any).deployment;
-                    if (!deploymentId) {
-                        const deps = await sdk.listDeployments(func.$id, [Query.limit(1), Query.orderDesc('$createdAt')]);
-                        if (deps.deployments.length > 0) {
-                            deploymentId = deps.deployments[0].$id;
-                        }
-                    }
-
-                    if (!deploymentId) {
-                        throw new Error("No deployments found to redeploy from.");
-                    }
-
-                    const files = await downloadAndUnpackDeployment(activeProject, func.$id, deploymentId);
-                    if (!files || files.length === 0) {
-                        throw new Error("Deployment source empty or unavailable.");
-                    }
-
-                    const sanitizedFiles = files.map(f => ({
-                        ...f,
-                        name: f.name.replace(/^\.\//, '')
-                    }));
-
-                    let finalCommands = func.commands;
-                    const hasPackageJson = sanitizedFiles.some(f => f.name === 'package.json');
-                    const isNode = func.runtime && func.runtime.startsWith('node');
-                    
-                    if (!finalCommands && isNode && hasPackageJson) {
-                        finalCommands = 'npm install';
-                    }
-
-                    await deployCodeFromString(
-                        activeProject, 
-                        func.$id, 
-                        sanitizedFiles, 
-                        true, // activate
-                        func.entrypoint, 
-                        finalCommands
-                    );
-                    
-                    logCallback(`Studio: Redeployed "${func.name}" successfully.`);
-                    fetchFunctionDetails(func.$id); // Refresh
-                } catch (e: any) {
-                    logCallback(`Studio Error: ${e.message}`);
-                    alert(`Failed to redeploy: ${e.message}`);
-                } finally {
-                    setModalLoading(false);
-                }
-            }
-        );
-    };
-
-    const handleRedeployAllFunctions = (allFunctions: AppwriteFunction[]) => {
-        if (allFunctions.length === 0) return;
-        confirmAction(
-            "Redeploy All Functions", 
-            `This will create a new deployment for all ${allFunctions.length} functions using their current source code. This is useful for picking up changes to Global Variables. Do you want to proceed?`, 
-            async () => {
-                logCallback(`🚀 Bulk Redeploy: Starting for ${allFunctions.length} functions...`);
-                setModalLoading(true);
-                
-                let successCount = 0;
-                let failCount = 0;
-
-                const sdk = getSdkFunctions(activeProject);
-
-                for (const func of allFunctions) {
-                    logCallback(`   - Processing "${func.name}"...`);
-                    try {
-                        // 1. Find deployment ID (Active pointer or fallback to latest)
-                        // Fix: Cast func to any to ensure safe access to the deployment property
-                        let deploymentId = (func as any).deployment;
-                        if (!deploymentId) {
-                            try {
-                                const deps = await sdk.listDeployments(func.$id, [Query.limit(1), Query.orderDesc('$createdAt')]);
-                                if (deps.deployments.length > 0) {
-                                    deploymentId = deps.deployments[0].$id;
-                                    logCallback(`     ℹ️ No active deployment pointer. Using latest: ${deploymentId}`);
-                                }
-                            } catch (err) { /* silent fail */ }
-                        }
-
-                        if (!deploymentId) {
-                            logCallback(`     ⚠️ Skipped: No deployments found for this function.`);
-                            failCount++;
-                            continue;
-                        }
-
-                        // 2. Download and unpack latest code
-                        const files = await downloadAndUnpackDeployment(activeProject, func.$id, deploymentId);
-                        if (!files || files.length === 0) {
-                            logCallback(`     ⚠️ Skipped: Deployment ${deploymentId} appears empty or could not be unpacked.`);
-                            failCount++;
-                            continue;
-                        }
-
-                        // 3. Sanitize and prepare build commands (Migration Logic)
-                        const sanitizedFiles = files.map(f => ({
-                            ...f,
-                            name: f.name.replace(/^\.\//, '')
-                        }));
-
-                        let finalCommands = func.commands;
-                        const hasPackageJson = sanitizedFiles.some(f => f.name === 'package.json');
-                        const isNode = func.runtime && func.runtime.startsWith('node');
-                        
-                        if (!finalCommands && isNode && hasPackageJson) {
-                            finalCommands = 'npm install';
-                            logCallback(`     ℹ️ Auto-detect: forcing build command 'npm install'`);
-                        }
-
-                        // 4. Deploy again
-                        await deployCodeFromString(
-                            activeProject, 
-                            func.$id, 
-                            sanitizedFiles, 
-                            true, // activate
-                            func.entrypoint, 
-                            finalCommands
-                        );
-                        logCallback(`     ✅ Deployment triggered successfully.`);
-                        successCount++;
-                    } catch (e: any) {
-                        logCallback(`     ❌ Failed: ${e.message}`);
-                        failCount++;
-                    }
-                }
-
-                logCallback(`🏁 Bulk Redeploy Finished. Success: ${successCount}, Failures: ${failCount}.`);
-                setModalLoading(false);
-                refreshData();
-            }
-        );
-    };
-
-    // -- Users & Teams --
-    const handleCreateUser = () => {
-        openForm("Create User", [
-            { name: 'userId', label: 'User ID', defaultValue: 'unique()', required: true },
-            { name: 'email', label: 'Email', type: 'email', required: true },
-            { name: 'password', label: 'Password', type: 'password', required: true },
-            { name: 'name', label: 'Name' }
-        ], async (formData: any) => {
-            const id = formData.userId === 'unique()' ? ID.unique() : formData.userId;
-            await getSdkUsers(activeProject).create(id, formData.email, undefined, formData.password, formData.name || undefined);
-            fetchUsers();
-        });
-    };
-
-    const handleDeleteUser = (u: Models.User<any>) => {
-        confirmAction("Delete User", `Delete user "${u.email}"?`, async () => {
-            await getSdkUsers(activeProject).delete(u.$id);
-            fetchUsers();
-        });
-    };
-
-    const handleCreateTeam = () => {
-        openForm("Create Team", [
-            { name: 'teamId', label: 'Team ID', defaultValue: 'unique()', required: true },
-            { name: 'name', label: 'Team Name', required: true }
-        ], async (formData: any) => {
-            const id = formData.teamId === 'unique()' ? ID.unique() : formData.teamId;
-            await getSdkTeams(activeProject).create(id, formData.name);
-            fetchTeams();
-        });
-    };
-
-    const handleDeleteTeam = (t: Models.Team<any>) => {
-        confirmAction("Delete Team", `Delete team "${t.name}"?`, async () => {
-            await getSdkTeams(activeProject).delete(t.$id);
-            fetchTeams();
-        });
-    };
-
-    const handleCreateMembership = () => {
-        if (!selectedTeam) return;
-        openForm("Invite Member", [
-            { name: 'email', label: 'Email', type: 'email', required: true },
-            { name: 'name', label: 'Name' },
-            { name: 'url', label: 'Redirect URL', defaultValue: 'http://localhost' },
-            { name: 'roles', label: 'Roles', placeholder: 'owner' }
-        ], async (formData: any) => {
-            const roles = formData.roles ? formData.roles.split(',').map((r: string) => r.trim()) : [];
-            await getSdkTeams(activeProject).createMembership(selectedTeam.$id, roles, formData.url, formData.email, formData.name);
-            fetchMemberships(selectedTeam.$id);
-        }, "Invite");
-    };
-
-    const handleDeleteMembership = (m: Models.Membership) => {
-        if (!selectedTeam) return;
-        confirmAction("Remove Member", `Remove ${m.userEmail} from team?`, async () => {
-            await getSdkTeams(activeProject).deleteMembership(selectedTeam.$id, m.$id);
-            fetchMemberships(selectedTeam.$id);
+    const handleRestoreBackup = (file: Models.File) => {
+        confirmAction("Restore Snapshot", `Restore project state from "${file.name}"? This will attempt to recreate infrastructure exactly.`, async () => {
+            const service = new BackupService(activeProject, logCallback);
+            await service.runRestore(file.$id);
+            refreshData();
         });
     };
 
     return {
-        handleCreateDatabase, handleDeleteDatabase,
+        handleCreateDatabase, handleDeleteDatabase, handleCopyDatabaseSchema,
         handleCreateCollection, handleUpdateCollectionSettings, handleDeleteCollection,
         handleCreateDocument, handleUpdateDocument, handleDeleteDocument,
-        handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleDeleteIndex,
+        handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleUpdateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleDeleteFile,
-        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleCleanupOldDeployments, handleDeleteAllExecutions,
-        handleRedeployAllFunctions, handleRedeployFunction,
-        handleCreateUser, handleDeleteUser,
-        handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership
+        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments,
+        handleDeleteBackup, handleRestoreBackup
     };
 }

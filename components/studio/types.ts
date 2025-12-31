@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export type ModalType = 'confirm' | 'form' | 'custom';
@@ -23,7 +22,8 @@ export interface ModalState {
     content?: React.ReactNode; // For custom content
     confirmLabel?: string;
     confirmClass?: string;
-    onConfirm?: (formData: any) => Promise<void> | void;
+    // Fix: Allow returning boolean or Promise<boolean | void> to support preventing auto-close in Studio actions
+    onConfirm?: (formData: any) => Promise<boolean | void> | boolean | void;
     hideCancel?: boolean;
     size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import type { ModalState, FormField } from '../types';
 
@@ -13,7 +12,8 @@ export function useStudioModals() {
         setModalLoading(false);
     }, []);
 
-    const confirmAction = useCallback((title: string, message: string, onConfirm: () => Promise<void>) => {
+    // Fix: Update onConfirm type to allow returning boolean or void to match ModalState
+    const confirmAction = useCallback((title: string, message: string, onConfirm: () => Promise<boolean | void> | boolean | void) => {
         setModal({
             isOpen: true,
             type: 'confirm',
@@ -25,10 +25,11 @@ export function useStudioModals() {
         });
     }, []);
 
+    // Fix: Update onConfirm type to allow returning boolean or void to match ModalState
     const openForm = useCallback((
         title: string, 
         fields: FormField[], 
-        onConfirm: (data: any) => Promise<void>, 
+        onConfirm: (data: any) => Promise<boolean | void> | boolean | void, 
         confirmLabel = "Create"
     ) => {
         const initialValues: any = {};

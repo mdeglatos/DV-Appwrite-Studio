@@ -11,9 +11,12 @@ import { Modal } from '../../Modal';
 interface BackupsTabProps {
     activeProject: AppwriteProject;
     logCallback: (msg: string) => void;
+    // New handlers passed from Studio
+    onDeleteBackup?: (file: Models.File) => void;
+    onRestoreBackup?: (file: Models.File) => void;
 }
 
-export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback }) => {
+export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback, onDeleteBackup, onRestoreBackup }) => {
     const [backups, setBackups] = useState<Models.File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -83,39 +86,10 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                 setProgressLogs(prev => [...prev, successMsg]);
                 fetchBackups();
             } else {
-                const errMsg = (result && result.error) || "Unknown worker execution error.";
-                throw new Error(errMsg);
+                throw new Error((result && result.error) || "Worker failure");
             }
         } catch (err: any) {
             const failMsg = `❌ Snapshot Failed: ${err.message || String(err)}`;
-            setProgressLogs(prev => [...prev, failMsg]);
-            console.error("Backup failure:", err);
-        } finally {
-            setIsExecuting(false);
-        }
-    };
-
-    const handleRestore = async (fileId: string, fileName: string) => {
-        setIsExecuting(true);
-        setShowExecutionLogs(true);
-        setProgressLogs([`🚀 Initializing project restoration from: ${fileName}...`]);
-        
-        try {
-            const service = new BackupService(activeProject, logCallback);
-            setProgressLogs(prev => [...prev, "🛠️ Deploying cloud restore worker..."]);
-            await service.deployRestoreWorker();
-            
-            setProgressLogs(prev => [...prev, "🏗️ Rebuilding infrastructure (databases, collections, indexes)..."]);
-            const result = await service.runRestore(fileId);
-            
-            if (result && result.success) {
-                setProgressLogs(prev => [...prev, "✅ Restoration complete. Resource structure matched."]);
-            } else {
-                const errMsg = (result && result.error) || "Restore worker failed.";
-                throw new Error(errMsg);
-            }
-        } catch (err: any) {
-            const failMsg = `❌ Restoration Failed: ${err.message || String(err)}`;
             setProgressLogs(prev => [...prev, failMsg]);
         } finally {
             setIsExecuting(false);
@@ -139,7 +113,6 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
             const service = new BackupService(activeProject, logCallback);
             await service.ensureBackupBucket();
             
-            // Native fetch with FormData for browser compatibility
             const formData = new FormData();
             const fileId = ID.unique();
             formData.append('fileId', fileId);
@@ -159,9 +132,8 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                 throw new Error(errData.message || "Upload failed");
             }
 
-            setProgressLogs(prev => [...prev, "✅ Upload successful. Starting restoration pipeline..."]);
+            setProgressLogs(prev => [...prev, "✅ Upload successful. Ready for restoration."]);
             fetchBackups();
-            await handleRestore(fileId, file.name);
 
         } catch (err: any) {
             setProgressLogs(prev => [...prev, `❌ Upload Failed: ${err.message}`]);
@@ -171,48 +143,22 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
         }
     };
 
-    const handleDeleteBackup = async (file: Models.File) => {
-        if (!confirm('Delete this snapshot file?')) return;
-        try {
-            const storage = getSdkStorage(activeProject);
-            await storage.deleteFile(BACKUP_BUCKET_ID, file.$id);
-            fetchBackups();
-        } catch (e: any) {
-            alert(e.message || String(e));
-        }
-    };
-
     const handleDownload = async (file: Models.File) => {
         try {
-            // Manual fetch ensures headers are correctly set and the response body is captured as a Blob.
-            // This is more reliable for file downloads with API keys in browser than SDK internal binary return types.
             const response = await fetch(`${activeProject.endpoint}/storage/buckets/${BACKUP_BUCKET_ID}/files/${file.$id}/download`, {
                 headers: {
                     'X-Appwrite-Project': activeProject.projectId,
                     'X-Appwrite-Key': activeProject.apiKey,
                 }
             });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({ message: 'Download failed' }));
-                throw new Error(errData.message || `HTTP ${response.status}`);
-            }
-
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-            
             const a = document.createElement('a');
-            a.style.display = 'none';
             a.href = url;
             a.download = file.name;
-            document.body.appendChild(a);
             a.click();
-            
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
         } catch (e: any) {
             console.error("Download failed:", e);
-            alert("Failed to download snapshot: " + (e.message || String(e)));
         }
     };
 
@@ -242,7 +188,7 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                         className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-purple-400 border border-purple-500/30 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
                     >
                         {isUploading ? <LoadingSpinnerIcon size={18}/> : <UploadCloudIcon size={18}/>}
-                        Upload & Restore
+                        Upload Snapshot
                     </button>
                     <button 
                         onClick={() => setIsConfigModalOpen(true)} 
@@ -314,14 +260,14 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                                     <DownloadCloudIcon size={16}/>
                                 </button>
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); if (confirm(`Restore from "${f.name}"?`)) handleRestore(f.$id, f.name); }}
+                                    onClick={(e) => { e.stopPropagation(); onRestoreBackup?.(f); }}
                                     className="p-1.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-400 rounded-lg transition-colors border border-purple-900/50"
                                     title="Restore Snapshot"
                                 >
                                     <UploadCloudIcon size={16}/>
                                 </button>
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteBackup(f); }}
+                                    onClick={(e) => { e.stopPropagation(); onDeleteBackup?.(f); }}
                                     className="p-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-lg transition-colors border border-red-900/30"
                                     title="Delete File"
                                 >

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { getAuditLogs, exportLogsToCSV, clearAuditLogs, type AuditLogEntry } from '../services/auditLogService';
-import { LoadingSpinnerIcon, DeleteIcon, CheckIcon, WarningIcon } from './Icons';
+import { LoadingSpinnerIcon, DeleteIcon, CheckIcon, WarningIcon, CloseIcon } from './Icons';
 
 interface AuditLogModalProps {
     isOpen: boolean;
@@ -13,11 +13,11 @@ interface AuditLogModalProps {
 export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose, projectId }) => {
     const [logs, setLogs] = useState<AuditLogEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [showConfirmClear, setShowConfirmClear] = useState(false);
 
     const fetchLogs = async () => {
         setIsLoading(true);
         const data = await getAuditLogs(projectId);
-        // Sort by timestamp desc
         data.sort((a, b) => b.timestamp - a.timestamp);
         setLogs(data);
         setIsLoading(false);
@@ -26,19 +26,19 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose, p
     useEffect(() => {
         if (isOpen) {
             fetchLogs();
+            setShowConfirmClear(false);
         }
     }, [isOpen, projectId]);
 
     const handleClear = async () => {
-        if (confirm('Are you sure you want to clear the local audit log history? This cannot be undone.')) {
-            await clearAuditLogs();
-            fetchLogs();
-        }
+        await clearAuditLogs();
+        setShowConfirmClear(false);
+        fetchLogs();
     };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Agent Audit Log" size="3xl">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <p className="text-sm text-gray-400">
                     Local history of actions performed by the AI Agent. Stored in browser IndexedDB.
                 </p>
@@ -50,13 +50,22 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose, p
                     >
                         Export CSV
                     </button>
-                    <button 
-                        onClick={handleClear}
-                        disabled={logs.length === 0}
-                        className="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs font-bold rounded-lg transition-colors border border-red-900/50 disabled:opacity-50 flex items-center gap-1"
-                    >
-                        <DeleteIcon size={12} /> Clear
-                    </button>
+                    
+                    {!showConfirmClear ? (
+                        <button 
+                            onClick={() => setShowConfirmClear(true)}
+                            disabled={logs.length === 0}
+                            className="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs font-bold rounded-lg transition-colors border border-red-900/50 disabled:opacity-50 flex items-center gap-1"
+                        >
+                            <DeleteIcon size={12} /> Clear
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-2 animate-fade-in bg-red-900/20 border border-red-900/50 rounded-lg p-1">
+                            <span className="text-[10px] font-bold text-red-400 px-2 uppercase">Sure?</span>
+                            <button onClick={handleClear} className="p-1 text-red-400 hover:bg-red-400 hover:text-white rounded transition-colors"><CheckIcon size={14}/></button>
+                            <button onClick={() => setShowConfirmClear(false)} className="p-1 text-gray-400 hover:bg-gray-700 rounded transition-colors"><CloseIcon size={14}/></button>
+                        </div>
+                    )}
                 </div>
             </div>
 

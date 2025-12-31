@@ -5,14 +5,16 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
+import { TransferDocumentsModal } from '../TransferDocumentsModal';
 
 type CollectionTab = 'documents' | 'attributes' | 'indexes' | 'settings';
 
 interface DatabasesTabProps {
     activeProject: AppwriteProject;
+    projects: AppwriteProject[];
     databases: Database[];
     selectedDb: Database | null;
     selectedCollection: Models.Collection | null;
@@ -39,24 +41,28 @@ interface DatabasesTabProps {
     onDeleteAttribute: (attr: any) => void;
     
     onCreateIndex: () => void;
+    onUpdateIndex: (idx: any) => void;
     onDeleteIndex: (idx: any) => void;
     
     onUpdateCollectionSettings: (data: any) => Promise<void>;
+    onCopySchema?: (db: Database) => void;
 }
 
 export const DatabasesTab: React.FC<DatabasesTabProps> = ({
-    activeProject, databases, selectedDb, selectedCollection, collections,
+    activeProject, projects, databases, selectedDb, selectedCollection, collections,
     documents, attributes, indexes,
     onCreateDatabase, onDeleteDatabase, onSelectDb,
     onCreateCollection, onDeleteCollection, onSelectCollection,
     onCreateDocument, onUpdateDocument, onDeleteDocument, onViewDocument,
     onCreateAttribute, onUpdateAttribute, onDeleteAttribute,
-    onCreateIndex, onDeleteIndex,
-    onUpdateCollectionSettings
+    onCreateIndex, onUpdateIndex, onDeleteIndex,
+    onUpdateCollectionSettings,
+    onCopySchema
 }) => {
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
     const [allowWrap, setAllowWrap] = useState(false);
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
     // Reset tab when collection changes
     useEffect(() => {
@@ -75,30 +81,62 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
 
     if (!selectedDb) {
         return (
-            <ResourceTable<Database> 
-                title="Databases" 
-                data={databases} 
-                onCreate={onCreateDatabase} 
-                onDelete={onDeleteDatabase} 
-                onSelect={(item) => onSelectDb(item)} 
-                createLabel="New DB" 
-                headers={['Actions', 'Database ID', 'Name', 'Status']}
-                extraActions={
-                    <a 
-                        href={consoleLinks.databases(activeProject)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all mr-2"
-                    >
-                        <ExternalLinkIcon size={14} /> Open in Console
-                    </a>
-                }
-                renderExtra={(db) => (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${db.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
-                        {db.enabled ? 'Active' : 'Disabled'}
-                    </span>
-                )}
-            />
+            <>
+                <ResourceTable<Database> 
+                    title="Databases" 
+                    data={databases} 
+                    onCreate={onCreateDatabase} 
+                    onDelete={onDeleteDatabase} 
+                    onSelect={(item) => onSelectDb(item)} 
+                    createLabel="New DB" 
+                    headers={['Actions', 'Database ID', 'Name', 'Status']}
+                    extraActions={
+                        <div className="flex items-center gap-2 mr-2">
+                             <button 
+                                onClick={() => setIsTransferModalOpen(true)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-cyan-400 hover:text-cyan-300 text-xs font-bold rounded-lg transition-colors"
+                            >
+                                <RiShareForwardLine size={14} /> Transfer Documents
+                            </button>
+                            <a 
+                                href={consoleLinks.databases(activeProject)} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                            >
+                                <ExternalLinkIcon size={14} /> Open in Console
+                            </a>
+                        </div>
+                    }
+                    renderExtraActions={(db) => (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onCopySchema?.(db); }}
+                            className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                            title="Copy Entire Schema"
+                        >
+                            <CopyIcon size={16} />
+                        </button>
+                    )}
+                    renderExtra={(db) => (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${db.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
+                            {db.enabled ? 'Active' : 'Disabled'}
+                        </span>
+                    )}
+                />
+                <TransferDocumentsModal 
+                    isOpen={isTransferModalOpen} 
+                    onClose={() => setIsTransferModalOpen(false)}
+                    activeProject={activeProject}
+                    projects={projects}
+                    databases={databases}
+                    onSuccess={() => {
+                        if (selectedCollection) {
+                             // Force refresh if we are inside a collection
+                             onSelectCollection(selectedCollection);
+                        }
+                    }}
+                />
+            </>
         );
     }
 
@@ -107,14 +145,30 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
             <>
                 <div className="flex justify-between items-start">
                     <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name }]} />
-                    <a 
-                        href={consoleLinks.database(activeProject, selectedDb.$id)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                    >
-                        <ExternalLinkIcon size={14} /> View Database in Console
-                    </a>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setIsTransferModalOpen(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-cyan-400 hover:text-cyan-300 text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <RiShareForwardLine size={14} /> Transfer Data
+                        </button>
+                        {onCopySchema && (
+                            <button 
+                                onClick={() => onCopySchema(selectedDb)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-cyan-400 transition-all"
+                            >
+                                <CopyIcon size={14} /> Copy Schema
+                            </button>
+                        )}
+                        <a 
+                            href={consoleLinks.database(activeProject, selectedDb.$id)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                        >
+                            <ExternalLinkIcon size={14} /> View Database in Console
+                        </a>
+                    </div>
                 </div>
                 <ResourceTable<Models.Collection> 
                     title={`Collections in ${selectedDb.name}`} 
@@ -130,6 +184,16 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         </span>
                     )}
                 />
+                 <TransferDocumentsModal 
+                    isOpen={isTransferModalOpen} 
+                    onClose={() => setIsTransferModalOpen(false)}
+                    activeProject={activeProject}
+                    projects={projects}
+                    databases={databases}
+                    onSuccess={() => {
+                         // Logic already handled in modal usually
+                    }}
+                />
             </>
         );
     }
@@ -139,14 +203,30 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
             <div className="mb-6">
                 <div className="flex justify-between items-start">
                     <Breadcrumb items={[{ label: 'Databases', onClick: () => onSelectDb(null) }, { label: selectedDb.name, onClick: () => onSelectCollection(null) }, { label: selectedCollection.name }]} />
-                    <a 
-                        href={consoleLinks.collection(activeProject, selectedDb.$id, selectedCollection.$id)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                    >
-                        <ExternalLinkIcon size={14} /> View Collection in Console
-                    </a>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => setIsTransferModalOpen(true)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-cyan-400 hover:text-cyan-300 text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <RiShareForwardLine size={14} /> Transfer Data
+                        </button>
+                         {onCopySchema && (
+                            <button 
+                                onClick={() => onCopySchema(selectedDb)}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-cyan-400 transition-all"
+                            >
+                                <CopyIcon size={14} /> Copy DB Schema
+                            </button>
+                        )}
+                        <a 
+                            href={consoleLinks.collection(activeProject, selectedDb.$id, selectedCollection.$id)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
+                        >
+                            <ExternalLinkIcon size={14} /> View Collection in Console
+                        </a>
+                    </div>
                 </div>
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -250,22 +330,34 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                             </div>
                         }
                         renderName={(item) => (
-                            <span className="px-2 py-0.5 bg-gray-900 border border-gray-700 rounded text-[11px] font-mono text-cyan-300 uppercase tracking-tight">
-                                {item.type}
-                            </span>
+                            <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-gray-900 border border-gray-700 rounded text-[11px] font-mono text-cyan-300 uppercase tracking-tight">
+                                    {item.type || item.format || 'unknown'}
+                                </span>
+                                {item.size && (
+                                    <span className="text-[10px] text-gray-600 font-mono">({item.size})</span>
+                                )}
+                            </div>
                         )} 
                         renderExtra={(item) => (
                             <div className="flex flex-wrap gap-2">
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${item.required ? 'bg-red-900/30 text-red-400 border border-red-900/20' : 'bg-gray-800 text-gray-500'}`}>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase border ${item.required ? 'bg-red-900/30 text-red-400 border-red-900/50' : 'bg-gray-800 text-gray-500 border-gray-700'}`}>
                                     {item.required ? 'Required' : 'Optional'}
                                 </span>
                                 {item.array && (
-                                    <span className="text-[10px] bg-blue-900/30 text-blue-400 border border-blue-900/20 px-1.5 py-0.5 rounded font-bold uppercase">
+                                    <span className="text-[10px] bg-blue-900/30 text-blue-400 border border-blue-900/50 px-1.5 py-0.5 rounded font-bold uppercase">
                                         Array
                                     </span>
                                 )}
                                 {item.default !== undefined && item.default !== null && (
-                                    <span className="text-[10px] text-gray-600 italic">Def: {String(item.default)}</span>
+                                    <span className="text-[10px] text-gray-400 bg-gray-800/50 border border-gray-700 px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={String(item.default)}>
+                                        Default: {String(item.default)}
+                                    </span>
+                                )}
+                                {item.type === 'relationship' && (
+                                    <span className="text-[10px] bg-purple-900/30 text-purple-400 border border-purple-900/50 px-1.5 py-0.5 rounded font-bold uppercase">
+                                        {item.relatedCollection} ({item.relationType})
+                                    </span>
                                 )}
                             </div>
                         )}
@@ -276,6 +368,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     <ResourceTable<any> 
                         data={indexes} 
                         onDelete={(item) => onDeleteIndex(item)} 
+                        onEdit={(item) => onUpdateIndex(item)}
                         onCreate={onCreateIndex} 
                         createLabel="Add Index"
                         allowWrap={allowWrap}
@@ -302,6 +395,19 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     <CollectionSettings collection={selectedCollection} onUpdate={onUpdateCollectionSettings} onDelete={onDeleteCollection} />
                 )}
             </div>
+            
+            <TransferDocumentsModal 
+                isOpen={isTransferModalOpen} 
+                onClose={() => setIsTransferModalOpen(false)}
+                activeProject={activeProject}
+                projects={projects}
+                databases={databases}
+                onSuccess={() => {
+                    if (selectedCollection) {
+                         // logic to refresh current view
+                    }
+                }}
+            />
         </div>
     );
 };

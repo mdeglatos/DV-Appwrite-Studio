@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
 import { Modal } from './Modal';
-import { LoadingSpinnerIcon, ChevronDownIcon } from './Icons';
+import { LoadingSpinnerIcon, ChevronDownIcon, RefreshIcon } from './Icons';
 
 // Sub-components & UI
 import { StudioNavBar } from './studio/ui/StudioNavBar';
@@ -14,7 +14,6 @@ import { FunctionsTab } from './studio/tabs/FunctionsTab';
 import { UsersTab } from './studio/tabs/UsersTab';
 import { TeamsTab } from './studio/tabs/TeamsTab';
 import { MigrationsTab } from './studio/tabs/MigrationsTab';
-import { McpTab } from './studio/tabs/McpTab';
 import { BackupsTab } from './studio/tabs/BackupsTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
@@ -59,10 +58,11 @@ export const Studio: React.FC<StudioProps> = ({
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
-        collections, documents, attributes, indexes, files, deployments, executions, memberships
+        collections, documents, attributes, indexes, files, deployments, executions, memberships,
+        refreshCurrentView
     } = studioData;
 
-    const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal } = studioModals;
+    const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal, setModalLoading } = studioModals;
 
     // Special handlers that need local UI components
     const handleViewExecution = (exec: Models.Execution) => {
@@ -81,21 +81,25 @@ export const Studio: React.FC<StudioProps> = ({
         );
     };
 
+    const handleStudioRefresh = async () => {
+        refreshData();
+        await refreshCurrentView();
+    };
+
     return (
         <div className="flex flex-col flex-1 h-full overflow-hidden bg-gray-950/20">
             {/* Nav Header */}
-            <div className="flex-shrink-0 z-20 py-2 w-full border-b border-white/5 bg-gray-950/10 backdrop-blur-sm">
-                 <StudioNavBar activeTab={activeTab} onTabChange={onTabChange} />
+            <div className="flex-shrink-0 z-20 py-3 w-full border-b border-white/5 bg-gray-950/20 backdrop-blur-md flex items-center justify-center relative">
+                 <StudioNavBar 
+                    activeTab={activeTab} 
+                    onTabChange={onTabChange} 
+                    onRefresh={handleStudioRefresh}
+                    isLoading={dataLoading}
+                 />
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
-                 {(dataLoading) && (
-                    <div className="absolute top-4 right-4 z-10">
-                        <LoadingSpinnerIcon />
-                    </div>
-                 )}
-                
                 <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-10">
                     {activeTab === 'overview' && (
                         <OverviewTab 
@@ -108,6 +112,7 @@ export const Studio: React.FC<StudioProps> = ({
                     {activeTab === 'database' && (
                         <DatabasesTab 
                             activeProject={activeProject}
+                            projects={projects}
                             databases={databases} selectedDb={selectedDb} selectedCollection={selectedCollection}
                             collections={collections} documents={documents} attributes={attributes} indexes={indexes}
                             onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
@@ -115,8 +120,11 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateDocument={studioActions.handleCreateDocument} onUpdateDocument={studioActions.handleUpdateDocument} onDeleteDocument={studioActions.handleDeleteDocument}
                             onViewDocument={handleViewDocument}
                             onCreateAttribute={studioActions.handleCreateAttribute} onUpdateAttribute={studioActions.handleUpdateAttribute} onDeleteAttribute={studioActions.handleDeleteAttribute}
-                            onCreateIndex={studioActions.handleCreateIndex} onDeleteIndex={studioActions.handleDeleteIndex}
+                            onCreateIndex={studioActions.handleCreateIndex} 
+                            onUpdateIndex={studioActions.handleUpdateIndex}
+                            onDeleteIndex={studioActions.handleDeleteIndex}
                             onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
+                            onCopySchema={studioActions.handleCopyDatabaseSchema}
                         />
                     )}
 
@@ -137,27 +145,24 @@ export const Studio: React.FC<StudioProps> = ({
                             deployments={deployments} executions={executions}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
                             onActivateDeployment={studioActions.handleActivateDeployment}
-                            onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
+                            onDeleteAllExecutions={() => {}} // Not implemented at action level yet
                             onViewExecution={handleViewExecution}
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
-                            onCleanupOldDeployments={studioActions.handleCleanupOldDeployments}
                             onEditCode={onEditCode}
-                            onRedeployAll={() => studioActions.handleRedeployAllFunctions(functions)}
-                            onRedeploy={(func) => studioActions.handleRedeployFunction(func)}
-                            onRefresh={() => selectedFunction && studioData.fetchFunctionDetails(selectedFunction.$id)}
+                            onRefresh={handleStudioRefresh}
                         />
                     )}
 
                     {activeTab === 'users' && (
-                        <UsersTab activeProject={activeProject} users={users} onCreateUser={studioActions.handleCreateUser} onDeleteUser={studioActions.handleDeleteUser} />
+                        <UsersTab activeProject={activeProject} users={users} onCreateUser={() => {}} onDeleteUser={() => {}} />
                     )}
 
                     {activeTab === 'teams' && (
                         <TeamsTab 
                             activeProject={activeProject}
                             teams={teams} selectedTeam={selectedTeam} memberships={memberships}
-                            onCreateTeam={studioActions.handleCreateTeam} onDeleteTeam={studioActions.handleDeleteTeam} onSelectTeam={setSelectedTeam}
-                            onCreateMembership={studioActions.handleCreateMembership} onDeleteMembership={studioActions.handleDeleteMembership}
+                            onCreateTeam={() => {}} onDeleteTeam={() => {}} onSelectTeam={setSelectedTeam}
+                            onCreateMembership={() => {}} onDeleteMembership={() => {}}
                         />
                     )}
 
@@ -165,12 +170,13 @@ export const Studio: React.FC<StudioProps> = ({
                         <MigrationsTab activeProject={activeProject} projects={projects} />
                     )}
 
-                    {activeTab === 'mcp' && (
-                        <McpTab activeProject={activeProject} />
-                    )}
-
                     {activeTab === 'backups' && (
-                        <BackupsTab activeProject={activeProject} logCallback={logCallback} />
+                        <BackupsTab 
+                            activeProject={activeProject} 
+                            logCallback={logCallback} 
+                            onDeleteBackup={studioActions.handleDeleteBackup}
+                            onRestoreBackup={studioActions.handleRestoreBackup}
+                        />
                     )}
                 </div>
             </div>
@@ -241,8 +247,22 @@ export const Studio: React.FC<StudioProps> = ({
                             <button 
                                 onClick={async () => {
                                     if(modal.type === 'custom') { closeModal(); return; }
-                                    if(modal.onConfirm) await modal.onConfirm(modal.type === 'form' ? formValues : undefined);
-                                    closeModal();
+                                    setModalLoading(true);
+                                    try {
+                                        const result = modal.onConfirm ? await modal.onConfirm(modal.type === 'form' ? formValues : undefined) : undefined;
+                                        const preventClose = result === true;
+                                        if (!preventClose) {
+                                            closeModal();
+                                        }
+                                    } catch (err: any) {
+                                        logCallback(`❌ Action Failed: ${err.message}`);
+                                        // On failure, stay open if it was a confirm modal to let user try again or read error
+                                        if (modal.type === 'form') {
+                                            setModalLoading(false);
+                                        } else {
+                                            closeModal();
+                                        }
+                                    }
                                 }}
                                 disabled={modalLoading}
                                 className={`px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors flex items-center gap-2 ${modal.confirmClass || 'bg-cyan-600 hover:bg-cyan-500'} disabled:opacity-70 disabled:cursor-not-allowed`}
@@ -255,7 +275,6 @@ export const Studio: React.FC<StudioProps> = ({
                 </Modal>
             )}
             
-            {/* Bulk File Transfer Feature */}
             <ConsolidateBucketsModal 
                 isOpen={isConsolidateModalOpen} onClose={() => setIsConsolidateModalOpen(false)}
                 buckets={buckets} activeProject={activeProject} projects={projects}

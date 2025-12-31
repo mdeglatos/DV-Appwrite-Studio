@@ -5,7 +5,7 @@ import type { NewAppwriteProject } from '../services/projectService';
 import { 
     AddIcon, DeleteIcon, CloseIcon, ToolsIcon, ProjectsIcon, ChevronDownIcon, 
     KeyIcon, SettingsIcon, DashboardIcon, DatabaseIcon, StorageIcon, 
-    FunctionIcon, TeamIcon, EditIcon, WarningIcon, McpIcon, BackupIcon,
+    FunctionIcon, TeamIcon, EditIcon, WarningIcon, BackupIcon,
     RiShareForwardLine
 } from './Icons';
 import { ToolConfiguration } from './studio/ui/ToolConfiguration';
@@ -193,7 +193,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     { id: 'users', label: 'Auth & Users', icon: <TeamIcon /> },
     { id: 'teams', label: 'Teams', icon: <TeamIcon /> },
     { id: 'migrations', label: 'Migrations', icon: <RiShareForwardLine /> },
-    { id: 'mcp', label: 'MCP Server', icon: <McpIcon /> },
     { id: 'backups', label: 'Backups', icon: <BackupIcon /> },
   ];
 
