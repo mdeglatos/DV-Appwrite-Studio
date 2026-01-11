@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import { TransferDocumentsModal } from '../TransferDocumentsModal';
@@ -46,6 +46,9 @@ interface DatabasesTabProps {
     
     onUpdateCollectionSettings: (data: any) => Promise<void>;
     onCopySchema?: (db: Database) => void;
+    
+    // New prop handled by useStudioActions
+    handleBulkUpdateDocuments?: (docIds: string[]) => void;
 }
 
 export const DatabasesTab: React.FC<DatabasesTabProps> = ({
@@ -57,16 +60,19 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     onCreateAttribute, onUpdateAttribute, onDeleteAttribute,
     onCreateIndex, onUpdateIndex, onDeleteIndex,
     onUpdateCollectionSettings,
-    onCopySchema
+    onCopySchema,
+    handleBulkUpdateDocuments
 }) => {
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
     const [allowWrap, setAllowWrap] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
 
     // Reset tab when collection changes
     useEffect(() => {
         setCollectionTab('documents');
+        setSelectedDocIds([]);
     }, [selectedCollection?.$id]);
 
     const wrapToggle = (
@@ -272,7 +278,26 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         createLabel="Add Document" 
                         allowWrap={allowWrap}
                         headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
-                        extraActions={wrapToggle}
+                        extraActions={
+                            <div className="flex items-center gap-2 mr-2">
+                                {wrapToggle}
+                                {selectedDocIds.length > 0 && handleBulkUpdateDocuments && (
+                                    <button 
+                                        onClick={() => {
+                                            handleBulkUpdateDocuments(selectedDocIds);
+                                            setSelectedDocIds([]); // Optional: clear selection after open? Better to keep until success.
+                                        }}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/40 hover:bg-purple-900/60 border border-purple-800 text-purple-300 text-xs font-bold rounded-lg transition-colors shadow-lg"
+                                    >
+                                        <EditIcon size={14} /> Bulk Edit ({selectedDocIds.length})
+                                    </button>
+                                )}
+                            </div>
+                        }
+                        selection={{
+                            selectedIds: selectedDocIds,
+                            onSelectionChange: setSelectedDocIds
+                        }}
                         renderName={(doc) => {
                              const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
                              return <span className="font-mono text-xs text-gray-400 block">{JSON.stringify(rest)}</span>;

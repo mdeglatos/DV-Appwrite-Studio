@@ -8,6 +8,7 @@ import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tool
 import React from 'react';
 import { DocumentEditor } from '../ui/DocumentEditor';
 import { DocumentCreateForm } from '../ui/DocumentCreateForm';
+import { BulkEditDocumentModal } from '../ui/BulkEditDocumentModal';
 import { CodeIcon, CheckIcon, CopyIcon, WarningIcon } from '../../Icons';
 import { BACKUP_BUCKET_ID, BackupService } from '../../../services/backupService';
 
@@ -23,7 +24,7 @@ export function useStudioActions(
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
         fetchCollections, fetchCollectionDetails, fetchFiles, 
         fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships,
-        attributes // Access current attributes from useStudioData
+        attributes, executions // Access current attributes and executions from useStudioData
     } = data;
 
     const { confirmAction, openForm, setModalLoading, setModal, openCustomModal, closeModal } = modals;
@@ -197,6 +198,44 @@ export function useStudioActions(
         });
     };
 
+    const handleBulkUpdateDocuments = (documentIds: string[]) => {
+        if (!selectedDb || !selectedCollection || documentIds.length === 0) return;
+
+        openCustomModal(
+            `Bulk Edit: ${documentIds.length} Documents`,
+            React.createElement(BulkEditDocumentModal, {
+                attributes: attributes,
+                count: documentIds.length,
+                onCancel: closeModal,
+                onSave: async (patchData: any) => {
+                    logCallback(`Studio: Starting bulk update on ${documentIds.length} documents...`);
+                    const sdk = getSdkDatabases(activeProject);
+                    let successCount = 0;
+                    let errorCount = 0;
+
+                    // Execute sequentially to avoid rate limits or use Promise.all in chunks
+                    // Using Promise.all for speed, Appwrite can handle moderate concurrency
+                    const updatePromises = documentIds.map(async (id) => {
+                        try {
+                            await sdk.updateDocument(selectedDb.$id, selectedCollection.$id, id, patchData);
+                            successCount++;
+                        } catch (e: any) {
+                            errorCount++;
+                            console.error(`Failed to update ${id}`, e);
+                        }
+                    });
+
+                    await Promise.all(updatePromises);
+                    
+                    logCallback(`Studio: Bulk update finished. Success: ${successCount}, Failed: ${errorCount}`);
+                    fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
+                    closeModal();
+                }
+            }),
+            '2xl'
+        );
+    };
+
     // -- Attributes & Indexes --
     const handleCreateAttribute = (type: string) => {
         if (!selectedDb || !selectedCollection) return;
@@ -210,59 +249,68 @@ export function useStudioActions(
         ];
         const onFinish = () => fetchCollectionDetails(dbId, collId);
 
+        // Helper to nullify default if required is true
+        const getSafeDefault = (d: any) => d.required ? null : (d.default || null);
+
         switch (type) {
             case 'string':
                 openForm("Create String Attribute", [...baseFields, { name: 'size', label: 'Size', type: 'number', defaultValue: 255, required: true }, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, d.default || null, d.array);
+                    await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
             case 'integer':
                 openForm("Create Integer Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
-                    await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array);
+                    const def = d.default !== "" ? Number(d.default) : undefined;
+                    const safeDef = d.required ? null : def;
+                    await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, safeDef, d.array);
                     onFinish();
                 });
                 break;
             case 'boolean':
                 openForm("Create Boolean Attribute", [...baseFields, { name: 'default', label: 'Default', type: 'checkbox', defaultValue: false }], async (d: any) => {
-                    await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, d.default, d.array);
+                    // Boolean default from checkbox is true/false. If required, it MUST be null.
+                    const safeDef = d.required ? null : d.default;
+                    await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, safeDef, d.array);
                     onFinish();
                 });
                 break;
             case 'float':
                 openForm("Create Float Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
-                    await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array);
+                    const def = d.default !== "" ? Number(d.default) : undefined;
+                    const safeDef = d.required ? null : def;
+                    await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, safeDef, d.array);
                     onFinish();
                 });
                 break;
             case 'email':
                 openForm("Create Email Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
+                    await sdk.createEmailAttribute(dbId, collId, d.key, d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
             case 'url':
                 openForm("Create URL Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
+                    await sdk.createUrlAttribute(dbId, collId, d.key, d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
             case 'ip':
                 openForm("Create IP Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
+                    await sdk.createIpAttribute(dbId, collId, d.key, d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
             case 'datetime':
                 openForm("Create Datetime Attribute", [...baseFields, { name: 'default', label: 'Default' }], async (d: any) => {
-                    await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default || null, d.array);
+                    await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
             case 'enum':
                 openForm("Create Enum Attribute", [...baseFields, { name: 'elements', label: 'Elements (Comma Separated)', type: 'textarea', required: true }, { name: 'default', label: 'Default' }], async (d: any) => {
                     const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
-                    await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default || null, d.array);
+                    await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, getSafeDefault(d), d.array);
                     onFinish();
                 });
                 break;
@@ -318,6 +366,9 @@ export function useStudioActions(
 
         openForm(`Edit Attribute: ${oldKey}`, fields, async (d: any) => {
             const needsRecreate = d.key !== oldKey || (type === 'string' && Number(d.size) !== attr.size) || !!d.array !== !!attr.array;
+            
+            // Helper to safe default
+            const getSafeDefault = (val: any) => d.required ? null : (val || null);
 
             const performUpdate = async () => {
                 if (needsRecreate) {
@@ -330,32 +381,47 @@ export function useStudioActions(
                     
                     logCallback(`Studio: Recreating attribute "${d.key}"...`);
                     switch (type) {
-                        case 'string': await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, d.default || null, d.array); break;
-                        case 'integer': await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array); break;
-                        case 'float': await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined, d.array); break;
-                        case 'boolean': await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, !!d.default, d.array); break;
-                        case 'email': await sdk.createEmailAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
-                        case 'url': await sdk.createUrlAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
-                        case 'ip': await sdk.createIpAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
-                        case 'datetime': await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, d.default || null, d.array); break;
+                        case 'string': await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, getSafeDefault(d.default), d.array); break;
+                        case 'integer': 
+                            const intDef = d.default !== "" ? Number(d.default) : undefined;
+                            await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : intDef, d.array); 
+                            break;
+                        case 'float': 
+                            const floatDef = d.default !== "" ? Number(d.default) : undefined;
+                            await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : floatDef, d.array); 
+                            break;
+                        case 'boolean': 
+                            // boolean default is boolean or undefined.
+                            await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, d.required ? null : !!d.default, d.array); 
+                            break;
+                        case 'email': await sdk.createEmailAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
+                        case 'url': await sdk.createUrlAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
+                        case 'ip': await sdk.createIpAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
+                        case 'datetime': await sdk.createDatetimeAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
                         case 'enum': 
                             const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
-                            await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, d.default || null, d.array); 
+                            await sdk.createEnumAttribute(dbId, collId, d.key, els, d.required, getSafeDefault(d.default), d.array); 
                             break;
                     }
                 } else {
                     switch (type) {
-                        case 'string': await sdk.updateStringAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
-                        case 'integer': await sdk.updateIntegerAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined); break;
-                        case 'float': await sdk.updateFloatAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.default !== "" ? Number(d.default) : undefined); break;
-                        case 'boolean': await sdk.updateBooleanAttribute(dbId, collId, oldKey, d.required, !!d.default); break;
-                        case 'email': await sdk.updateEmailAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
-                        case 'url': await sdk.updateUrlAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
-                        case 'ip': await sdk.updateIpAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
-                        case 'datetime': await sdk.updateDatetimeAttribute(dbId, collId, oldKey, d.required, d.default || null); break;
+                        case 'string': await sdk.updateStringAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
+                        case 'integer': 
+                            const intDef = d.default !== "" ? Number(d.default) : undefined;
+                            await sdk.updateIntegerAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : intDef); 
+                            break;
+                        case 'float': 
+                            const floatDef = d.default !== "" ? Number(d.default) : undefined;
+                            await sdk.updateFloatAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : floatDef); 
+                            break;
+                        case 'boolean': await sdk.updateBooleanAttribute(dbId, collId, oldKey, d.required, d.required ? null : !!d.default); break;
+                        case 'email': await sdk.updateEmailAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
+                        case 'url': await sdk.updateUrlAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
+                        case 'ip': await sdk.updateIpAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
+                        case 'datetime': await sdk.updateDatetimeAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
                         case 'enum': 
                             const els = d.elements.split(',').map((s: string) => s.trim()).filter(Boolean);
-                            await sdk.updateEnumAttribute(dbId, collId, oldKey, els, d.required, d.default || null); 
+                            await sdk.updateEnumAttribute(dbId, collId, oldKey, els, d.required, getSafeDefault(d.default)); 
                             break;
                     }
                 }
@@ -474,6 +540,47 @@ export function useStudioActions(
         });
     };
 
+    const handleDeleteAllExecutions = () => {
+        if (!selectedFunction) return;
+        
+        confirmAction("Clear All Execution Logs", `Permanently delete ALL execution logs for function "${selectedFunction.name}"? This iterates through the entire history.`, async () => {
+            const sdk = getSdkFunctions(activeProject);
+            const funcId = selectedFunction.$id;
+            let deletedCount = 0;
+            
+            try {
+                while(true) {
+                    const res = await sdk.listExecutions(funcId, [Query.limit(100)]);
+                    if (res.executions.length === 0) break;
+                    
+                    logCallback(`Studio: Clearing batch of ${res.executions.length} logs...`);
+                    
+                    let batchSuccess = 0;
+                    await Promise.all(res.executions.map(async (e) => {
+                        try {
+                            await sdk.deleteExecution(funcId, e.$id);
+                            batchSuccess++;
+                        } catch (err) {
+                            console.warn(err);
+                        }
+                    }));
+                    
+                    deletedCount += batchSuccess;
+                    
+                    // Safety: If we didn't delete anything but items existed, abort
+                    if (batchSuccess === 0) {
+                        logCallback("Studio Warning: Could not delete remaining logs.");
+                        break;
+                    }
+                }
+                logCallback(`Studio: Cleared ${deletedCount} logs.`);
+                fetchFunctionDetails(funcId);
+            } catch (err: any) {
+                throw new Error(`Failed to clear logs: ${err.message}`);
+            }
+        });
+    };
+
     // -- Backups --
     const handleDeleteBackup = (file: Models.File) => {
         confirmAction("Delete Snapshot", `Delete snapshot "${file.name}"?`, async () => {
@@ -494,10 +601,10 @@ export function useStudioActions(
     return {
         handleCreateDatabase, handleDeleteDatabase, handleCopyDatabaseSchema,
         handleCreateCollection, handleUpdateCollectionSettings, handleDeleteCollection,
-        handleCreateDocument, handleUpdateDocument, handleDeleteDocument,
+        handleCreateDocument, handleUpdateDocument, handleDeleteDocument, handleBulkUpdateDocuments,
         handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleUpdateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleDeleteFile,
-        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments,
+        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleDeleteAllExecutions,
         handleDeleteBackup, handleRestoreBackup
     };
 }

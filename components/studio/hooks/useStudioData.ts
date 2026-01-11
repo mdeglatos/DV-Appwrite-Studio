@@ -136,10 +136,10 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         }
     }, [activeProject, logCallback]);
 
-    const fetchFunctionDetails = useCallback(async (funcId: string) => {
+    const fetchFunctionDetails = useCallback(async (funcId: string, silent: boolean = false) => {
         if (!activeProject) return;
         const currentPid = activeProject.$id;
-        setIsLoading(true);
+        if (!silent) setIsLoading(true);
         try {
             const sdk = getSdkFunctions(activeProject);
             const [deps, execs] = await Promise.all([
@@ -151,9 +151,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
                 setExecutions(execs.executions);
             }
         } catch (e) { 
-            logCallback(`Studio Error: ${handleFetchError(e)}`);
+            if (!silent) logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
-            if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
+            if (!silent && currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
     }, [activeProject, logCallback]);
 
@@ -252,6 +252,21 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     useEffect(() => { 
         if (selectedTeam && activeProject?.$id === lastProjectIdRef.current) fetchMemberships(selectedTeam.$id); 
     }, [selectedTeam?.$id, fetchMemberships, activeProject?.$id]);
+
+    // Polling for function executions
+    useEffect(() => {
+        let interval: any;
+        if (activeTab === 'functions' && selectedFunction && activeProject) {
+            interval = setInterval(() => {
+                if (document.visibilityState === 'visible') {
+                    fetchFunctionDetails(selectedFunction.$id, true);
+                }
+            }, 2000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [activeTab, selectedFunction, activeProject, fetchFunctionDetails]);
 
     return {
         isLoading,

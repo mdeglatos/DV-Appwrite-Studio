@@ -125,6 +125,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onDeleteIndex={studioActions.handleDeleteIndex}
                             onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
                             onCopySchema={studioActions.handleCopyDatabaseSchema}
+                            handleBulkUpdateDocuments={studioActions.handleBulkUpdateDocuments}
                         />
                     )}
 
@@ -145,7 +146,7 @@ export const Studio: React.FC<StudioProps> = ({
                             deployments={deployments} executions={executions}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
                             onActivateDeployment={studioActions.handleActivateDeployment}
-                            onDeleteAllExecutions={() => {}} // Not implemented at action level yet
+                            onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
                             onViewExecution={handleViewExecution}
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
                             onEditCode={onEditCode}
