@@ -3,7 +3,7 @@ import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
 import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
-import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine } from 'react-icons/ri';
+import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine, RiArrowRightSLine } from 'react-icons/ri';
 
 interface IconProps {
     size?: number;
@@ -34,6 +34,7 @@ export const LogoutIcon: React.FC<IconProps> = ({ size = 20, className }) => <Ri
 export const ChevronDownIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiArrowDownSLine size={size} className={className} />;
 export const ChevronUpIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiArrowUpSLine size={size} className={className} />;
 export const ArrowLeftIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiArrowLeftSLine size={size} className={className} />;
+export const ArrowRightIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiArrowRightSLine size={size} className={className} />;
 export const ProjectsIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiStackLine size={size} className={className} />;
 
 export const FileUploadIcon: React.FC<IconProps> = ({ size = 48, className }) => <RiFileUploadFill size={size} className={className} />;

@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 // Removed unused and non-exported 'RiLinksLine'
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ChevronDownIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, ArrowLeftIcon, ArrowRightIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -34,6 +34,14 @@ interface FunctionsTabProps {
     onEditCode?: (f: AppwriteFunction) => void;
     onRedeploy?: (f: AppwriteFunction) => void;
     onRefresh?: () => void;
+
+    // Pagination
+    viewAllExecutions?: boolean;
+    toggleViewAllExecutions?: () => void;
+    executionPage?: number;
+    nextExecutionPage?: () => void;
+    prevExecutionPage?: () => void;
+    executionsTotal?: number;
 }
 
 /**
@@ -58,7 +66,8 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     onRedeployAll,
     onEditCode,
     onRedeploy,
-    onRefresh
+    onRefresh,
+    viewAllExecutions, toggleViewAllExecutions, executionPage = 0, nextExecutionPage, prevExecutionPage, executionsTotal = 0
 }) => {
     const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([]);
 
@@ -66,6 +75,9 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     useEffect(() => {
         setSelectedDeploymentIds([]);
     }, [selectedFunction?.$id]);
+
+    const hasNextPage = executions.length === (viewAllExecutions ? 25 : 20); // If full page returned, assume next exists
+    const hasPrevPage = executionPage > 0;
 
     if (!selectedFunction) {
         return (
@@ -295,15 +307,50 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     data={executions} 
                     autoHeight
                     extraActions={
-                        executions.length > 0 && (
-                            <button 
-                                onClick={onDeleteAllExecutions}
-                                className="flex items-center gap-2 px-2 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 text-[10px] font-bold rounded-lg transition-colors"
-                            >
-                                <DeleteIcon size={12} /> Clear All
-                            </button>
-                        )
+                        <div className="flex items-center gap-2">
+                            {toggleViewAllExecutions && (
+                                <button 
+                                    onClick={toggleViewAllExecutions}
+                                    className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${viewAllExecutions ? 'bg-cyan-900/20 border-cyan-500 text-cyan-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'}`}
+                                >
+                                    {viewAllExecutions ? 'Show Recent' : 'Show All'}
+                                </button>
+                            )}
+                            {executions.length > 0 && (
+                                <button 
+                                    onClick={onDeleteAllExecutions}
+                                    className="flex items-center gap-2 px-2 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 text-[10px] font-bold rounded-lg transition-colors"
+                                >
+                                    <DeleteIcon size={12} /> Clear All
+                                </button>
+                            )}
+                        </div>
                     }
+                    footer={viewAllExecutions && (
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500 font-medium">
+                                Total: {executionsTotal} • Page {executionPage + 1}
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={prevExecutionPage}
+                                    disabled={!hasPrevPage}
+                                    className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Previous Page"
+                                >
+                                    <ArrowLeftIcon size={14} />
+                                </button>
+                                <button
+                                    onClick={nextExecutionPage}
+                                    disabled={!hasNextPage}
+                                    className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    title="Next Page"
+                                >
+                                    <ArrowRightIcon size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     renderName={(e) => <span className="flex items-center gap-2"><TerminalIcon size={14}/> <span className="font-mono">{e.$id}</span></span>}
                     renderExtra={(e) => (
                         <div className="flex items-center justify-between w-full">

@@ -29,6 +29,12 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const [executions, setExecutions] = useState<Models.Execution[]>([]);
     const [memberships, setMemberships] = useState<Models.Membership[]>([]);
 
+    // -- Pagination State --
+    const [viewAllExecutions, setViewAllExecutions] = useState(false);
+    const [executionPage, setExecutionPage] = useState(0);
+    const [executionCursors, setExecutionCursors] = useState<(string | undefined)[]>([undefined]);
+    const [executionsTotal, setExecutionsTotal] = useState(0);
+
     const lastProjectIdRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -49,6 +55,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
             setDeployments([]);
             setExecutions([]);
             setMemberships([]);
+            
+            // Reset pagination
+            setViewAllExecutions(false);
+            setExecutionPage(0);
+            setExecutionCursors([undefined]);
+            setExecutionsTotal(0);
+
             lastProjectIdRef.current = projectId;
         }
     }, [activeProject?.$id]);
@@ -142,20 +155,56 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         if (!silent) setIsLoading(true);
         try {
             const sdk = getSdkFunctions(activeProject);
+            
+            // Build execution query with pagination
+            const execLimit = viewAllExecutions ? 25 : 20;
+            const execQueries = [Query.limit(execLimit), Query.orderDesc('$createdAt')];
+            const currentCursor = viewAllExecutions ? executionCursors[executionPage] : undefined;
+            if (currentCursor) {
+                execQueries.push(Query.cursorAfter(currentCursor));
+            }
+
             const [deps, execs] = await Promise.all([
                 sdk.listDeployments(funcId, [Query.limit(50), Query.orderDesc('$createdAt')]),
-                sdk.listExecutions(funcId, [Query.limit(20), Query.orderDesc('$createdAt')]),
+                sdk.listExecutions(funcId, execQueries),
             ]);
             if (currentPid === lastProjectIdRef.current) {
                 setDeployments(deps.deployments);
                 setExecutions(execs.executions);
+                setExecutionsTotal(execs.total);
             }
         } catch (e) { 
             if (!silent) logCallback(`Studio Error: ${handleFetchError(e)}`);
         } finally { 
             if (!silent && currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
-    }, [activeProject, logCallback]);
+    }, [activeProject, logCallback, viewAllExecutions, executionCursors, executionPage]);
+
+    // Pagination Controls
+    const toggleViewAllExecutions = useCallback(() => {
+        setViewAllExecutions(prev => !prev);
+        setExecutionPage(0);
+        setExecutionCursors([undefined]);
+    }, []);
+
+    const nextExecutionPage = useCallback(() => {
+        if (executions.length === 0) return;
+        const lastId = executions[executions.length - 1].$id;
+        
+        setExecutionCursors(prev => {
+            const next = [...prev];
+            // Only add if not already there to prevent dupes in weird race cases
+            if (next.length === executionPage + 1) {
+                next.push(lastId);
+            }
+            return next;
+        });
+        setExecutionPage(p => p + 1);
+    }, [executions, executionPage]);
+
+    const prevExecutionPage = useCallback(() => {
+        setExecutionPage(p => Math.max(0, p - 1));
+    }, []);
 
     const fetchMemberships = useCallback(async (teamId: string) => {
         if (!activeProject) return;
@@ -223,6 +272,10 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setSelectedBucket(null);
         setSelectedFunction(null);
         setSelectedTeam(null);
+        // Reset execution pagination on tab change
+        setViewAllExecutions(false);
+        setExecutionPage(0);
+        setExecutionCursors([undefined]);
     }, [activeTab]);
 
     useEffect(() => { 
@@ -247,7 +300,7 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
 
     useEffect(() => { 
         if (selectedFunction && activeProject?.$id === lastProjectIdRef.current) fetchFunctionDetails(selectedFunction.$id); 
-    }, [selectedFunction?.$id, fetchFunctionDetails, activeProject?.$id]);
+    }, [selectedFunction?.$id, fetchFunctionDetails, activeProject?.$id, executionPage, viewAllExecutions]); // Add pagination deps
 
     useEffect(() => { 
         if (selectedTeam && activeProject?.$id === lastProjectIdRef.current) fetchMemberships(selectedTeam.$id); 
@@ -256,7 +309,8 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     // Polling for function executions
     useEffect(() => {
         let interval: any;
-        if (activeTab === 'functions' && selectedFunction && activeProject) {
+        if (activeTab === 'functions' && selectedFunction && activeProject && !viewAllExecutions) {
+            // Only poll if NOT in pagination mode
             interval = setInterval(() => {
                 if (document.visibilityState === 'visible') {
                     fetchFunctionDetails(selectedFunction.$id, true);
@@ -266,7 +320,7 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [activeTab, selectedFunction, activeProject, fetchFunctionDetails]);
+    }, [activeTab, selectedFunction, activeProject, fetchFunctionDetails, viewAllExecutions]);
 
     return {
         isLoading,
@@ -278,6 +332,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         selectedTeam, setSelectedTeam,
         collections, documents, attributes, indexes, files, deployments, executions, memberships,
         fetchUsers, fetchTeams, fetchCollections, fetchCollectionDetails, fetchFiles, fetchFunctionDetails, fetchMemberships,
-        refreshCurrentView
+        refreshCurrentView,
+        // Pagination Exports
+        viewAllExecutions, toggleViewAllExecutions,
+        executionPage, nextExecutionPage, prevExecutionPage, executionsTotal
     };
 }

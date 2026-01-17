@@ -27,6 +27,9 @@ interface ResourceTableProps<T> {
     // Layout
     autoHeight?: boolean;
     allowWrap?: boolean; // New prop for content wrapping
+    
+    // Pagination
+    footer?: React.ReactNode;
 }
 
 export const ResourceTable = <T extends { $id: string }>({ 
@@ -46,6 +49,7 @@ export const ResourceTable = <T extends { $id: string }>({
     isRowActive,
     autoHeight = false,
     allowWrap = false,
+    footer,
 }: ResourceTableProps<T>) => {
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,6 +190,11 @@ export const ResourceTable = <T extends { $id: string }>({
                     </tbody>
                 </table>
             </div>
+            {footer && (
+                <div className="bg-gray-900/50 border-t border-gray-700/50 p-3">
+                    {footer}
+                </div>
+            )}
         </div>
     );
 };

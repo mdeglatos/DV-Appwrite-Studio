@@ -59,7 +59,9 @@ export const Studio: React.FC<StudioProps> = ({
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
         collections, documents, attributes, indexes, files, deployments, executions, memberships,
-        refreshCurrentView
+        refreshCurrentView,
+        // Pagination
+        viewAllExecutions, toggleViewAllExecutions, executionPage, nextExecutionPage, prevExecutionPage, executionsTotal
     } = studioData;
 
     const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal, setModalLoading } = studioModals;
@@ -151,6 +153,13 @@ export const Studio: React.FC<StudioProps> = ({
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
                             onEditCode={onEditCode}
                             onRefresh={handleStudioRefresh}
+                            // Pagination
+                            viewAllExecutions={viewAllExecutions}
+                            toggleViewAllExecutions={toggleViewAllExecutions}
+                            executionPage={executionPage}
+                            nextExecutionPage={nextExecutionPage}
+                            prevExecutionPage={prevExecutionPage}
+                            executionsTotal={executionsTotal}
                         />
                     )}
 
