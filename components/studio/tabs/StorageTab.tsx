@@ -1,10 +1,10 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Bucket, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { FileIcon, RiShareForwardLine, ExternalLinkIcon } from '../../Icons';
+import { FileIcon, RiShareForwardLine, ExternalLinkIcon, DeleteIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 
 interface StorageTabProps {
@@ -17,16 +17,27 @@ interface StorageTabProps {
     onSelectBucket: (b: Bucket | null) => void;
     onDeleteFile: (f: Models.File) => void;
     
-    // New prop
+    // New props
     onConsolidateBuckets: () => void;
+    onBulkDeleteBuckets?: (bucketIds: string[]) => void;
+    onBulkDeleteFiles?: (fileIds: string[]) => void;
 }
 
 export const StorageTab: React.FC<StorageTabProps> = ({
     activeProject, buckets, selectedBucket, files,
     onCreateBucket, onDeleteBucket, onSelectBucket,
     onDeleteFile,
-    onConsolidateBuckets
+    onConsolidateBuckets,
+    onBulkDeleteBuckets,
+    onBulkDeleteFiles
 }) => {
+    const [selectedBucketIds, setSelectedBucketIds] = useState<string[]>([]);
+    const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+
+    useEffect(() => {
+        setSelectedFileIds([]);
+    }, [selectedBucket?.$id]);
+
     if (!selectedBucket) {
         return (
             <ResourceTable<Bucket> 
@@ -36,8 +47,23 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                 onDelete={onDeleteBucket} 
                 onSelect={(item) => onSelectBucket(item)} 
                 createLabel="New Bucket" 
+                selection={{
+                    selectedIds: selectedBucketIds,
+                    onSelectionChange: setSelectedBucketIds
+                }}
                 extraActions={
                     <div className="flex items-center gap-2 mr-2">
+                        {selectedBucketIds.length > 0 && onBulkDeleteBuckets && (
+                            <button
+                                onClick={() => {
+                                    onBulkDeleteBuckets(selectedBucketIds);
+                                    setSelectedBucketIds([]);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                            >
+                                <DeleteIcon size={14} /> Delete ({selectedBucketIds.length})
+                            </button>
+                        )}
                         <a 
                             href={consoleLinks.storage(activeProject)} 
                             target="_blank" 
@@ -75,6 +101,23 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                 title={`Files in ${selectedBucket.name}`} 
                 data={files} 
                 onDelete={onDeleteFile} 
+                selection={{
+                    selectedIds: selectedFileIds,
+                    onSelectionChange: setSelectedFileIds
+                }}
+                extraActions={
+                    selectedFileIds.length > 0 && onBulkDeleteFiles && (
+                        <button
+                            onClick={() => {
+                                onBulkDeleteFiles(selectedFileIds);
+                                setSelectedFileIds([]);
+                            }}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors mr-2"
+                        >
+                            <DeleteIcon size={14} /> Delete ({selectedFileIds.length})
+                        </button>
+                    )
+                }
                 renderName={(f) => <div className="flex items-center gap-2"><FileIcon size={14}/> {f.name}</div>}
                 renderExtra={(f) => <span className="text-xs text-gray-500">{(f.sizeOriginal / 1024).toFixed(1)} KB</span>}
             />

@@ -506,10 +506,47 @@ export function useStudioActions(
         });
     };
 
+    const handleBulkDeleteBuckets = (bucketIds: string[]) => {
+        confirmAction("Delete Buckets", `Are you sure you want to delete ${bucketIds.length} buckets? This will permanently delete all files contained within them.`, async () => {
+            const sdk = getSdkStorage(activeProject);
+            logCallback(`Studio: Deleting ${bucketIds.length} buckets...`);
+            let deletedCount = 0;
+            await Promise.all(bucketIds.map(async (id) => {
+                try {
+                    await sdk.deleteBucket(id);
+                    deletedCount++;
+                } catch (e) {
+                    console.error(`Failed to delete bucket ${id}`, e);
+                }
+            }));
+            logCallback(`Studio: Deleted ${deletedCount} buckets.`);
+            refreshData();
+        });
+    };
+
     const handleDeleteFile = (file: Models.File) => {
         if (!selectedBucket) return;
         confirmAction("Delete File", `Delete file "${file.name}"?`, async () => {
             await getSdkStorage(activeProject).deleteFile(selectedBucket.$id, file.$id);
+            fetchFiles(selectedBucket.$id);
+        });
+    };
+
+    const handleBulkDeleteFiles = (fileIds: string[]) => {
+        if (!selectedBucket) return;
+        confirmAction("Delete Files", `Are you sure you want to delete ${fileIds.length} files?`, async () => {
+            const sdk = getSdkStorage(activeProject);
+            logCallback(`Studio: Deleting ${fileIds.length} files from bucket "${selectedBucket.name}"...`);
+            let deletedCount = 0;
+            await Promise.all(fileIds.map(async (id) => {
+                try {
+                    await sdk.deleteFile(selectedBucket.$id, id);
+                    deletedCount++;
+                } catch (e) {
+                    console.error(`Failed to delete file ${id}`, e);
+                }
+            }));
+            logCallback(`Studio: Deleted ${deletedCount} files.`);
             fetchFiles(selectedBucket.$id);
         });
     };
@@ -603,7 +640,7 @@ export function useStudioActions(
         handleCreateCollection, handleUpdateCollectionSettings, handleDeleteCollection,
         handleCreateDocument, handleUpdateDocument, handleDeleteDocument, handleBulkUpdateDocuments,
         handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleUpdateIndex, handleDeleteIndex,
-        handleCreateBucket, handleDeleteBucket, handleDeleteFile,
+        handleCreateBucket, handleDeleteBucket, handleBulkDeleteBuckets, handleDeleteFile, handleBulkDeleteFiles,
         handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleDeleteAllExecutions,
         handleDeleteBackup, handleRestoreBackup
     };

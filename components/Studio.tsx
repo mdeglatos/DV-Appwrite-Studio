@@ -68,7 +68,11 @@ export const Studio: React.FC<StudioProps> = ({
 
     // Special handlers that need local UI components
     const handleViewExecution = (exec: Models.Execution) => {
-        openCustomModal("Execution Details", <ExecutionDetails execution={exec} />, '3xl');
+        openCustomModal(
+            "Execution Details", 
+            <ExecutionDetails execution={exec} allExecutions={executions} />, 
+            '3xl'
+        );
     };
 
     const handleViewDocument = (doc: Models.Document) => {
@@ -138,6 +142,8 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateBucket={studioActions.handleCreateBucket} onDeleteBucket={studioActions.handleDeleteBucket} onSelectBucket={setSelectedBucket}
                             onDeleteFile={studioActions.handleDeleteFile}
                             onConsolidateBuckets={() => setIsConsolidateModalOpen(true)}
+                            onBulkDeleteBuckets={studioActions.handleBulkDeleteBuckets}
+                            onBulkDeleteFiles={studioActions.handleBulkDeleteFiles}
                         />
                     )}
 
