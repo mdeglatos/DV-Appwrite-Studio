@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Models } from 'node-appwrite';
 import { CopyButton } from './CopyButton';
-import { ArrowLeftIcon, ArrowRightIcon } from '../../Icons';
+import { ArrowLeftIcon, ArrowRightIcon, CopyIcon, CheckIcon } from '../../Icons';
 
 interface ExecutionDetailsProps {
     execution: Models.Execution;
@@ -11,6 +11,7 @@ interface ExecutionDetailsProps {
 
 export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({ execution: initialExecution, allExecutions }) => {
     const [currentExecution, setCurrentExecution] = useState(initialExecution);
+    const [isCopied, setIsCopied] = useState(false);
 
     useEffect(() => {
         setCurrentExecution(initialExecution);
@@ -35,6 +36,33 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({ execution: i
         if (hasOlder && allExecutions) setCurrentExecution(allExecutions[currentIndex + 1]);
     };
 
+    const handleCopyReport = () => {
+        const report = {
+            id: e.$id,
+            functionId: e.functionId,
+            status: e.status,
+            statusCode: e.responseStatusCode,
+            duration: e.duration,
+            createdAt: e.$createdAt,
+            trigger: e.trigger,
+            request: {
+                method: e.requestMethod,
+                path: e.requestPath,
+                headers: e.requestHeaders
+            },
+            output: {
+                logs: logs,
+                errors: errors
+            }
+        };
+
+        const text = JSON.stringify(report, null, 2);
+        navigator.clipboard.writeText(text).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        });
+    };
+
     const formatHeaders = (headers: any[]) => {
         if (!headers || headers.length === 0) return <span className="text-gray-500 italic">No headers</span>;
         return (
@@ -53,30 +81,46 @@ export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({ execution: i
         <div className="flex flex-col h-[65vh]">
             {/* Fixed Header Section */}
             <div className="flex-shrink-0 space-y-4 mb-4">
-                {/* Navigation Bar */}
-                {allExecutions && (
-                    <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-lg border border-gray-800">
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handleNewer}
-                                disabled={!hasNewer}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-800 disabled:cursor-not-allowed transition-colors text-xs font-bold border border-gray-700"
-                            >
-                                <ArrowLeftIcon size={14} /> Newer
-                            </button>
-                            <button
-                                onClick={handleOlder}
-                                disabled={!hasOlder}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-800 disabled:cursor-not-allowed transition-colors text-xs font-bold border border-gray-700"
-                            >
-                                Older <ArrowRightIcon size={14} />
-                            </button>
-                        </div>
-                        <span className="text-[10px] text-gray-500 font-mono font-medium">
-                            {currentIndex + 1} / {allExecutions.length}
-                        </span>
+                {/* Navigation & Actions Bar */}
+                <div className="flex justify-between items-center bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                    <div className="flex items-center gap-2">
+                        {allExecutions && (
+                            <>
+                                <button
+                                    onClick={handleNewer}
+                                    disabled={!hasNewer}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-800 disabled:cursor-not-allowed transition-colors text-xs font-bold border border-gray-700"
+                                >
+                                    <ArrowLeftIcon size={14} /> Newer
+                                </button>
+                                <button
+                                    onClick={handleOlder}
+                                    disabled={!hasOlder}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white disabled:opacity-30 disabled:hover:bg-gray-800 disabled:cursor-not-allowed transition-colors text-xs font-bold border border-gray-700"
+                                >
+                                    Older <ArrowRightIcon size={14} />
+                                </button>
+                            </>
+                        )}
                     </div>
-                )}
+                    
+                    <div className="flex items-center gap-3">
+                        {allExecutions && (
+                            <span className="text-[10px] text-gray-500 font-mono font-medium">
+                                {currentIndex + 1} / {allExecutions.length}
+                            </span>
+                        )}
+                        <div className="h-4 w-px bg-gray-700/50 mx-1"></div>
+                        <button
+                            onClick={handleCopyReport}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-cyan-400 hover:text-cyan-300 border border-gray-700 text-xs font-bold transition-all"
+                            title="Copy full execution report JSON"
+                        >
+                            {isCopied ? <CheckIcon size={14} className="text-green-400" /> : <CopyIcon size={14} />}
+                            {isCopied ? <span className="text-green-400">Copied</span> : 'Copy Report'}
+                        </button>
+                    </div>
+                </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
