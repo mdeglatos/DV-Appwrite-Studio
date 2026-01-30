@@ -132,6 +132,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
                             onCopySchema={studioActions.handleCopyDatabaseSchema}
                             handleBulkUpdateDocuments={studioActions.handleBulkUpdateDocuments}
+                            handleBulkDeleteDocuments={studioActions.handleBulkDeleteDocuments}
                         />
                     )}
 

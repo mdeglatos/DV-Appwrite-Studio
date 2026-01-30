@@ -49,6 +49,10 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
         logCallback(`Connecting to Appwrite: ${activeProject.endpoint}...`);
         setIsContextLoading(true);
         setError(null);
+        
+        // Note: We do NOT clear setDatabases/setBuckets here anymore.
+        // Clearing is handled by the useEffect above when the project ID changes.
+        // Keeping data during a refresh (same project) prevents UI flashing.
 
         try {
             const projectDatabases = getSdkDatabases(activeProject);
@@ -67,7 +71,7 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
             setBuckets(bucketResponse.buckets);
             setFunctions(funcResponse.functions as unknown as AppwriteFunction[]);
 
-            logCallback(`Connection successful: Found ${dbResponse.databases.length} Databases.`);
+            logCallback(`Connection successful: Found ${dbResponse.databases.length} Databases, ${bucketResponse.buckets.length} Buckets.`);
         } catch (e) {
             const errorMessage = handleFetchError(e);
             if (currentPid === currentProjectIdRef.current) {

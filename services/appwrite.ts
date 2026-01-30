@@ -79,6 +79,26 @@ function createProjectAdminClient(project: AppwriteProject): NodeClient {
         .setEndpoint(normalizeEndpoint(project.endpoint))
         .setProject(project.projectId.trim())
         .setKey(project.apiKey.trim());
+
+    // Force disable caching for admin requests to prevent stale data
+    if (typeof (client as any).addHeader === 'function') {
+        (client as any).addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        (client as any).addHeader('Pragma', 'no-cache');
+        (client as any).addHeader('Expires', '0');
+    }
+
+    // Monkey-patch the 'call' method to inject a unique timestamp query parameter
+    // into GET requests. This forces the browser to bypass cache even if headers are ignored.
+    const originalCall = (client as any).call.bind(client);
+    (client as any).call = (method: string, url: URL, headers: any, params: any, responseType: any) => {
+        if (method.toLowerCase() === 'get') {
+            params = params || {};
+            // Using a specific key that Appwrite likely ignores or treats as extra
+            params['__t'] = Date.now();
+        }
+        return originalCall(method, url, headers, params, responseType);
+    };
+
     return client;
 }
 

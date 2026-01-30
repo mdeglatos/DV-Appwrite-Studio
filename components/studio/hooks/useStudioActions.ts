@@ -236,6 +236,32 @@ export function useStudioActions(
         );
     };
 
+    const handleBulkDeleteDocuments = (documentIds: string[]) => {
+        if (!selectedDb || !selectedCollection || documentIds.length === 0) return;
+
+        confirmAction("Delete Documents", `Are you sure you want to delete ${documentIds.length} documents? This action cannot be undone.`, async () => {
+            const sdk = getSdkDatabases(activeProject);
+            logCallback(`Studio: Deleting ${documentIds.length} documents from "${selectedCollection.name}"...`);
+            
+            let deletedCount = 0;
+            let errorCount = 0;
+
+            const promises = documentIds.map(async (id) => {
+                try {
+                    await sdk.deleteDocument(selectedDb.$id, selectedCollection.$id, id);
+                    deletedCount++;
+                } catch (e) {
+                    errorCount++;
+                    console.error(`Failed to delete document ${id}`, e);
+                }
+            });
+
+            await Promise.all(promises);
+            logCallback(`Studio: Bulk delete finished. Deleted: ${deletedCount}, Failed: ${errorCount}`);
+            fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
+        });
+    };
+
     // -- Attributes & Indexes --
     const handleCreateAttribute = (type: string) => {
         if (!selectedDb || !selectedCollection) return;
@@ -638,7 +664,7 @@ export function useStudioActions(
     return {
         handleCreateDatabase, handleDeleteDatabase, handleCopyDatabaseSchema,
         handleCreateCollection, handleUpdateCollectionSettings, handleDeleteCollection,
-        handleCreateDocument, handleUpdateDocument, handleDeleteDocument, handleBulkUpdateDocuments,
+        handleCreateDocument, handleUpdateDocument, handleDeleteDocument, handleBulkUpdateDocuments, handleBulkDeleteDocuments,
         handleCreateAttribute, handleUpdateAttribute, handleDeleteAttribute, handleCreateIndex, handleUpdateIndex, handleDeleteIndex,
         handleCreateBucket, handleDeleteBucket, handleBulkDeleteBuckets, handleDeleteFile, handleBulkDeleteFiles,
         handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleDeleteAllExecutions,
