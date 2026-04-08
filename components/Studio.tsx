@@ -57,16 +57,14 @@ export const Studio: React.FC<StudioProps> = ({
 
     // 3. Destructure hooks for cleaner prop passing
     const { 
-        isLoading: dataLoading, users, teams, 
+        isLoading: dataLoading,
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
-        collections, documents, attributes, indexes, files, deployments, executions, memberships, variables,
+        attributes, indexes, variables,
+        usersPagination, teamsPagination, collectionsPagination, documentsPagination,
+        filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
         refreshCurrentView,
-        // Document Pagination
-        documentPage, nextDocumentPage, prevDocumentPage, documentsTotal, documentSearchQuery, updateDocumentSearch,
-        // Execution Pagination
-        viewAllExecutions, toggleViewAllExecutions, executionPage, nextExecutionPage, prevExecutionPage, executionsTotal
     } = studioData;
 
     const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal, setModalLoading } = studioModals;
@@ -75,7 +73,7 @@ export const Studio: React.FC<StudioProps> = ({
     const handleViewExecution = (exec: Models.Execution) => {
         openCustomModal(
             "Execution Details", 
-            <ExecutionDetails execution={exec} allExecutions={executions} />, 
+            <ExecutionDetails execution={exec} allExecutions={executionsPagination.items} />, 
             '3xl'
         );
     };
@@ -106,7 +104,7 @@ export const Studio: React.FC<StudioProps> = ({
                 try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
             }));
             toast.success(`Deleted ${deleted} users.`);
-            studioData.fetchUsers();
+            usersPagination.refresh();
         });
     }, [activeProject, studioModals, studioData, toast]);
 
@@ -119,7 +117,7 @@ export const Studio: React.FC<StudioProps> = ({
                 try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
             }));
             toast.success(`Deleted ${deleted} teams.`);
-            studioData.fetchTeams();
+            teamsPagination.refresh();
         });
     }, [activeProject, studioModals, studioData, toast]);
 
@@ -173,7 +171,7 @@ export const Studio: React.FC<StudioProps> = ({
                         <OverviewTab 
                             activeProject={activeProject}
                             databases={databases} buckets={buckets} functions={functions} 
-                            users={users} teams={teams} onTabChange={onTabChange}
+                            users={usersPagination.items} teams={teamsPagination.items} onTabChange={onTabChange}
                             onCreateDatabase={studioActions.handleCreateDatabase}
                             onCreateBucket={studioActions.handleCreateBucket}
                             onCreateUser={studioActions.handleCreateUser}
@@ -185,7 +183,7 @@ export const Studio: React.FC<StudioProps> = ({
                             activeProject={activeProject}
                             projects={projects}
                             databases={databases} selectedDb={selectedDb} selectedCollection={selectedCollection}
-                            collections={collections} documents={documents} attributes={attributes} indexes={indexes}
+                            collections={collectionsPagination.items} documents={documentsPagination.items} attributes={attributes} indexes={indexes}
                             onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
                             onCreateCollection={studioActions.handleCreateCollection} onDeleteCollection={studioActions.handleDeleteCollection} onSelectCollection={setSelectedCollection}
                             onCreateDocument={studioActions.handleCreateDocument} onUpdateDocument={studioActions.handleUpdateDocument} onDeleteDocument={studioActions.handleDeleteDocument}
@@ -199,20 +197,15 @@ export const Studio: React.FC<StudioProps> = ({
                             handleBulkUpdateDocuments={studioActions.handleBulkUpdateDocuments}
                             handleBulkDeleteDocuments={studioActions.handleBulkDeleteDocuments}
                             onRenameDatabase={studioActions.handleRenameDatabase}
-                            // Document pagination
-                            documentPage={documentPage}
-                            nextDocumentPage={nextDocumentPage}
-                            prevDocumentPage={prevDocumentPage}
-                            documentsTotal={documentsTotal}
-                            documentSearchQuery={documentSearchQuery}
-                            onDocumentSearch={updateDocumentSearch}
+                            collectionsPagination={collectionsPagination}
+                            documentsPagination={documentsPagination}
                         />
                     )}
 
                     {activeTab === 'storage' && (
                         <StorageTab 
                             activeProject={activeProject}
-                            buckets={buckets} selectedBucket={selectedBucket} files={files}
+                            buckets={buckets} selectedBucket={selectedBucket} files={filesPagination.items}
                             onCreateBucket={studioActions.handleCreateBucket} onDeleteBucket={studioActions.handleDeleteBucket} onSelectBucket={setSelectedBucket}
                             onDeleteFile={studioActions.handleDeleteFile}
                             onConsolidateBuckets={() => setIsConsolidateModalOpen(true)}
@@ -222,6 +215,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onDownloadFile={studioActions.handleDownloadFile}
                             onPreviewFile={studioActions.handlePreviewFile}
                             onUpdateBucket={studioActions.handleUpdateBucket}
+                            filesPagination={filesPagination}
                         />
                     )}
 
@@ -229,7 +223,7 @@ export const Studio: React.FC<StudioProps> = ({
                         <FunctionsTab 
                             activeProject={activeProject}
                             functions={functions} selectedFunction={selectedFunction} 
-                            deployments={deployments} executions={executions} variables={variables}
+                            deployments={deploymentsPagination.items} executions={executionsPagination.items} variables={variables}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
                             onActivateDeployment={studioActions.handleActivateDeployment}
                             onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
@@ -237,13 +231,8 @@ export const Studio: React.FC<StudioProps> = ({
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
                             onEditCode={onEditCode}
                             onRefresh={handleStudioRefresh}
-                            // Pagination
-                            viewAllExecutions={viewAllExecutions}
-                            toggleViewAllExecutions={toggleViewAllExecutions}
-                            executionPage={executionPage}
-                            nextExecutionPage={nextExecutionPage}
-                            prevExecutionPage={prevExecutionPage}
-                            executionsTotal={executionsTotal}
+                            deploymentsPagination={deploymentsPagination}
+                            executionsPagination={executionsPagination}
                             // Variables
                             onCreateVariable={studioActions.handleCreateVariable}
                             onUpdateVariable={studioActions.handleUpdateVariable}
@@ -257,7 +246,7 @@ export const Studio: React.FC<StudioProps> = ({
                     {activeTab === 'users' && (
                         <UsersTab 
                             activeProject={activeProject} 
-                            users={users} 
+                            users={usersPagination.items} 
                             onCreateUser={studioActions.handleCreateUser} 
                             onDeleteUser={studioActions.handleDeleteUser}
                             onUpdateStatus={studioActions.handleUpdateUserStatus}
@@ -266,13 +255,14 @@ export const Studio: React.FC<StudioProps> = ({
                             onUpdateEmail={studioActions.handleUpdateUserEmail}
                             onVerifyEmail={studioActions.handleVerifyUserEmail}
                             onBulkDeleteUsers={handleBulkDeleteUsers}
+                            pagination={usersPagination}
                         />
                     )}
 
                     {activeTab === 'teams' && (
                         <TeamsTab 
                             activeProject={activeProject}
-                            teams={teams} selectedTeam={selectedTeam} memberships={memberships}
+                            teams={teamsPagination.items} selectedTeam={selectedTeam} memberships={membershipsPagination.items}
                             onCreateTeam={studioActions.handleCreateTeam} 
                             onDeleteTeam={studioActions.handleDeleteTeam} 
                             onSelectTeam={setSelectedTeam}
@@ -280,6 +270,8 @@ export const Studio: React.FC<StudioProps> = ({
                             onDeleteMembership={studioActions.handleDeleteMembership}
                             onRenameTeam={studioActions.handleRenameTeam}
                             onBulkDeleteTeams={handleBulkDeleteTeams}
+                            pagination={teamsPagination}
+                            membershipsPagination={membershipsPagination}
                         />
                     )}
 
@@ -398,7 +390,7 @@ export const Studio: React.FC<StudioProps> = ({
             <ConsolidateBucketsModal 
                 isOpen={isConsolidateModalOpen} onClose={() => setIsConsolidateModalOpen(false)}
                 buckets={buckets} activeProject={activeProject} projects={projects}
-                onSuccess={() => { refreshData(); if (selectedBucket) studioData.fetchFiles(selectedBucket.$id); }}
+                onSuccess={() => { refreshData(); filesPagination.refresh(); }}
             />
         </div>
     );

@@ -1,12 +1,16 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { AppwriteFunction, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
+import { PaginationFooter } from '../ui/PaginationFooter';
+import { CleanupModal } from '../ui/CleanupModal';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, ArrowLeftIcon, ArrowRightIcon, PlayIcon, EditIcon, AddIcon } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, PlayIcon, EditIcon, AddIcon, CleanupIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
+import type { PaginatedState } from '../hooks/usePaginatedQuery';
+import { getExecutionCleanupConfig, getDeploymentCleanupConfig } from '../hooks/cleanupConfigs';
 
 type FunctionSubTab = 'deployments' | 'executions' | 'variables' | 'settings';
 
@@ -37,12 +41,8 @@ interface FunctionsTabProps {
     onRefresh?: () => void;
 
     // Pagination
-    viewAllExecutions?: boolean;
-    toggleViewAllExecutions?: () => void;
-    executionPage?: number;
-    nextExecutionPage?: () => void;
-    prevExecutionPage?: () => void;
-    executionsTotal?: number;
+    deploymentsPagination: PaginatedState<Models.Deployment>;
+    executionsPagination: PaginatedState<Models.Execution>;
 
     // New: Variables
     onCreateVariable?: () => void;
@@ -74,20 +74,28 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     onEditCode,
     onRedeploy,
     onRefresh,
-    viewAllExecutions, toggleViewAllExecutions, executionPage = 0, nextExecutionPage, prevExecutionPage, executionsTotal = 0,
+    deploymentsPagination, executionsPagination,
     onCreateVariable, onUpdateVariable, onDeleteVariable,
     onExecuteFunction, onUpdateFunction
 }) => {
     const [selectedDeploymentIds, setSelectedDeploymentIds] = useState<string[]>([]);
     const [activeSubTab, setActiveSubTab] = useState<FunctionSubTab>('deployments');
+    const [cleanupTarget, setCleanupTarget] = useState<'executions' | 'deployments' | null>(null);
+
+    const execCleanupConfig = useMemo(
+        () => selectedFunction ? getExecutionCleanupConfig(activeProject, selectedFunction.$id) : null,
+        [activeProject, selectedFunction?.$id]
+    );
+    const depCleanupConfig = useMemo(
+        () => selectedFunction ? getDeploymentCleanupConfig(activeProject, selectedFunction) : null,
+        [activeProject, selectedFunction]
+    );
 
     useEffect(() => {
         setSelectedDeploymentIds([]);
         setActiveSubTab('deployments');
     }, [selectedFunction?.$id]);
 
-    const hasNextPage = executions.length === (viewAllExecutions ? 25 : 20);
-    const hasPrevPage = executionPage > 0;
 
     if (!selectedFunction) {
         return (
@@ -137,7 +145,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
 
     const subTabs: { id: FunctionSubTab; label: string; count?: number }[] = [
         { id: 'deployments', label: 'Deployments', count: deployments.length },
-        { id: 'executions', label: 'Executions', count: executionsTotal || executions.length },
+        { id: 'executions', label: 'Executions', count: executionsPagination.total || executions.length },
         { id: 'variables', label: 'Variables', count: variables.length },
         { id: 'settings', label: 'Settings' },
     ];
@@ -256,6 +264,12 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                                     <DeleteIcon size={14} /> Delete ({selectedDeploymentIds.length})
                                 </button>
                             )}
+                            <button
+                                onClick={() => setCleanupTarget('deployments')}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                            >
+                                <CleanupIcon size={14} /> Cleanup
+                            </button>
                         </div>
                     }
                     renderName={(d) => {
@@ -315,6 +329,21 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                             </div>
                         );
                     }}
+                    footer={
+                        <PaginationFooter
+                            page={deploymentsPagination.page}
+                            pageSize={deploymentsPagination.pageSize}
+                            total={deploymentsPagination.total}
+                            totalPages={deploymentsPagination.totalPages}
+                            hasNextPage={deploymentsPagination.hasNextPage}
+                            hasPrevPage={deploymentsPagination.hasPrevPage}
+                            pageInfo={deploymentsPagination.pageInfo}
+                            onNextPage={deploymentsPagination.nextPage}
+                            onPrevPage={deploymentsPagination.prevPage}
+                            onPageSizeChange={deploymentsPagination.setPageSize}
+                            isLoading={deploymentsPagination.isLoading}
+                        />
+                    }
                 />
             )}
 
@@ -325,35 +354,35 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     autoHeight
                     extraActions={
                         <div className="flex items-center gap-2">
-                            {toggleViewAllExecutions && (
-                                <button onClick={toggleViewAllExecutions}
-                                    className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${viewAllExecutions ? 'bg-cyan-900/20 border-cyan-500 text-cyan-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'}`}>
-                                    {viewAllExecutions ? 'Show Recent' : 'Show All'}
-                                </button>
-                            )}
                             {executions.length > 0 && (
                                 <button onClick={onDeleteAllExecutions}
                                     className="flex items-center gap-2 px-2 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 text-[10px] font-bold rounded-lg transition-colors">
                                     <DeleteIcon size={12} /> Clear All
                                 </button>
                             )}
+                            <button
+                                onClick={() => setCleanupTarget('executions')}
+                                className="flex items-center gap-2 px-2 py-1 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-[10px] font-bold rounded-lg transition-colors"
+                            >
+                                <CleanupIcon size={12} /> Cleanup
+                            </button>
                         </div>
                     }
-                    footer={viewAllExecutions && (
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500 font-medium">Total: {executionsTotal} • Page {executionPage + 1}</span>
-                            <div className="flex items-center gap-2">
-                                <button onClick={prevExecutionPage} disabled={!hasPrevPage}
-                                    className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors" title="Previous">
-                                    <ArrowLeftIcon size={14} />
-                                </button>
-                                <button onClick={nextExecutionPage} disabled={!hasNextPage}
-                                    className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors" title="Next">
-                                    <ArrowRightIcon size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                    footer={
+                        <PaginationFooter
+                            page={executionsPagination.page}
+                            pageSize={executionsPagination.pageSize}
+                            total={executionsPagination.total}
+                            totalPages={executionsPagination.totalPages}
+                            hasNextPage={executionsPagination.hasNextPage}
+                            hasPrevPage={executionsPagination.hasPrevPage}
+                            pageInfo={executionsPagination.pageInfo}
+                            onNextPage={executionsPagination.nextPage}
+                            onPrevPage={executionsPagination.prevPage}
+                            onPageSizeChange={executionsPagination.setPageSize}
+                            isLoading={executionsPagination.isLoading}
+                        />
+                    }
                     renderName={(e) => <span className="flex items-center gap-2"><TerminalIcon size={14}/> <span className="font-mono">{e.$id}</span></span>}
                     renderExtra={(e) => (
                         <div className="flex items-center justify-between w-full">
@@ -439,6 +468,24 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* Cleanup Modals */}
+            {execCleanupConfig && (
+                <CleanupModal
+                    isOpen={cleanupTarget === 'executions'}
+                    onClose={() => setCleanupTarget(null)}
+                    config={execCleanupConfig}
+                    onComplete={() => executionsPagination.refresh()}
+                />
+            )}
+            {depCleanupConfig && (
+                <CleanupModal
+                    isOpen={cleanupTarget === 'deployments'}
+                    onClose={() => setCleanupTarget(null)}
+                    config={depCleanupConfig}
+                    onComplete={() => deploymentsPagination.refresh()}
+                />
             )}
         </>
     );

@@ -3,12 +3,15 @@ import React, { useState, useEffect } from 'react';
 import type { Database, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
+import { PaginationFooter } from '../ui/PaginationFooter';
+import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon, SearchIcon, ArrowLeftIcon, ArrowRightIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import { TransferDocumentsModal } from '../TransferDocumentsModal';
+import type { PaginatedState } from '../hooks/usePaginatedQuery';
 
 type CollectionTab = 'documents' | 'attributes' | 'indexes' | 'settings';
 
@@ -52,13 +55,9 @@ interface DatabasesTabProps {
     handleBulkUpdateDocuments?: (docIds: string[]) => void;
     handleBulkDeleteDocuments?: (docIds: string[]) => void;
 
-    // Document pagination
-    documentPage?: number;
-    nextDocumentPage?: () => void;
-    prevDocumentPage?: () => void;
-    documentsTotal?: number;
-    documentSearchQuery?: string;
-    onDocumentSearch?: (query: string) => void;
+    // Pagination
+    collectionsPagination: PaginatedState<Models.Collection>;
+    documentsPagination: PaginatedState<Models.Document>;
 }
 
 export const DatabasesTab: React.FC<DatabasesTabProps> = ({
@@ -74,8 +73,8 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     onRenameDatabase,
     handleBulkUpdateDocuments,
     handleBulkDeleteDocuments,
-    documentPage = 0, nextDocumentPage, prevDocumentPage, documentsTotal = 0,
-    documentSearchQuery = '', onDocumentSearch
+    collectionsPagination,
+    documentsPagination,
 }) => {
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
@@ -296,23 +295,14 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                 {collectionTab === 'documents' && (
                     <>
                         {/* Search bar */}
-                        {onDocumentSearch && (
-                            <div className="mb-4 flex items-center gap-3">
-                                <div className="relative flex-1 max-w-md">
-                                    <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search documents by ID..."
-                                        value={documentSearchQuery}
-                                        onChange={e => onDocumentSearch(e.target.value)}
-                                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-200 placeholder-gray-600 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-colors"
-                                    />
-                                </div>
-                                <span className="text-xs text-gray-500 font-medium">
-                                    {documentsTotal} document{documentsTotal !== 1 ? 's' : ''} total
-                                </span>
-                            </div>
-                        )}
+                        <ResourceSearchBar
+                            value={documentsPagination.searchQuery}
+                            onChange={documentsPagination.setSearch}
+                            placeholder="Search documents by ID..."
+                            total={documentsPagination.searchQuery ? documentsPagination.total : undefined}
+                            isLoading={documentsPagination.isLoading}
+                            className="mb-4"
+                        />
                         <ResourceTable<Models.Document> 
                             data={documents} 
                             onCreate={onCreateDocument} 
@@ -353,31 +343,21 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                                 selectedIds: selectedDocIds,
                                 onSelectionChange: setSelectedDocIds
                             }}
-                            footer={nextDocumentPage && prevDocumentPage && (
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs text-gray-500 font-medium">
-                                        Page {documentPage + 1} • Showing {documents.length} of {documentsTotal}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={prevDocumentPage} 
-                                            disabled={documentPage === 0}
-                                            className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            title="Previous Page"
-                                        >
-                                            <ArrowLeftIcon size={14} />
-                                        </button>
-                                        <button 
-                                            onClick={nextDocumentPage} 
-                                            disabled={documents.length < 25}
-                                            className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            title="Next Page"
-                                        >
-                                            <ArrowRightIcon size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
+                            footer={
+                                <PaginationFooter
+                                    page={documentsPagination.page}
+                                    pageSize={documentsPagination.pageSize}
+                                    total={documentsPagination.total}
+                                    totalPages={documentsPagination.totalPages}
+                                    hasNextPage={documentsPagination.hasNextPage}
+                                    hasPrevPage={documentsPagination.hasPrevPage}
+                                    pageInfo={documentsPagination.pageInfo}
+                                    onNextPage={documentsPagination.nextPage}
+                                    onPrevPage={documentsPagination.prevPage}
+                                    onPageSizeChange={documentsPagination.setPageSize}
+                                    isLoading={documentsPagination.isLoading}
+                                />
+                            }
                             renderName={(doc) => {
                                  const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
                                  return <span className="font-mono text-xs text-gray-400 block">{JSON.stringify(rest)}</span>;

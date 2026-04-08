@@ -1,11 +1,16 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { Bucket, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
+import { PaginationFooter } from '../ui/PaginationFooter';
+import { ResourceSearchBar } from '../ui/ResourceSearchBar';
+import { CleanupModal } from '../ui/CleanupModal';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { FileIcon, RiShareForwardLine, ExternalLinkIcon, DeleteIcon, UploadIcon, DownloadIcon, EyeIcon, SettingsIcon, ImageIcon } from '../../Icons';
+import { FileIcon, RiShareForwardLine, ExternalLinkIcon, DeleteIcon, UploadIcon, DownloadIcon, EyeIcon, SettingsIcon, ImageIcon, CleanupIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
+import type { PaginatedState } from '../hooks/usePaginatedQuery';
+import { getFileCleanupConfig } from '../hooks/cleanupConfigs';
 
 interface StorageTabProps {
     activeProject: AppwriteProject;
@@ -23,6 +28,7 @@ interface StorageTabProps {
     onDownloadFile?: (f: Models.File) => void;
     onPreviewFile?: (f: Models.File) => void;
     onUpdateBucket?: (b: Bucket) => void;
+    filesPagination: PaginatedState<Models.File>;
 }
 
 export const StorageTab: React.FC<StorageTabProps> = ({
@@ -35,13 +41,19 @@ export const StorageTab: React.FC<StorageTabProps> = ({
     onUploadFile,
     onDownloadFile,
     onPreviewFile,
-    onUpdateBucket
+    onUpdateBucket,
+    filesPagination
 }) => {
     const [selectedBucketIds, setSelectedBucketIds] = useState<string[]>([]);
     const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
     const [isDragging, setIsDragging] = useState(false);
+    const [isCleanupOpen, setIsCleanupOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const dragCounterRef = useRef(0);
+    const fileCleanupConfig = useMemo(
+        () => selectedBucket ? getFileCleanupConfig(activeProject, selectedBucket.$id) : null,
+        [activeProject, selectedBucket?.$id]
+    );
 
     useEffect(() => {
         setSelectedFileIds([]);
@@ -167,7 +179,7 @@ export const StorageTab: React.FC<StorageTabProps> = ({
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
-            className="relative"
+            className="relative space-y-3"
         >
             {/* Drag overlay */}
             {isDragging && (
@@ -216,8 +228,23 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                     >
                         <ExternalLinkIcon size={14} /> Console
                     </a>
+                    <button
+                        onClick={() => setIsCleanupOpen(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                    >
+                        <CleanupIcon size={14} /> Cleanup
+                    </button>
                 </div>
             </div>
+
+            {/* Search bar for files */}
+            <ResourceSearchBar
+                value={filesPagination.searchQuery}
+                onChange={filesPagination.setSearch}
+                placeholder="Search files by name..."
+                total={filesPagination.searchQuery ? filesPagination.total : undefined}
+                isLoading={filesPagination.isLoading}
+            />
 
             <ResourceTable<Models.File> 
                 title={`Files in ${selectedBucket.name}`} 
@@ -267,6 +294,21 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                         <span className="text-[10px] text-gray-600 bg-gray-800 px-1.5 py-0.5 rounded">{f.mimeType}</span>
                     </div>
                 )}
+                footer={
+                    <PaginationFooter
+                        page={filesPagination.page}
+                        pageSize={filesPagination.pageSize}
+                        total={filesPagination.total}
+                        totalPages={filesPagination.totalPages}
+                        hasNextPage={filesPagination.hasNextPage}
+                        hasPrevPage={filesPagination.hasPrevPage}
+                        pageInfo={filesPagination.pageInfo}
+                        onNextPage={filesPagination.nextPage}
+                        onPrevPage={filesPagination.prevPage}
+                        onPageSizeChange={filesPagination.setPageSize}
+                        isLoading={filesPagination.isLoading}
+                    />
+                }
             />
 
             {/* Upload zone when empty */}
@@ -279,6 +321,15 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                     <p className="text-sm text-gray-400 font-medium">Drag files here or click to upload</p>
                     <p className="text-xs text-gray-600 mt-1">Files will be uploaded to "{selectedBucket.name}"</p>
                 </div>
+            )}
+
+            {fileCleanupConfig && (
+                <CleanupModal
+                    isOpen={isCleanupOpen}
+                    onClose={() => setIsCleanupOpen(false)}
+                    config={fileCleanupConfig}
+                    onComplete={() => filesPagination.refresh()}
+                />
             )}
         </div>
     );

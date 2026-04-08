@@ -24,10 +24,31 @@ export function useStudioActions(
     const { 
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
-        fetchCollections, fetchCollectionDetails, fetchFiles, 
-        fetchFunctionDetails, fetchUsers, fetchTeams, fetchMemberships,
-        attributes, executions // Access current attributes and executions from useStudioData
+        attributes,
+        usersPagination, teamsPagination, collectionsPagination, documentsPagination,
+        filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
+        fetchCollectionMeta, fetchVariables,
     } = data;
+
+    // Compatibility wrappers — translate old fetchX(id) calls into pagination .refresh() calls.
+    // This avoids rewriting 40+ call sites. The pagination hooks auto-fetch based on selection state.
+    const fetchUsers = () => usersPagination.refresh();
+    const fetchTeams = () => teamsPagination.refresh();
+    const fetchCollections = (_dbId?: string) => collectionsPagination.refresh();
+    const fetchCollectionDetails = (_dbId?: string, _collId?: string) => {
+        documentsPagination.refresh();
+        if (selectedDb && selectedCollection) fetchCollectionMeta(selectedDb.$id, selectedCollection.$id);
+    };
+    const fetchFiles = (_bucketId?: string) => filesPagination.refresh();
+    const fetchFunctionDetails = (_funcId?: string) => {
+        deploymentsPagination.refresh();
+        executionsPagination.refresh();
+        if (selectedFunction) fetchVariables(selectedFunction.$id);
+    };
+    const fetchMemberships = (_teamId?: string) => membershipsPagination.refresh();
+    
+    // Current items from pagination (for code that reads the current page)
+    const executions = executionsPagination.items;
 
     const { confirmAction, openForm, setModalLoading, setModal, openCustomModal, closeModal } = modals;
 
