@@ -226,7 +226,6 @@ export const Studio: React.FC<StudioProps> = ({
                             deployments={deploymentsPagination.items} executions={executionsPagination.items} variables={variables}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
                             onActivateDeployment={studioActions.handleActivateDeployment}
-                            onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
                             onViewExecution={handleViewExecution}
                             onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
                             onEditCode={onEditCode}

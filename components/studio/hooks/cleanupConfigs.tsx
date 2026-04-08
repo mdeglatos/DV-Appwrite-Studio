@@ -541,7 +541,7 @@ export function getDeploymentCleanupConfig(project: AppwriteProject, func: Appwr
         ),
         filterFn: (dep, filters) => {
             if (filters.status && dep.status !== filters.status) return false;
-            if (filters.active === 'inactive' && dep.$id === func.deployment) return false;
+            if (filters.active === 'inactive' && dep.$id === func.deploymentId) return false;
             if (!matchesDateFilter(dep.$createdAt, filters.dateMode, filters.dateValue)) return false;
             return true;
         },
@@ -554,7 +554,7 @@ export function getDeploymentCleanupConfig(project: AppwriteProject, func: Appwr
                         d.status === 'ready' ? 'text-green-400' :
                         d.status === 'failed' ? 'text-red-400' : 'text-yellow-400'
                     }`}>{d.status}</span>
-                    {d.$id === func.deployment && (
+                    {d.$id === func.deploymentId && (
                         <span className="ml-2 text-[10px] bg-cyan-500 text-black px-1.5 py-0.5 rounded font-bold">ACTIVE</span>
                     )}
                 </td>

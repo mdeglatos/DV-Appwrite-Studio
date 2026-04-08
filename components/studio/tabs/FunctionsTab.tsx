@@ -28,12 +28,10 @@ interface FunctionsTabProps {
     
     onActivateDeployment: (depId: string) => void;
     
-    onDeleteAllExecutions: () => void;
     onViewExecution: (e: Models.Execution) => void;
 
     // Bulk Actions
     onBulkDeleteDeployments?: (deploymentIds: string[]) => void;
-    onCleanupOldDeployments?: () => void;
     onRedeployAll?: () => void;
     
     onEditCode?: (f: AppwriteFunction) => void;
@@ -67,9 +65,8 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     activeProject, functions, selectedFunction, deployments, executions, variables,
     onCreateFunction, onDeleteFunction, onSelectFunction,
     onActivateDeployment,
-    onDeleteAllExecutions, onViewExecution,
+    onViewExecution,
     onBulkDeleteDeployments,
-    onCleanupOldDeployments,
     onRedeployAll,
     onEditCode,
     onRedeploy,
@@ -249,15 +246,9 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     selection={{ selectedIds: selectedDeploymentIds, onSelectionChange: setSelectedDeploymentIds }}
                     headers={['Status & ID', 'Build Settings', 'Metadata', 'Action']}
                     autoHeight
-                    isRowActive={(d) => d.$id === selectedFunction.deployment}
+                    isRowActive={(d) => d.$id === selectedFunction.deploymentId}
                     extraActions={
                         <div className="flex items-center gap-2">
-                            {onCleanupOldDeployments && deployments.length > 1 && (
-                                <button onClick={onCleanupOldDeployments}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-red-900/40 border border-gray-700 hover:border-red-800 text-gray-400 hover:text-red-300 text-xs font-bold rounded-lg transition-colors">
-                                    <DeleteIcon size={14} /> Cleanup Old
-                                </button>
-                            )}
                             {selectedDeploymentIds.length > 0 && onBulkDeleteDeployments && (
                                 <button onClick={() => { onBulkDeleteDeployments(selectedDeploymentIds); setSelectedDeploymentIds([]); }}
                                     className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors">
@@ -273,7 +264,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                         </div>
                     }
                     renderName={(d) => {
-                        const isActive = d.$id === selectedFunction.deployment;
+                        const isActive = d.$id === selectedFunction.deploymentId;
                         return (
                             <div className="flex flex-col gap-1.5">
                                 <div className="flex items-center gap-2">
@@ -294,8 +285,8 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                         );
                     }}
                     renderExtra={(d) => {
-                        const isActive = d.$id === selectedFunction.deployment;
-                        const sizeToDisplay = (d as any).size ?? (d as any).sizeOriginal ?? 0;
+                        const isActive = d.$id === selectedFunction.deploymentId;
+                        const sizeToDisplay = d.totalSize ?? 0;
                         return (
                             <div className="flex items-center justify-between w-full pr-4">
                                 <div className="flex flex-col gap-1 min-w-[180px]">
@@ -305,7 +296,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                                     </div>
                                     <div className="flex items-center gap-1.5 text-[10px] text-gray-500 italic">
                                         <TerminalIcon size={10} />
-                                        <span className="truncate" title={(d as any).commands}>{(d as any).commands || 'No build command'}</span>
+                                        <span className="truncate" title={selectedFunction.commands}>{selectedFunction.commands || 'No build command'}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-6">
@@ -354,12 +345,6 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     autoHeight
                     extraActions={
                         <div className="flex items-center gap-2">
-                            {executions.length > 0 && (
-                                <button onClick={onDeleteAllExecutions}
-                                    className="flex items-center gap-2 px-2 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-800 text-red-300 text-[10px] font-bold rounded-lg transition-colors">
-                                    <DeleteIcon size={12} /> Clear All
-                                </button>
-                            )}
                             <button
                                 onClick={() => setCleanupTarget('executions')}
                                 className="flex items-center gap-2 px-2 py-1 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-[10px] font-bold rounded-lg transition-colors"
@@ -442,7 +427,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                             <InfoRow label="Timeout" value={`${selectedFunction.timeout}s`} />
                             <InfoRow label="Schedule" value={selectedFunction.schedule || 'None'} mono />
                             <InfoRow label="Status" value={selectedFunction.enabled ? 'Enabled' : 'Disabled'} badge={selectedFunction.enabled ? 'green' : 'red'} />
-                            <InfoRow label="Active Deployment" value={selectedFunction.deployment || 'None'} mono />
+                            <InfoRow label="Active Deployment" value={selectedFunction.deploymentId || 'None'} mono />
                         </div>
                         {onUpdateFunction && (
                             <div className="pt-6">

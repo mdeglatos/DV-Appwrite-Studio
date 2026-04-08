@@ -106,11 +106,11 @@ export interface AppwriteFunction {
     $id: string;
     $createdAt: string;
     $updatedAt: string;
-    $permissions: string[];
+    execute: string[];
     name: string;
     enabled: boolean;
     runtime: string;
-    deployment: string;
+    deploymentId: string;
     vars: object[];
     events: string[];
     schedule: string;

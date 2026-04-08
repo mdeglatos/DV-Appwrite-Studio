@@ -615,7 +615,7 @@ export class MigrationService {
             // 4. Upload to destination
             // This mirroring ensures the code integrity is preserved exactly as seen in the "Code Viewer".
 
-            let deploymentId = func.deployment;
+            let deploymentId = func.deploymentId;
             if (!deploymentId) {
                 try {
                     const deps = await this.sourceFunctions.listDeployments(res.sourceId, [Query.limit(1), Query.orderDesc('$createdAt')]);

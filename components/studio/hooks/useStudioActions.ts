@@ -783,7 +783,10 @@ export function useStudioActions(
         if (!selectedFunction) return;
         confirmAction("Activate Deployment", "Activate this deployment?", async () => {
             const sdk = getSdkFunctions(activeProject);
-            await (sdk as any).updateDeployment(selectedFunction.$id, depId);
+            await sdk.updateFunctionDeployment(selectedFunction.$id, depId);
+            // Re-fetch the function object so selectedFunction.deploymentId reflects the new active deployment
+            const updatedFunc = await sdk.get(selectedFunction.$id);
+            setSelectedFunction(updatedFunc as unknown as AppwriteFunction);
             fetchFunctionDetails(selectedFunction.$id);
             notify.success(`Deployment activated.`);
         });
@@ -796,32 +799,6 @@ export function useStudioActions(
             await Promise.all(deploymentIds.map(id => sdk.deleteDeployment(selectedFunction.$id, id)));
             fetchFunctionDetails(selectedFunction.$id);
             notify.success(`${deploymentIds.length} deployments deleted.`);
-        });
-    };
-
-    const handleDeleteAllExecutions = () => {
-        if (!selectedFunction) return;
-        confirmAction("Clear All Execution Logs", `Permanently delete ALL execution logs for function "${selectedFunction.name}"?`, async () => {
-            const sdk = getSdkFunctions(activeProject);
-            const funcId = selectedFunction.$id;
-            let deletedCount = 0;
-            try {
-                while(true) {
-                    const res = await sdk.listExecutions(funcId, [Query.limit(100)]);
-                    if (res.executions.length === 0) break;
-                    notify.info(`Clearing batch of ${res.executions.length} logs...`);
-                    let batchSuccess = 0;
-                    await Promise.all(res.executions.map(async (e) => {
-                        try { await sdk.deleteExecution(funcId, e.$id); batchSuccess++; } catch (err) { console.warn(err); }
-                    }));
-                    deletedCount += batchSuccess;
-                    if (batchSuccess === 0) { notify.warning("Could not delete remaining logs."); break; }
-                }
-                notify.success(`Cleared ${deletedCount} logs.`);
-                fetchFunctionDetails(funcId);
-            } catch (err: any) {
-                throw new Error(`Failed to clear logs: ${err.message}`);
-            }
         });
     };
 
@@ -1088,7 +1065,7 @@ export function useStudioActions(
         handleCreateBucket, handleDeleteBucket, handleUpdateBucket, handleBulkDeleteBuckets, 
         handleDeleteFile, handleBulkDeleteFiles, handleUploadFile, handleDownloadFile, handlePreviewFile,
         // Functions
-        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments, handleDeleteAllExecutions,
+        handleDeleteFunction, handleActivateDeployment, handleBulkDeleteDeployments,
         handleCreateVariable, handleUpdateVariable, handleDeleteVariable, handleExecuteFunction, handleUpdateFunction,
         // Users
         handleCreateUser, handleDeleteUser, handleUpdateUserStatus, handleUpdateUserLabels, 

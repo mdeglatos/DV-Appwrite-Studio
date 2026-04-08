@@ -372,7 +372,7 @@ async function getFunctionDeploymentCode(context: AIContext, { functionId, deplo
             // If no deploymentId is provided, get the function to find its active deployment.
             const functions = getSdkFunctions(context.project);
             const func = await functions.get(functionId);
-            finalDeploymentId = (func as any).deployment;
+            finalDeploymentId = func.deploymentId;
         }
 
         const files = await downloadAndUnpackDeployment(context.project, functionId, finalDeploymentId);

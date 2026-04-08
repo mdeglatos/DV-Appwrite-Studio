@@ -52,7 +52,7 @@ export function useCodeMode(
             try {
                 if (!activeProject) throw new Error("No active project");
                 const projectFunctions = getSdkFunctions(activeProject);
-                let deploymentId = selectedFunction.deployment;
+                let deploymentId = selectedFunction.deploymentId;
                 
                 if (!deploymentId) {
                     const deploymentsList = await projectFunctions.listDeployments(selectedFunction.$id, [Query.orderDesc('$createdAt')]);
