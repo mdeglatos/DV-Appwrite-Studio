@@ -513,7 +513,7 @@ export class MigrationService {
                 catch (e) {
                     try {
                         const { $id, $databaseId, $collectionId, $createdAt, $updatedAt, $permissions, ...data } = doc;
-                        await this.destDatabases.createDocument(targetDbId, targetColId, $id, data, $permissions);
+                        await this.destDatabases.createDocument(targetDbId, targetColId, $id, data as any, $permissions);
                         count++;
                     } catch (createErr) { this.error(`creating document ${doc.$id}`, createErr); }
                 }

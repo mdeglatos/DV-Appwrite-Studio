@@ -1,7 +1,7 @@
 
 export const appwriteConfig = {
-  projectId: "68914f08000a56c24d6b",
-  endpoint: "https://appwrite.deglaventures.com/v1",
-  databaseId: "agent-db",
-  projectsCollectionId: "projects",
+  projectId: import.meta.env.VITE_APPWRITE_PROJECT_ID,
+  endpoint: import.meta.env.VITE_APPWRITE_ENDPOINT,
+  databaseId: import.meta.env.VITE_APPWRITE_DATABASE_ID,
+  projectsCollectionId: import.meta.env.VITE_APPWRITE_PROJECTS_COLLECTION_ID,
 };

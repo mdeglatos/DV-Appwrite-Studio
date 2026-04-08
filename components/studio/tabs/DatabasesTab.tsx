@@ -5,7 +5,7 @@ import type { Models } from 'node-appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon, SearchIcon, ArrowLeftIcon, ArrowRightIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import { TransferDocumentsModal } from '../TransferDocumentsModal';
@@ -46,10 +46,19 @@ interface DatabasesTabProps {
     
     onUpdateCollectionSettings: (data: any) => Promise<void>;
     onCopySchema?: (db: Database) => void;
+    onRenameDatabase?: (db: Database) => void;
     
-    // New prop handled by useStudioActions
+    // Bulk operations
     handleBulkUpdateDocuments?: (docIds: string[]) => void;
     handleBulkDeleteDocuments?: (docIds: string[]) => void;
+
+    // Document pagination
+    documentPage?: number;
+    nextDocumentPage?: () => void;
+    prevDocumentPage?: () => void;
+    documentsTotal?: number;
+    documentSearchQuery?: string;
+    onDocumentSearch?: (query: string) => void;
 }
 
 export const DatabasesTab: React.FC<DatabasesTabProps> = ({
@@ -62,8 +71,11 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     onCreateIndex, onUpdateIndex, onDeleteIndex,
     onUpdateCollectionSettings,
     onCopySchema,
+    onRenameDatabase,
     handleBulkUpdateDocuments,
-    handleBulkDeleteDocuments
+    handleBulkDeleteDocuments,
+    documentPage = 0, nextDocumentPage, prevDocumentPage, documentsTotal = 0,
+    documentSearchQuery = '', onDocumentSearch
 }) => {
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
@@ -117,13 +129,24 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         </div>
                     }
                     renderExtraActions={(db) => (
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onCopySchema?.(db); }}
-                            className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
-                            title="Copy Entire Schema"
-                        >
-                            <CopyIcon size={16} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {onRenameDatabase && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onRenameDatabase(db); }}
+                                    className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                                    title="Rename Database"
+                                >
+                                    <EditIcon size={14} />
+                                </button>
+                            )}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onCopySchema?.(db); }}
+                                className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                                title="Copy Entire Schema"
+                            >
+                                <CopyIcon size={16} />
+                            </button>
+                        </div>
                     )}
                     renderExtra={(db) => (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${db.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
@@ -271,65 +294,110 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
 
             <div className="flex-1">
                 {collectionTab === 'documents' && (
-                    <ResourceTable<Models.Document> 
-                        data={documents} 
-                        onCreate={onCreateDocument} 
-                        onDelete={onDeleteDocument} 
-                        onEdit={onUpdateDocument}
-                        onSelect={onViewDocument} 
-                        createLabel="Add Document" 
-                        allowWrap={allowWrap}
-                        headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
-                        extraActions={
-                            <div className="flex items-center gap-2 mr-2">
-                                {wrapToggle}
-                                {selectedDocIds.length > 0 && handleBulkDeleteDocuments && (
-                                    <button 
-                                        onClick={() => {
-                                            handleBulkDeleteDocuments(selectedDocIds);
-                                            setSelectedDocIds([]);
-                                        }}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors shadow-lg"
-                                    >
-                                        <DeleteIcon size={14} /> Delete ({selectedDocIds.length})
-                                    </button>
-                                )}
-                                {selectedDocIds.length > 0 && handleBulkUpdateDocuments && (
-                                    <button 
-                                        onClick={() => {
-                                            handleBulkUpdateDocuments(selectedDocIds);
-                                            setSelectedDocIds([]); // Optional: clear selection after open? Better to keep until success.
-                                        }}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/40 hover:bg-purple-900/60 border border-purple-800 text-purple-300 text-xs font-bold rounded-lg transition-colors shadow-lg"
-                                    >
-                                        <EditIcon size={14} /> Bulk Edit ({selectedDocIds.length})
-                                    </button>
-                                )}
+                    <>
+                        {/* Search bar */}
+                        {onDocumentSearch && (
+                            <div className="mb-4 flex items-center gap-3">
+                                <div className="relative flex-1 max-w-md">
+                                    <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search documents by ID..."
+                                        value={documentSearchQuery}
+                                        onChange={e => onDocumentSearch(e.target.value)}
+                                        className="w-full bg-gray-900/50 border border-gray-700 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-200 placeholder-gray-600 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-colors"
+                                    />
+                                </div>
+                                <span className="text-xs text-gray-500 font-medium">
+                                    {documentsTotal} document{documentsTotal !== 1 ? 's' : ''} total
+                                </span>
                             </div>
-                        }
-                        selection={{
-                            selectedIds: selectedDocIds,
-                            onSelectionChange: setSelectedDocIds
-                        }}
-                        renderName={(doc) => {
-                             const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
-                             return <span className="font-mono text-xs text-gray-400 block">{JSON.stringify(rest)}</span>;
-                        }} 
-                        renderExtra={(doc) => (
-                             <span className="text-[10px] text-gray-600 font-mono">
-                                {new Date(doc.$createdAt).toLocaleString()}
-                             </span>
                         )}
-                        renderExtraActions={(doc) => (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onViewDocument(doc); }}
-                                className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
-                                title="Quick Preview"
-                            >
-                                <EyeIcon size={16} />
-                            </button>
-                        )}
-                    />
+                        <ResourceTable<Models.Document> 
+                            data={documents} 
+                            onCreate={onCreateDocument} 
+                            onDelete={onDeleteDocument} 
+                            onEdit={onUpdateDocument}
+                            onSelect={onViewDocument} 
+                            createLabel="Add Document" 
+                            allowWrap={allowWrap}
+                            headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
+                            extraActions={
+                                <div className="flex items-center gap-2 mr-2">
+                                    {wrapToggle}
+                                    {selectedDocIds.length > 0 && handleBulkDeleteDocuments && (
+                                        <button 
+                                            onClick={() => {
+                                                handleBulkDeleteDocuments(selectedDocIds);
+                                                setSelectedDocIds([]);
+                                            }}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-300 text-xs font-bold rounded-lg transition-colors shadow-lg"
+                                        >
+                                            <DeleteIcon size={14} /> Delete ({selectedDocIds.length})
+                                        </button>
+                                    )}
+                                    {selectedDocIds.length > 0 && handleBulkUpdateDocuments && (
+                                        <button 
+                                            onClick={() => {
+                                                handleBulkUpdateDocuments(selectedDocIds);
+                                                setSelectedDocIds([]);
+                                            }}
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/40 hover:bg-purple-900/60 border border-purple-800 text-purple-300 text-xs font-bold rounded-lg transition-colors shadow-lg"
+                                        >
+                                            <EditIcon size={14} /> Bulk Edit ({selectedDocIds.length})
+                                        </button>
+                                    )}
+                                </div>
+                            }
+                            selection={{
+                                selectedIds: selectedDocIds,
+                                onSelectionChange: setSelectedDocIds
+                            }}
+                            footer={nextDocumentPage && prevDocumentPage && (
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-gray-500 font-medium">
+                                        Page {documentPage + 1} • Showing {documents.length} of {documentsTotal}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={prevDocumentPage} 
+                                            disabled={documentPage === 0}
+                                            className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            title="Previous Page"
+                                        >
+                                            <ArrowLeftIcon size={14} />
+                                        </button>
+                                        <button 
+                                            onClick={nextDocumentPage} 
+                                            disabled={documents.length < 25}
+                                            className="p-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            title="Next Page"
+                                        >
+                                            <ArrowRightIcon size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            renderName={(doc) => {
+                                 const { $id, $collectionId, $databaseId, $createdAt, $updatedAt, $permissions, ...rest } = doc;
+                                 return <span className="font-mono text-xs text-gray-400 block">{JSON.stringify(rest)}</span>;
+                            }} 
+                            renderExtra={(doc) => (
+                                 <span className="text-[10px] text-gray-600 font-mono">
+                                    {new Date(doc.$createdAt).toLocaleString()}
+                                 </span>
+                            )}
+                            renderExtraActions={(doc) => (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onViewDocument(doc); }}
+                                    className="p-1.5 text-gray-500 hover:text-cyan-400 hover:bg-gray-800 rounded transition-colors"
+                                    title="Quick Preview"
+                                >
+                                    <EyeIcon size={16} />
+                                </button>
+                            )}
+                        />
+                    </>
                 )}
 
                 {collectionTab === 'attributes' && (

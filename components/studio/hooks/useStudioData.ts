@@ -28,8 +28,15 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const [deployments, setDeployments] = useState<Models.Deployment[]>([]);
     const [executions, setExecutions] = useState<Models.Execution[]>([]);
     const [memberships, setMemberships] = useState<Models.Membership[]>([]);
+    const [variables, setVariables] = useState<Models.Variable[]>([]);
 
-    // -- Pagination State --
+    // -- Document Pagination State --
+    const [documentPage, setDocumentPage] = useState(0);
+    const [documentCursors, setDocumentCursors] = useState<(string | undefined)[]>([undefined]);
+    const [documentsTotal, setDocumentsTotal] = useState(0);
+    const [documentSearchQuery, setDocumentSearchQuery] = useState('');
+
+    // -- Execution Pagination State --
     const [viewAllExecutions, setViewAllExecutions] = useState(false);
     const [executionPage, setExecutionPage] = useState(0);
     const [executionCursors, setExecutionCursors] = useState<(string | undefined)[]>([undefined]);
@@ -55,8 +62,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
             setDeployments([]);
             setExecutions([]);
             setMemberships([]);
+            setVariables([]);
             
             // Reset pagination
+            setDocumentPage(0);
+            setDocumentCursors([undefined]);
+            setDocumentsTotal(0);
+            setDocumentSearchQuery('');
             setViewAllExecutions(false);
             setExecutionPage(0);
             setExecutionCursors([undefined]);
@@ -118,12 +130,24 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setIsLoading(true);
         try {
             const sdk = getSdkDatabases(activeProject);
+            
+            // Build document query with pagination + search
+            const docQueries = [Query.limit(25), Query.orderDesc('$createdAt')];
+            const currentCursor = documentCursors[documentPage];
+            if (currentCursor) {
+                docQueries.push(Query.cursorAfter(currentCursor));
+            }
+            if (documentSearchQuery.trim()) {
+                docQueries.push(Query.search('$id', documentSearchQuery.trim()));
+            }
+
             const [docs, coll] = await Promise.all([
-                sdk.listDocuments(dbId, collId, [Query.limit(100), Query.orderDesc('$createdAt')]),
+                sdk.listDocuments(dbId, collId, docQueries),
                 sdk.getCollection(dbId, collId)
             ]);
             if (currentPid === lastProjectIdRef.current) {
                 setDocuments(docs.documents);
+                setDocumentsTotal(docs.total);
                 setAttributes((coll.attributes || []).map((a: any) => ({ ...a, $id: a.key })));
                 setIndexes((coll.indexes || []).map((i: any) => ({ ...i, $id: i.key })));
             }
@@ -132,7 +156,36 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         } finally { 
             if (currentPid === lastProjectIdRef.current) setIsLoading(false); 
         }
-    }, [activeProject, logCallback]);
+    }, [activeProject, logCallback, documentCursors, documentPage, documentSearchQuery]);
+
+    // Document pagination controls
+    const nextDocumentPage = useCallback(() => {
+        if (documents.length === 0) return;
+        const lastId = documents[documents.length - 1].$id;
+        setDocumentCursors(prev => {
+            const next = [...prev];
+            if (next.length === documentPage + 1) {
+                next.push(lastId);
+            }
+            return next;
+        });
+        setDocumentPage(p => p + 1);
+    }, [documents, documentPage]);
+
+    const prevDocumentPage = useCallback(() => {
+        setDocumentPage(p => Math.max(0, p - 1));
+    }, []);
+
+    const resetDocumentPagination = useCallback(() => {
+        setDocumentPage(0);
+        setDocumentCursors([undefined]);
+    }, []);
+
+    const updateDocumentSearch = useCallback((query: string) => {
+        setDocumentSearchQuery(query);
+        setDocumentPage(0);
+        setDocumentCursors([undefined]);
+    }, []);
 
     const fetchFiles = useCallback(async (bucketId: string) => {
         if (!activeProject) return;
@@ -164,14 +217,16 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
                 execQueries.push(Query.cursorAfter(currentCursor));
             }
 
-            const [deps, execs] = await Promise.all([
+            const [deps, execs, vars] = await Promise.all([
                 sdk.listDeployments(funcId, [Query.limit(50), Query.orderDesc('$createdAt')]),
                 sdk.listExecutions(funcId, execQueries),
+                sdk.listVariables(funcId),
             ]);
             if (currentPid === lastProjectIdRef.current) {
                 setDeployments(deps.deployments);
                 setExecutions(execs.executions);
                 setExecutionsTotal(execs.total);
+                setVariables(vars.variables);
             }
         } catch (e) { 
             if (!silent) logCallback(`Studio Error: ${handleFetchError(e)}`);
@@ -261,7 +316,6 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
                 }
                 break;
             case 'backups':
-                // Backups re-fetch happens via effect in tab usually, but we could trigger it here if exposed
                 break;
         }
     }, [activeProject, activeTab, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam, fetchUsers, fetchTeams, fetchCollections, fetchCollectionDetails, fetchFiles, fetchFunctionDetails, fetchMemberships, logCallback]);
@@ -272,10 +326,14 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setSelectedBucket(null);
         setSelectedFunction(null);
         setSelectedTeam(null);
-        // Reset execution pagination on tab change
+        // Reset all pagination on tab change
         setViewAllExecutions(false);
         setExecutionPage(0);
         setExecutionCursors([undefined]);
+        setDocumentPage(0);
+        setDocumentCursors([undefined]);
+        setDocumentsTotal(0);
+        setDocumentSearchQuery('');
     }, [activeTab]);
 
     useEffect(() => { 
@@ -292,7 +350,7 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
 
     useEffect(() => { 
         if (selectedCollection && selectedDb && activeProject?.$id === lastProjectIdRef.current) fetchCollectionDetails(selectedDb.$id, selectedCollection.$id); 
-    }, [selectedCollection?.$id, selectedDb?.$id, fetchCollectionDetails, activeProject?.$id]);
+    }, [selectedCollection?.$id, selectedDb?.$id, fetchCollectionDetails, activeProject?.$id, documentPage, documentSearchQuery]);
 
     useEffect(() => { 
         if (selectedBucket && activeProject?.$id === lastProjectIdRef.current) fetchFiles(selectedBucket.$id); 
@@ -300,7 +358,7 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
 
     useEffect(() => { 
         if (selectedFunction && activeProject?.$id === lastProjectIdRef.current) fetchFunctionDetails(selectedFunction.$id); 
-    }, [selectedFunction?.$id, fetchFunctionDetails, activeProject?.$id, executionPage, viewAllExecutions]); // Add pagination deps
+    }, [selectedFunction?.$id, fetchFunctionDetails, activeProject?.$id, executionPage, viewAllExecutions]);
 
     useEffect(() => { 
         if (selectedTeam && activeProject?.$id === lastProjectIdRef.current) fetchMemberships(selectedTeam.$id); 
@@ -330,10 +388,12 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         selectedBucket, setSelectedBucket,
         selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
-        collections, documents, attributes, indexes, files, deployments, executions, memberships,
+        collections, documents, attributes, indexes, files, deployments, executions, memberships, variables,
         fetchUsers, fetchTeams, fetchCollections, fetchCollectionDetails, fetchFiles, fetchFunctionDetails, fetchMemberships,
         refreshCurrentView,
-        // Pagination Exports
+        // Document pagination
+        documentPage, nextDocumentPage, prevDocumentPage, documentsTotal, documentSearchQuery, updateDocumentSearch, resetDocumentPagination,
+        // Execution pagination
         viewAllExecutions, toggleViewAllExecutions,
         executionPage, nextExecutionPage, prevExecutionPage, executionsTotal
     };

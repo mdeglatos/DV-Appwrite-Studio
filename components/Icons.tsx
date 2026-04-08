@@ -3,7 +3,7 @@ import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
 import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
-import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine, RiArrowRightSLine } from 'react-icons/ri';
+import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine, RiArrowRightSLine, RiPlayLine, RiSearchLine, RiDownloadLine, RiUploadLine, RiImageLine, RiShieldCheckLine, RiMailCheckLine, RiPhoneLine, RiLockLine, RiLockUnlockLine, RiInformationLine } from 'react-icons/ri';
 
 interface IconProps {
     size?: number;
@@ -79,3 +79,17 @@ export const UploadCloudIcon: React.FC<IconProps> = ({ size = 20, className }) =
 // Fix: Adding missing icon exports for McpTab and FunctionsTab
 export const McpIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiPlugLine size={size} className={className} />;
 export const RiGlobalLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiGlobalLine size={size} className={className} />;
+
+// Studio Enhancement Icons
+export const PlayIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiPlayLine size={size} className={className} />;
+export const SearchIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiSearchLine size={size} className={className} />;
+export const DownloadIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiDownloadLine size={size} className={className} />;
+export const UploadIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiUploadLine size={size} className={className} />;
+export const ImageIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiImageLine size={size} className={className} />;
+export const VerifiedIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiShieldCheckLine size={size} className={className} />;
+export const EmailVerifiedIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiMailCheckLine size={size} className={className} />;
+export const PhoneIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiPhoneLine size={size} className={className} />;
+export const LockIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiLockLine size={size} className={className} />;
+export const UnlockIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiLockUnlockLine size={size} className={className} />;
+export const InfoIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiInformationLine size={size} className={className} />;
+

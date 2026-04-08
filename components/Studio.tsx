@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
 import { Modal } from './Modal';
-import { LoadingSpinnerIcon, ChevronDownIcon, RefreshIcon } from './Icons';
+import { LoadingSpinnerIcon, ChevronDownIcon } from './Icons';
 
 // Sub-components & UI
 import { StudioNavBar } from './studio/ui/StudioNavBar';
@@ -18,11 +18,13 @@ import { BackupsTab } from './studio/tabs/BackupsTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
 import { DocumentDetails } from './studio/ui/DocumentDetails';
+import { ToastContainer } from './studio/ui/Toast';
 
 // Hooks
 import { useStudioData } from './studio/hooks/useStudioData';
 import { useStudioModals } from './studio/hooks/useStudioModals';
 import { useStudioActions } from './studio/hooks/useStudioActions';
+import { useToast } from '../hooks/useToast';
 
 interface StudioProps {
     activeProject: AppwriteProject;
@@ -45,9 +47,10 @@ export const Studio: React.FC<StudioProps> = ({
 }) => {
     
     // 1. Initialize Core Logic Hooks
+    const toast = useToast();
     const studioData = useStudioData(activeProject, activeTab, logCallback);
     const studioModals = useStudioModals();
-    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback);
+    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast);
     
     // 2. Local Feature States
     const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false);
@@ -58,9 +61,11 @@ export const Studio: React.FC<StudioProps> = ({
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
-        collections, documents, attributes, indexes, files, deployments, executions, memberships,
+        collections, documents, attributes, indexes, files, deployments, executions, memberships, variables,
         refreshCurrentView,
-        // Pagination
+        // Document Pagination
+        documentPage, nextDocumentPage, prevDocumentPage, documentsTotal, documentSearchQuery, updateDocumentSearch,
+        // Execution Pagination
         viewAllExecutions, toggleViewAllExecutions, executionPage, nextExecutionPage, prevExecutionPage, executionsTotal
     } = studioData;
 
@@ -92,6 +97,63 @@ export const Studio: React.FC<StudioProps> = ({
         await refreshCurrentView();
     };
 
+    // Bulk delete users handler
+    const handleBulkDeleteUsers = useCallback((userIds: string[]) => {
+        studioModals.confirmAction("Delete Users", `Permanently delete ${userIds.length} users? This cannot be undone.`, async () => {
+            const sdk = (await import('../services/appwrite')).getSdkUsers(activeProject);
+            let deleted = 0;
+            await Promise.all(userIds.map(async id => {
+                try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
+            }));
+            toast.success(`Deleted ${deleted} users.`);
+            studioData.fetchUsers();
+        });
+    }, [activeProject, studioModals, studioData, toast]);
+
+    // Bulk delete teams handler
+    const handleBulkDeleteTeams = useCallback((teamIds: string[]) => {
+        studioModals.confirmAction("Delete Teams", `Delete ${teamIds.length} teams and all their memberships?`, async () => {
+            const sdk = (await import('../services/appwrite')).getSdkTeams(activeProject);
+            let deleted = 0;
+            await Promise.all(teamIds.map(async id => {
+                try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
+            }));
+            toast.success(`Deleted ${deleted} teams.`);
+            studioData.fetchTeams();
+        });
+    }, [activeProject, studioModals, studioData, toast]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Don't trigger if typing in input/textarea/select
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
+            // Don't trigger if modal is open
+            if (modal?.isOpen) return;
+
+            switch (e.key) {
+                case 'Escape':
+                    // Navigate back (deselect current selection)
+                    if (selectedCollection) { setSelectedCollection(null); }
+                    else if (selectedDb) { setSelectedDb(null); }
+                    else if (selectedBucket) { setSelectedBucket(null); }
+                    else if (selectedFunction) { setSelectedFunction(null); }
+                    else if (selectedTeam) { setSelectedTeam(null); }
+                    break;
+                case 'r':
+                    if (!e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        handleStudioRefresh();
+                    }
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [modal, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam]);
+
     return (
         <div className="flex flex-col flex-1 h-full overflow-hidden bg-gray-950/20">
             {/* Nav Header */}
@@ -111,7 +173,10 @@ export const Studio: React.FC<StudioProps> = ({
                         <OverviewTab 
                             activeProject={activeProject}
                             databases={databases} buckets={buckets} functions={functions} 
-                            users={users} teams={teams} onTabChange={onTabChange} 
+                            users={users} teams={teams} onTabChange={onTabChange}
+                            onCreateDatabase={studioActions.handleCreateDatabase}
+                            onCreateBucket={studioActions.handleCreateBucket}
+                            onCreateUser={studioActions.handleCreateUser}
                         />
                     )}
 
@@ -133,6 +198,14 @@ export const Studio: React.FC<StudioProps> = ({
                             onCopySchema={studioActions.handleCopyDatabaseSchema}
                             handleBulkUpdateDocuments={studioActions.handleBulkUpdateDocuments}
                             handleBulkDeleteDocuments={studioActions.handleBulkDeleteDocuments}
+                            onRenameDatabase={studioActions.handleRenameDatabase}
+                            // Document pagination
+                            documentPage={documentPage}
+                            nextDocumentPage={nextDocumentPage}
+                            prevDocumentPage={prevDocumentPage}
+                            documentsTotal={documentsTotal}
+                            documentSearchQuery={documentSearchQuery}
+                            onDocumentSearch={updateDocumentSearch}
                         />
                     )}
 
@@ -145,6 +218,10 @@ export const Studio: React.FC<StudioProps> = ({
                             onConsolidateBuckets={() => setIsConsolidateModalOpen(true)}
                             onBulkDeleteBuckets={studioActions.handleBulkDeleteBuckets}
                             onBulkDeleteFiles={studioActions.handleBulkDeleteFiles}
+                            onUploadFile={studioActions.handleUploadFile}
+                            onDownloadFile={studioActions.handleDownloadFile}
+                            onPreviewFile={studioActions.handlePreviewFile}
+                            onUpdateBucket={studioActions.handleUpdateBucket}
                         />
                     )}
 
@@ -152,7 +229,7 @@ export const Studio: React.FC<StudioProps> = ({
                         <FunctionsTab 
                             activeProject={activeProject}
                             functions={functions} selectedFunction={selectedFunction} 
-                            deployments={deployments} executions={executions}
+                            deployments={deployments} executions={executions} variables={variables}
                             onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
                             onActivateDeployment={studioActions.handleActivateDeployment}
                             onDeleteAllExecutions={studioActions.handleDeleteAllExecutions}
@@ -167,19 +244,42 @@ export const Studio: React.FC<StudioProps> = ({
                             nextExecutionPage={nextExecutionPage}
                             prevExecutionPage={prevExecutionPage}
                             executionsTotal={executionsTotal}
+                            // Variables
+                            onCreateVariable={studioActions.handleCreateVariable}
+                            onUpdateVariable={studioActions.handleUpdateVariable}
+                            onDeleteVariable={studioActions.handleDeleteVariable}
+                            // Execute & Settings
+                            onExecuteFunction={studioActions.handleExecuteFunction}
+                            onUpdateFunction={studioActions.handleUpdateFunction}
                         />
                     )}
 
                     {activeTab === 'users' && (
-                        <UsersTab activeProject={activeProject} users={users} onCreateUser={() => {}} onDeleteUser={() => {}} />
+                        <UsersTab 
+                            activeProject={activeProject} 
+                            users={users} 
+                            onCreateUser={studioActions.handleCreateUser} 
+                            onDeleteUser={studioActions.handleDeleteUser}
+                            onUpdateStatus={studioActions.handleUpdateUserStatus}
+                            onUpdateLabels={studioActions.handleUpdateUserLabels}
+                            onUpdateName={studioActions.handleUpdateUserName}
+                            onUpdateEmail={studioActions.handleUpdateUserEmail}
+                            onVerifyEmail={studioActions.handleVerifyUserEmail}
+                            onBulkDeleteUsers={handleBulkDeleteUsers}
+                        />
                     )}
 
                     {activeTab === 'teams' && (
                         <TeamsTab 
                             activeProject={activeProject}
                             teams={teams} selectedTeam={selectedTeam} memberships={memberships}
-                            onCreateTeam={() => {}} onDeleteTeam={() => {}} onSelectTeam={setSelectedTeam}
-                            onCreateMembership={() => {}} onDeleteMembership={() => {}}
+                            onCreateTeam={studioActions.handleCreateTeam} 
+                            onDeleteTeam={studioActions.handleDeleteTeam} 
+                            onSelectTeam={setSelectedTeam}
+                            onCreateMembership={studioActions.handleCreateMembership} 
+                            onDeleteMembership={studioActions.handleDeleteMembership}
+                            onRenameTeam={studioActions.handleRenameTeam}
+                            onBulkDeleteTeams={handleBulkDeleteTeams}
                         />
                     )}
 
@@ -197,6 +297,9 @@ export const Studio: React.FC<StudioProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Toast Notifications */}
+            <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
             {/* Dynamic Modal Interface */}
             {modal && modal.isOpen && (
@@ -272,8 +375,8 @@ export const Studio: React.FC<StudioProps> = ({
                                             closeModal();
                                         }
                                     } catch (err: any) {
+                                        toast.error(`Action Failed: ${err.message}`);
                                         logCallback(`❌ Action Failed: ${err.message}`);
-                                        // On failure, stay open if it was a confirm modal to let user try again or read error
                                         if (modal.type === 'form') {
                                             setModalLoading(false);
                                         } else {

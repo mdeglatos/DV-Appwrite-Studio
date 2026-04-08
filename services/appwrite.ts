@@ -15,7 +15,7 @@ export const account = new Account(client);
  * Normalizes an Appwrite endpoint URL.
  * Ensures protocol is present and removes trailing slashes.
  */
-function normalizeEndpoint(endpoint: string): string {
+export function normalizeEndpoint(endpoint: string): string {
     if (!endpoint) return '';
     let clean = endpoint.trim().replace(/\/+$/, '');
     if (!clean.startsWith('http')) {
