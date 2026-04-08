@@ -280,13 +280,13 @@ export const sitesToolDefinitions: FunctionDeclaration[] = [
     },
     {
         name: 'createSite',
-        description: 'Create a new Appwrite Site (hosted web application). Requires a name, framework (e.g. "nextjs", "nuxt", "sveltekit", "astro", "react", "vue", "angular", "remix", "static"), and build runtime (e.g. "node-14.5", "node-16", "node-18", "node-21").',
+        description: 'Create a new Appwrite Site (hosted web application). Requires a name, framework (e.g. "nextjs", "nuxt", "sveltekit", "astro", "react", "vue", "vite", "angular", "remix", "static"), and build runtime (e.g. "node-14.5", "node-16", "node-18", "node-21").',
         parameters: {
             type: Type.OBJECT,
             properties: {
                 siteId: { type: Type.STRING, description: 'Site ID. Use "unique()" to auto-generate.' },
                 name: { type: Type.STRING, description: 'Site name.' },
-                framework: { type: Type.STRING, description: 'Framework identifier (e.g. "nextjs", "nuxt", "sveltekit", "astro", "react", "vue", "angular", "remix", "static").' },
+                framework: { type: Type.STRING, description: 'Framework identifier (e.g. "nextjs", "nuxt", "sveltekit", "astro", "react", "vue", "vite", "angular", "remix", "static").' },
                 buildRuntime: { type: Type.STRING, description: 'Build runtime (e.g. "node-14.5", "node-16", "node-18", "node-21").' },
                 enabled: { type: Type.BOOLEAN, description: 'Optional. Enable the site. Default true.' },
                 logging: { type: Type.BOOLEAN, description: 'Optional. Enable request logging.' },

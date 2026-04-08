@@ -1,12 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { AppwriteSite, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
-import { SitesIcon, AddIcon, DeleteIcon, ArrowLeftIcon, ExternalLinkIcon, CheckIcon, EditIcon, KeyIcon, RefreshIcon, SettingsIcon } from '../../Icons';
+import { SitesIcon, AddIcon, DeleteIcon, ArrowLeftIcon, ExternalLinkIcon, CheckIcon, EditIcon, KeyIcon, RefreshIcon, SettingsIcon, CleanupIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { CopyButton } from '../ui/CopyButton';
 import { PaginationFooter } from '../ui/PaginationFooter';
+import { CleanupModal } from '../ui/CleanupModal';
+import { getSiteCleanupConfig, getSiteDeploymentCleanupConfig, getSiteVariableCleanupConfig } from '../hooks/cleanupConfigs';
 
 type SiteDetailSubTab = 'deployments' | 'variables' | 'logs';
 
@@ -68,7 +70,7 @@ function frameworkLabel(fw: string): string {
     const map: Record<string, string> = {
         nextjs: 'Next.js', nuxt: 'Nuxt', sveltekit: 'SvelteKit', astro: 'Astro',
         remix: 'Remix', angular: 'Angular', react: 'React', vue: 'Vue',
-        static: 'Static', analog: 'Analog', flutter: 'Flutter',
+        vite: 'Vite', static: 'Static', analog: 'Analog', flutter: 'Flutter',
     };
     return map[fw?.toLowerCase()] || fw || 'Unknown';
 }
@@ -88,11 +90,27 @@ export const SitesTab: React.FC<SitesTabProps> = ({
 }) => {
     const [subTab, setSubTab] = useState<SiteDetailSubTab>('deployments');
     const [selectedDepIds, setSelectedDepIds] = useState<Set<string>>(new Set());
+    const [cleanupTarget, setCleanupTarget] = useState<'sites' | 'deployments' | 'variables' | null>(null);
+
+    // Cleanup configs
+    const siteListCleanupConfig = useMemo(
+        () => getSiteCleanupConfig(activeProject),
+        [activeProject]
+    );
+    const siteDepCleanupConfig = useMemo(
+        () => selectedSite ? getSiteDeploymentCleanupConfig(activeProject, selectedSite) : null,
+        [activeProject, selectedSite]
+    );
+    const siteVarCleanupConfig = useMemo(
+        () => selectedSite ? getSiteVariableCleanupConfig(activeProject, selectedSite.$id) : null,
+        [activeProject, selectedSite?.$id]
+    );
 
     // Reset sub-tab when site changes
     React.useEffect(() => {
         setSubTab('deployments');
         setSelectedDepIds(new Set());
+        setCleanupTarget(null);
     }, [selectedSite?.$id]);
 
     // ========================================================================
@@ -112,6 +130,12 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                         >
                             <ExternalLinkIcon size={14} /> Console
                         </a>
+                        <button
+                            onClick={() => setCleanupTarget('sites')}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <CleanupIcon size={14} /> Cleanup
+                        </button>
                         <button
                             onClick={onCreateSite}
                             className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all"
@@ -173,6 +197,14 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                         ))}
                     </div>
                 )}
+
+                {/* Site-level Cleanup Modal */}
+                <CleanupModal
+                    isOpen={cleanupTarget === 'sites'}
+                    onClose={() => setCleanupTarget(null)}
+                    config={siteListCleanupConfig}
+                    onComplete={onRefresh}
+                />
             </>
         );
     }
@@ -260,18 +292,29 @@ export const SitesTab: React.FC<SitesTabProps> = ({
             {subTab === 'deployments' && (
                 <div className="space-y-3">
                     {/* Bulk actions */}
-                    {selectedDepIds.size > 0 && (
-                        <div className="flex items-center gap-3 p-3 bg-red-900/20 border border-red-800/50 rounded-lg">
-                            <span className="text-xs text-red-300 font-semibold">{selectedDepIds.size} selected</span>
-                            <button
-                                onClick={() => { onBulkDeleteDeployments(Array.from(selectedDepIds)); setSelectedDepIds(new Set()); }}
-                                className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded transition-all"
-                            >
-                                Delete Selected
-                            </button>
-                            <button onClick={() => setSelectedDepIds(new Set())} className="text-xs text-gray-400 hover:text-white">Clear</button>
+                    {/* Deployment toolbar */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            {selectedDepIds.size > 0 && (
+                                <>
+                                    <span className="text-xs text-red-300 font-semibold">{selectedDepIds.size} selected</span>
+                                    <button
+                                        onClick={() => { onBulkDeleteDeployments(Array.from(selectedDepIds)); setSelectedDepIds(new Set()); }}
+                                        className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded transition-all"
+                                    >
+                                        Delete Selected
+                                    </button>
+                                    <button onClick={() => setSelectedDepIds(new Set())} className="text-xs text-gray-400 hover:text-white">Clear</button>
+                                </>
+                            )}
                         </div>
-                    )}
+                        <button
+                            onClick={() => setCleanupTarget('deployments')}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <CleanupIcon size={14} /> Cleanup
+                        </button>
+                    </div>
 
                     {siteDeployments.length === 0 ? (
                         <div className="text-center py-12 text-gray-500 text-sm">No deployments yet. Deploy from Git or upload a manual build.</div>
@@ -341,7 +384,13 @@ export const SitesTab: React.FC<SitesTabProps> = ({
 
             {subTab === 'variables' && (
                 <div className="space-y-3">
-                    <div className="flex justify-end mb-2">
+                    <div className="flex justify-end gap-2 mb-2">
+                        <button
+                            onClick={() => setCleanupTarget('variables')}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
+                        >
+                            <CleanupIcon size={14} /> Cleanup
+                        </button>
                         <button onClick={onCreateVariable} className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all">
                             <AddIcon size={14} /> Add Variable
                         </button>
@@ -435,6 +484,24 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                         isLoading={siteLogsPagination.isLoading}
                     />
                 </div>
+            )}
+
+            {/* Cleanup Modals for site detail views */}
+            {siteDepCleanupConfig && (
+                <CleanupModal
+                    isOpen={cleanupTarget === 'deployments'}
+                    onClose={() => setCleanupTarget(null)}
+                    config={siteDepCleanupConfig}
+                    onComplete={() => siteDeploymentsPagination.refresh()}
+                />
+            )}
+            {siteVarCleanupConfig && (
+                <CleanupModal
+                    isOpen={cleanupTarget === 'variables'}
+                    onClose={() => setCleanupTarget(null)}
+                    config={siteVarCleanupConfig}
+                    onComplete={onRefresh}
+                />
             )}
         </>
     );

@@ -1,9 +1,9 @@
 
 import React from 'react';
 import type { Models } from 'node-appwrite';
-import type { AppwriteProject, Bucket, AppwriteFunction } from '../../../types';
+import type { AppwriteProject, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { CleanupConfig } from '../ui/CleanupModal';
-import { getSdkUsers, getSdkTeams, getSdkStorage, getSdkDatabases, getSdkFunctions, Query } from '../../../services/appwrite';
+import { getSdkUsers, getSdkTeams, getSdkStorage, getSdkDatabases, getSdkFunctions, getSdkSites, Query } from '../../../services/appwrite';
 
 // ============================================================================
 // HELPERS
@@ -724,6 +724,320 @@ export function getVariableCleanupConfig(project: AppwriteProject, functionId: s
                     let success = 0, failed = 0;
                     for (const v of items) {
                         try { await sdk.deleteVariable(functionId, v.$id); success++; } catch { failed++; }
+                    }
+                    return { success, failed };
+                }
+            },
+        ],
+    };
+}
+
+// ============================================================================
+// SITE CLEANUP CONFIG (top-level — cleanup sites themselves)
+// ============================================================================
+
+export function getSiteCleanupConfig(project: AppwriteProject): CleanupConfig<AppwriteSite> {
+    const sdk = getSdkSites(project);
+
+    return {
+        resourceName: 'Sites',
+        resourceNameSingular: 'Site',
+        filters: [
+            {
+                id: 'framework', label: 'Framework', type: 'select',
+                options: [
+                    { label: 'Next.js', value: 'nextjs' },
+                    { label: 'Nuxt', value: 'nuxt' },
+                    { label: 'SvelteKit', value: 'sveltekit' },
+                    { label: 'Astro', value: 'astro' },
+                    { label: 'Remix', value: 'remix' },
+                    { label: 'React', value: 'react' },
+                    { label: 'Vue', value: 'vue' },
+                    { label: 'Vite', value: 'vite' },
+                    { label: 'Angular', value: 'angular' },
+                    { label: 'Static', value: 'static' },
+                ]
+            },
+            {
+                id: 'status', label: 'Status', type: 'select',
+                options: [
+                    { label: 'Enabled', value: 'enabled' },
+                    { label: 'Disabled', value: 'disabled' },
+                ]
+            },
+            {
+                id: 'nameContains', label: 'Name Contains', type: 'text',
+                placeholder: 'e.g. staging, test, old'
+            },
+            {
+                id: 'hasDeployment', label: 'Deployment Status', type: 'select',
+                options: [
+                    { label: 'Has Active Deployment', value: 'has' },
+                    { label: 'No Active Deployment', value: 'none' },
+                ]
+            },
+            {
+                id: 'createdMode', label: 'Created Date', type: 'select',
+                options: [{ label: 'Before', value: 'before' }, { label: 'After', value: 'after' }]
+            },
+            {
+                id: 'createdDate', label: 'Created Date Value', type: 'date'
+            },
+        ],
+        presets: [
+            {
+                label: 'Disabled Sites',
+                description: 'All currently disabled sites',
+                filters: { status: 'disabled' }
+            },
+            {
+                label: 'No Deployment',
+                description: 'Sites with no active deployment',
+                filters: { hasDeployment: 'none' }
+            },
+            {
+                label: 'Old Sites',
+                description: 'Sites created more than 90 days ago',
+                filters: { createdMode: 'before', createdDate: new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString().split('T')[0] }
+            },
+            {
+                label: 'Test Sites',
+                description: 'Sites with "test", "staging", or "temp" in name',
+                filters: { nameContains: 'test' }
+            },
+        ],
+        fetchAll: fetchAllPaginated<AppwriteSite>(
+            (queries) => sdk.list(queries) as any,
+            'sites'
+        ),
+        filterFn: (site, filters) => {
+            if (filters.framework && site.framework !== filters.framework) return false;
+            if (filters.status === 'enabled' && !site.enabled) return false;
+            if (filters.status === 'disabled' && site.enabled) return false;
+            if (filters.nameContains && !site.name.toLowerCase().includes(filters.nameContains.toLowerCase())) return false;
+            if (filters.hasDeployment === 'has' && !site.deploymentId) return false;
+            if (filters.hasDeployment === 'none' && site.deploymentId) return false;
+            if (!matchesDateFilter(site.$createdAt, filters.createdMode, filters.createdDate)) return false;
+            return true;
+        },
+        getItemId: (s) => s.$id,
+        renderPreviewRow: (s) => (
+            <>
+                <td className="px-3 py-2 font-mono text-[11px]">{s.$id.slice(0, 12)}...</td>
+                <td className="px-3 py-2">{s.name}</td>
+                <td className="px-3 py-2 text-gray-500">{s.framework}</td>
+                <td className="px-3 py-2">
+                    <span className={s.enabled ? 'text-green-400' : 'text-red-400'}>
+                        {s.enabled ? 'Active' : 'Disabled'}
+                    </span>
+                </td>
+            </>
+        ),
+        actions: [
+            {
+                id: 'delete', label: 'Delete Sites', variant: 'danger',
+                confirmPhrase: (n) => `DELETE ${n} SITES`,
+                execute: async (items) => {
+                    let success = 0, failed = 0;
+                    for (const s of items) {
+                        try { await sdk.delete(s.$id); success++; } catch { failed++; }
+                    }
+                    return { success, failed };
+                }
+            },
+            {
+                id: 'disable', label: 'Disable Sites', variant: 'warning',
+                confirmPhrase: (n) => `DISABLE ${n} SITES`,
+                execute: async (items) => {
+                    let success = 0, failed = 0;
+                    for (const s of items) {
+                        try {
+                            await sdk.update(s.$id, s.name, s.framework as any, false);
+                            success++;
+                        } catch { failed++; }
+                    }
+                    return { success, failed };
+                }
+            },
+            {
+                id: 'enable', label: 'Enable Sites', variant: 'info',
+                confirmPhrase: (n) => `ENABLE ${n} SITES`,
+                execute: async (items) => {
+                    let success = 0, failed = 0;
+                    for (const s of items) {
+                        try {
+                            await sdk.update(s.$id, s.name, s.framework as any, true);
+                            success++;
+                        } catch { failed++; }
+                    }
+                    return { success, failed };
+                }
+            },
+        ],
+    };
+}
+
+// ============================================================================
+// SITE DEPLOYMENT CLEANUP CONFIG
+// ============================================================================
+
+export function getSiteDeploymentCleanupConfig(project: AppwriteProject, site: AppwriteSite): CleanupConfig<Models.Deployment> {
+    const sdk = getSdkSites(project);
+
+    return {
+        resourceName: 'Site Deployments',
+        resourceNameSingular: 'Deployment',
+        filters: [
+            {
+                id: 'status', label: 'Status', type: 'select',
+                options: [
+                    { label: 'Ready', value: 'ready' },
+                    { label: 'Failed', value: 'failed' },
+                    { label: 'Building', value: 'building' },
+                    { label: 'Cancelled', value: 'cancelled' },
+                ]
+            },
+            {
+                id: 'active', label: 'Active Status', type: 'select',
+                options: [
+                    { label: 'Non-active only', value: 'inactive' },
+                ]
+            },
+            {
+                id: 'dateMode', label: 'Created Date', type: 'select',
+                options: [{ label: 'Before', value: 'before' }, { label: 'After', value: 'after' }]
+            },
+            {
+                id: 'dateValue', label: 'Date Value', type: 'date'
+            },
+        ],
+        presets: [
+            {
+                label: 'Failed Builds',
+                description: 'All deployments with status = failed',
+                filters: { status: 'failed' }
+            },
+            {
+                label: 'Non-Active Ready',
+                description: 'Ready deployments that are not the live version',
+                filters: { status: 'ready', active: 'inactive' }
+            },
+            {
+                label: 'Old Deployments',
+                description: 'Non-active deployments older than 30 days',
+                filters: { active: 'inactive', dateMode: 'before', dateValue: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0] }
+            },
+        ],
+        fetchAll: fetchAllPaginated(
+            (queries) => sdk.listDeployments(site.$id, queries),
+            'deployments'
+        ),
+        filterFn: (dep, filters) => {
+            if (filters.status && dep.status !== filters.status) return false;
+            if (filters.active === 'inactive' && dep.$id === site.deploymentId) return false;
+            if (!matchesDateFilter(dep.$createdAt, filters.dateMode, filters.dateValue)) return false;
+            return true;
+        },
+        getItemId: (d) => d.$id,
+        renderPreviewRow: (d) => (
+            <>
+                <td className="px-3 py-2 font-mono text-[11px]">{d.$id.slice(0, 12)}...</td>
+                <td className="px-3 py-2">
+                    <span className={`text-[10px] font-bold uppercase ${
+                        d.status === 'ready' ? 'text-green-400' :
+                        d.status === 'failed' ? 'text-red-400' : 'text-yellow-400'
+                    }`}>{d.status}</span>
+                    {d.$id === site.deploymentId && (
+                        <span className="ml-2 text-[10px] bg-cyan-500 text-black px-1.5 py-0.5 rounded font-bold">LIVE</span>
+                    )}
+                </td>
+                <td className="px-3 py-2 text-gray-600 font-mono">{(d.totalSize ?? 0) > 0 ? `${((d.totalSize ?? 0) / 1024).toFixed(1)} KB` : '—'}</td>
+                <td className="px-3 py-2 text-gray-600">{new Date(d.$createdAt).toLocaleDateString()}</td>
+            </>
+        ),
+        actions: [
+            {
+                id: 'delete', label: 'Delete Deployments', variant: 'danger',
+                confirmPhrase: (n) => `DELETE ${n} DEPLOYMENTS`,
+                execute: async (items) => {
+                    let success = 0, failed = 0;
+                    for (const d of items) {
+                        try { await sdk.deleteDeployment(site.$id, d.$id); success++; } catch { failed++; }
+                    }
+                    return { success, failed };
+                }
+            },
+        ],
+    };
+}
+
+// ============================================================================
+// SITE VARIABLE CLEANUP CONFIG
+// ============================================================================
+
+export function getSiteVariableCleanupConfig(project: AppwriteProject, siteId: string): CleanupConfig<Models.Variable> {
+    const sdk = getSdkSites(project);
+
+    return {
+        resourceName: 'Site Variables',
+        resourceNameSingular: 'Variable',
+        filters: [
+            {
+                id: 'keyPattern', label: 'Key Contains', type: 'text',
+                placeholder: 'e.g. DEBUG_, TEST_, OLD_'
+            },
+            {
+                id: 'valuePattern', label: 'Value Contains', type: 'text',
+                placeholder: 'Search in values'
+            },
+            {
+                id: 'hasValue', label: 'Value Status', type: 'select',
+                options: [
+                    { label: 'Has Value', value: 'has' },
+                    { label: 'Empty Value', value: 'empty' },
+                ]
+            },
+        ],
+        presets: [
+            {
+                label: 'Empty Variables',
+                description: 'Variables with empty string value',
+                filters: { hasValue: 'empty' }
+            },
+            {
+                label: 'Debug Variables',
+                description: 'Keys containing DEBUG_ or TEST_',
+                filters: { keyPattern: 'DEBUG_' }
+            },
+        ],
+        fetchAll: async () => {
+            const res = await sdk.listVariables(siteId);
+            return res.variables;
+        },
+        filterFn: (v, filters) => {
+            if (filters.keyPattern && !v.key.toLowerCase().includes(filters.keyPattern.toLowerCase())) return false;
+            if (filters.valuePattern && !v.value.toLowerCase().includes(filters.valuePattern.toLowerCase())) return false;
+            if (filters.hasValue === 'has' && !v.value?.trim()) return false;
+            if (filters.hasValue === 'empty' && v.value?.trim()) return false;
+            return true;
+        },
+        getItemId: (v) => v.$id,
+        renderPreviewRow: (v) => (
+            <>
+                <td className="px-3 py-2 font-mono text-[11px]">{v.$id.slice(0, 12)}...</td>
+                <td className="px-3 py-2 font-mono font-bold">{v.key}</td>
+                <td className="px-3 py-2 font-mono truncate max-w-[200px]">{v.value ? '••••••••' : <span className="italic text-gray-600">empty</span>}</td>
+                <td className="px-3 py-2 text-gray-600">{new Date(v.$createdAt).toLocaleDateString()}</td>
+            </>
+        ),
+        actions: [
+            {
+                id: 'delete', label: 'Delete Variables', variant: 'danger',
+                confirmPhrase: (n) => `DELETE ${n} VARIABLES`,
+                execute: async (items) => {
+                    let success = 0, failed = 0;
+                    for (const v of items) {
+                        try { await sdk.deleteVariable(siteId, v.$id); success++; } catch { failed++; }
                     }
                     return { success, failed };
                 }
