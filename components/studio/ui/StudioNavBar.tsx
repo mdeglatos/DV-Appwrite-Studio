@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { StudioTab } from '../../../types';
-import { DashboardIcon, DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, MigrationIcon, BackupIcon, RefreshIcon, LoadingSpinnerIcon } from '../../Icons';
+import { DashboardIcon, DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, MigrationIcon, BackupIcon, RefreshIcon, LoadingSpinnerIcon, SitesIcon } from '../../Icons';
 
 interface StudioNavBarProps {
     activeTab: StudioTab;
@@ -16,6 +16,7 @@ export const StudioNavBar: React.FC<StudioNavBarProps> = ({ activeTab, onTabChan
         { id: 'database', label: 'Databases', icon: <DatabaseIcon size={16} /> },
         { id: 'storage', label: 'Storage', icon: <StorageIcon size={16} /> },
         { id: 'functions', label: 'Functions', icon: <FunctionIcon size={16} /> },
+        { id: 'sites', label: 'Sites', icon: <SitesIcon size={16} /> },
         { id: 'users', label: 'Users', icon: <UserIcon size={16} /> },
         { id: 'teams', label: 'Teams', icon: <TeamIcon size={16} /> },
         { id: 'migrations', label: 'Migrations', icon: <MigrationIcon size={16} /> },

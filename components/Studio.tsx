@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../types';
+import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
 import { Modal } from './Modal';
 import { LoadingSpinnerIcon, ChevronDownIcon } from './Icons';
@@ -13,6 +13,7 @@ import { StorageTab } from './studio/tabs/StorageTab';
 import { FunctionsTab } from './studio/tabs/FunctionsTab';
 import { UsersTab } from './studio/tabs/UsersTab';
 import { TeamsTab } from './studio/tabs/TeamsTab';
+import { SitesTab } from './studio/tabs/SitesTab';
 import { MigrationsTab } from './studio/tabs/MigrationsTab';
 import { BackupsTab } from './studio/tabs/BackupsTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
@@ -61,9 +62,11 @@ export const Studio: React.FC<StudioProps> = ({
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
-        attributes, indexes, variables,
+        selectedSite, setSelectedSite,
+        attributes, indexes, variables, siteVariables,
         usersPagination, teamsPagination, collectionsPagination, documentsPagination,
         filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
+        sitesPagination, siteDeploymentsPagination, siteLogsPagination,
         refreshCurrentView,
     } = studioData;
 
@@ -138,6 +141,7 @@ export const Studio: React.FC<StudioProps> = ({
                     else if (selectedBucket) { setSelectedBucket(null); }
                     else if (selectedFunction) { setSelectedFunction(null); }
                     else if (selectedTeam) { setSelectedTeam(null); }
+                    else if (selectedSite) { setSelectedSite(null); }
                     break;
                 case 'r':
                     if (!e.ctrlKey && !e.metaKey) {
@@ -150,7 +154,7 @@ export const Studio: React.FC<StudioProps> = ({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [modal, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam]);
+    }, [modal, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam, selectedSite]);
 
     return (
         <div className="flex flex-col flex-1 h-full overflow-hidden bg-gray-950/20">
@@ -171,6 +175,7 @@ export const Studio: React.FC<StudioProps> = ({
                         <OverviewTab 
                             activeProject={activeProject}
                             databases={databases} buckets={buckets} functions={functions} 
+                            sites={sitesPagination.items as unknown as AppwriteSite[]}
                             users={usersPagination.items} teams={teamsPagination.items} onTabChange={onTabChange}
                             onCreateDatabase={studioActions.handleCreateDatabase}
                             onCreateBucket={studioActions.handleCreateBucket}
@@ -239,6 +244,31 @@ export const Studio: React.FC<StudioProps> = ({
                             // Execute & Settings
                             onExecuteFunction={studioActions.handleExecuteFunction}
                             onUpdateFunction={studioActions.handleUpdateFunction}
+                        />
+                    )}
+
+                    {activeTab === 'sites' && (
+                        <SitesTab 
+                            activeProject={activeProject}
+                            sites={sitesPagination.items as unknown as AppwriteSite[]}
+                            selectedSite={selectedSite}
+                            siteDeployments={siteDeploymentsPagination.items}
+                            siteVariables={siteVariables}
+                            siteLogs={siteLogsPagination.items}
+                            onSelectSite={setSelectedSite}
+                            onCreateSite={studioActions.handleCreateSite}
+                            onDeleteSite={studioActions.handleDeleteSite}
+                            onUpdateSite={studioActions.handleUpdateSite}
+                            onActivateDeployment={studioActions.handleActivateSiteDeployment}
+                            onCancelDeployment={studioActions.handleCancelSiteDeployment}
+                            onDeleteDeployment={studioActions.handleDeleteSiteDeployment}
+                            onBulkDeleteDeployments={studioActions.handleBulkDeleteSiteDeployments}
+                            onCreateVariable={studioActions.handleCreateSiteVariable}
+                            onUpdateVariable={studioActions.handleUpdateSiteVariable}
+                            onDeleteVariable={studioActions.handleDeleteSiteVariable}
+                            siteDeploymentsPagination={siteDeploymentsPagination}
+                            siteLogsPagination={siteLogsPagination}
+                            onRefresh={handleStudioRefresh}
                         />
                     )}
 

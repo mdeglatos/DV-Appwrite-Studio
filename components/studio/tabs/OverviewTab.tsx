@@ -1,9 +1,9 @@
 
 import React from 'react';
-import type { Database, Bucket, AppwriteFunction, StudioTab, AppwriteProject } from '../../../types';
+import type { Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { StatCard } from '../ui/StatCard';
-import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon } from '../../Icons';
+import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon, SitesIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -12,6 +12,7 @@ interface OverviewTabProps {
     databases: Database[];
     buckets: Bucket[];
     functions: AppwriteFunction[];
+    sites: AppwriteSite[];
     users: Models.User<any>[];
     teams: Models.Team<any>[];
     onTabChange: (tab: StudioTab) => void;
@@ -21,7 +22,7 @@ interface OverviewTabProps {
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ 
-    activeProject, databases, buckets, functions, users, teams, onTabChange,
+    activeProject, databases, buckets, functions, sites, users, teams, onTabChange,
     onCreateDatabase, onCreateBucket, onCreateUser
 }) => {
     const activeFunctions = functions.filter(f => f.enabled);
@@ -75,7 +76,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </div>
 
             {/* Resource Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
                 <StatCard 
                     title="Databases" 
                     value={databases.length} 
@@ -99,6 +100,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                     color="text-blue-400"
                     onClick={() => onTabChange('functions')}
                     description={`${activeFunctions.length} active`}
+                />
+                <StatCard 
+                    title="Sites" 
+                    value={sites.length} 
+                    icon={<SitesIcon />} 
+                    color="text-cyan-400"
+                    onClick={() => onTabChange('sites')}
+                    description="Hosted web applications"
                 />
                 <StatCard 
                     title="Users" 

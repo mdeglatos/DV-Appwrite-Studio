@@ -1,6 +1,6 @@
 
 import { Client, Account, ID, AppwriteException, Query, Permission, Role } from 'appwrite';
-import { Client as NodeClient, Databases, Storage, Functions, Users, Teams } from 'node-appwrite';
+import { Client as NodeClient, Databases, Storage, Functions, Users, Teams, Sites } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
 import { appwriteConfig } from '../config';
 
@@ -51,6 +51,8 @@ export const consoleLinks = {
     functionDomains: (p: AppwriteProject, funcId: string) => getConsoleUrl(p, `/functions/function-${funcId}/domains`),
     users: (p: AppwriteProject) => getConsoleUrl(p, '/auth/users'),
     teams: (p: AppwriteProject) => getConsoleUrl(p, '/auth/teams'),
+    sites: (p: AppwriteProject) => getConsoleUrl(p, '/sites'),
+    site: (p: AppwriteProject, siteId: string) => getConsoleUrl(p, `/sites/site-${siteId}`),
     settings: (p: AppwriteProject) => getConsoleUrl(p, '/settings'),
     apiKeys: (p: AppwriteProject) => getConsoleUrl(p, '/overview/keys'),
 };
@@ -120,6 +122,10 @@ export function getSdkUsers(project: AppwriteProject): Users {
 
 export function getSdkTeams(project: AppwriteProject): Teams {
     return new Teams(createProjectAdminClient(project));
+}
+
+export function getSdkSites(project: AppwriteProject): Sites {
+    return new Sites(createProjectAdminClient(project));
 }
 
 export { ID, Query, Permission, Role, AppwriteException };

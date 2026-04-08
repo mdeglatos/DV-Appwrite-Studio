@@ -79,6 +79,7 @@ export const UploadCloudIcon: React.FC<IconProps> = ({ size = 20, className }) =
 // Fix: Adding missing icon exports for McpTab and FunctionsTab
 export const McpIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiPlugLine size={size} className={className} />;
 export const RiGlobalLine: React.FC<IconProps> = ({ size = 20, className }) => <_RiGlobalLine size={size} className={className} />;
+export const SitesIcon: React.FC<IconProps> = ({ size = 20, className }) => <_RiGlobalLine size={size} className={className} />;
 
 // Studio Enhancement Icons
 export const PlayIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiPlayLine size={size} className={className} />;

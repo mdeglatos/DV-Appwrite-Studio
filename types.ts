@@ -119,6 +119,29 @@ export interface AppwriteFunction {
     commands: string;
 }
 
+export interface AppwriteSite {
+    $id: string;
+    $createdAt: string;
+    $updatedAt: string;
+    name: string;
+    enabled: boolean;
+    framework: string;
+    buildRuntime: string;
+    deploymentId: string;
+    installCommand: string;
+    buildCommand: string;
+    outputDirectory: string;
+    adapter: string;
+    timeout: number;
+    logging: boolean;
+    providerRepositoryId: string;
+    providerBranch: string;
+    providerRootDirectory: string;
+    providerSilentMode: boolean;
+    specification: string;
+    fallbackFile: string;
+}
+
 export interface BackupOptions {
     includeDatabases: boolean;
     includeDocuments: boolean;
@@ -129,4 +152,4 @@ export interface BackupOptions {
     includeTeams: boolean;
 }
 
-export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations' | 'backups';
+export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups';

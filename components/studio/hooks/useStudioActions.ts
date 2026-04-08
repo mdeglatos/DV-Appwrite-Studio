@@ -1,7 +1,6 @@
-
 import { ID, Query } from '../../../services/appwrite';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, normalizeEndpoint } from '../../../services/appwrite';
-import type { AppwriteProject, Database, Bucket, AppwriteFunction } from '../../../types';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, normalizeEndpoint } from '../../../services/appwrite';
+import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tools/functionsTools';
@@ -24,10 +23,12 @@ export function useStudioActions(
     const { 
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
+        selectedSite, setSelectedSite,
         attributes,
         usersPagination, teamsPagination, collectionsPagination, documentsPagination,
         filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
-        fetchCollectionMeta, fetchVariables,
+        siteDeploymentsPagination, siteLogsPagination,
+        fetchCollectionMeta, fetchVariables, fetchSiteVariables,
     } = data;
 
     // Compatibility wrappers — translate old fetchX(id) calls into pagination .refresh() calls.
@@ -1031,6 +1032,169 @@ export function useStudioActions(
     };
 
     // ============================================================================
+    // SITES ACTIONS
+    // ============================================================================
+
+    const handleCreateSite = () => {
+        openForm("Create Site", [
+            { name: 'siteId', label: 'Site ID', defaultValue: 'unique()', required: true, placeholder: 'unique() or custom_id' },
+            { name: 'name', label: 'Site Name', required: true },
+            { name: 'framework', label: 'Framework', type: 'select', required: true, options: [
+                { label: 'Next.js', value: 'nextjs' },
+                { label: 'Nuxt', value: 'nuxt' },
+                { label: 'SvelteKit', value: 'sveltekit' },
+                { label: 'Astro', value: 'astro' },
+                { label: 'Remix', value: 'remix' },
+                { label: 'Angular', value: 'angular' },
+                { label: 'React (Vite)', value: 'react' },
+                { label: 'Vue (Vite)', value: 'vue' },
+                { label: 'Static', value: 'static' },
+                { label: 'Other', value: 'other' },
+            ]},
+            { name: 'buildRuntime', label: 'Build Runtime', type: 'select', required: true, options: [
+                { label: 'Node.js 21', value: 'node-21' },
+                { label: 'Node.js 18', value: 'node-18' },
+                { label: 'Node.js 16', value: 'node-16' },
+                { label: 'Node.js 14.5', value: 'node-14.5' },
+            ]},
+            { name: 'installCommand', label: 'Install Command', placeholder: 'npm install' },
+            { name: 'buildCommand', label: 'Build Command', placeholder: 'npm run build' },
+            { name: 'outputDirectory', label: 'Output Directory', placeholder: 'dist, .next, build' },
+        ], async (d: any) => {
+            const id = d.siteId === 'unique()' ? ID.unique() : d.siteId;
+            await getSdkSites(activeProject).create(
+                id, d.name, d.framework, d.buildRuntime,
+                undefined, undefined, undefined, // enabled, logging, timeout
+                d.installCommand || undefined,
+                d.buildCommand || undefined,
+                d.outputDirectory || undefined
+            );
+            refreshData();
+            notify.success(`Site "${d.name}" created.`);
+        });
+    };
+
+    const handleDeleteSite = (site: AppwriteSite) => {
+        confirmAction("Delete Site", `Delete site "${site.name}" and all its deployments? This cannot be undone.`, async () => {
+            await getSdkSites(activeProject).delete(site.$id);
+            refreshData();
+            notify.success(`Site "${site.name}" deleted.`);
+        });
+    };
+
+    const handleUpdateSite = (site: AppwriteSite) => {
+        openForm(`Edit Site: ${site.name}`, [
+            { name: 'name', label: 'Name', defaultValue: site.name, required: true },
+            { name: 'framework', label: 'Framework', type: 'select', defaultValue: site.framework, required: true, options: [
+                { label: 'Next.js', value: 'nextjs' },
+                { label: 'Nuxt', value: 'nuxt' },
+                { label: 'SvelteKit', value: 'sveltekit' },
+                { label: 'Astro', value: 'astro' },
+                { label: 'Remix', value: 'remix' },
+                { label: 'Angular', value: 'angular' },
+                { label: 'React (Vite)', value: 'react' },
+                { label: 'Vue (Vite)', value: 'vue' },
+                { label: 'Static', value: 'static' },
+                { label: 'Other', value: 'other' },
+            ]},
+            { name: 'enabled', label: 'Enabled', type: 'checkbox', defaultValue: site.enabled },
+            { name: 'logging', label: 'Request Logging', type: 'checkbox', defaultValue: site.logging },
+            { name: 'timeout', label: 'Build Timeout (seconds)', type: 'number', defaultValue: site.timeout },
+            { name: 'installCommand', label: 'Install Command', defaultValue: site.installCommand },
+            { name: 'buildCommand', label: 'Build Command', defaultValue: site.buildCommand },
+            { name: 'outputDirectory', label: 'Output Directory', defaultValue: site.outputDirectory },
+        ], async (d: any) => {
+            await getSdkSites(activeProject).update(
+                site.$id, d.name, d.framework,
+                d.enabled, d.logging,
+                d.timeout ? Number(d.timeout) : undefined,
+                d.installCommand || undefined,
+                d.buildCommand || undefined,
+                d.outputDirectory || undefined
+            );
+            // Re-fetch the site object so selectedSite reflects updates
+            const updated = await getSdkSites(activeProject).get(site.$id);
+            setSelectedSite(updated as unknown as AppwriteSite);
+            refreshData();
+            notify.success(`Site "${d.name}" updated.`);
+        }, "Save Settings");
+    };
+
+    const handleActivateSiteDeployment = (depId: string) => {
+        if (!selectedSite) return;
+        confirmAction("Activate Deployment", "Activate this deployment? It will become the live version of the site.", async () => {
+            await getSdkSites(activeProject).updateSiteDeployment(selectedSite.$id, depId);
+            const updatedSite = await getSdkSites(activeProject).get(selectedSite.$id);
+            setSelectedSite(updatedSite as unknown as AppwriteSite);
+            siteDeploymentsPagination.refresh();
+            notify.success(`Deployment activated.`);
+        });
+    };
+
+    const handleCancelSiteDeployment = (depId: string) => {
+        if (!selectedSite) return;
+        confirmAction("Cancel Deployment", "Cancel this in-progress deployment build?", async () => {
+            await getSdkSites(activeProject).updateDeploymentStatus(selectedSite.$id, depId);
+            siteDeploymentsPagination.refresh();
+            notify.success(`Deployment cancelled.`);
+        });
+    };
+
+    const handleDeleteSiteDeployment = (depId: string) => {
+        if (!selectedSite) return;
+        confirmAction("Delete Deployment", "Delete this deployment?", async () => {
+            await getSdkSites(activeProject).deleteDeployment(selectedSite.$id, depId);
+            siteDeploymentsPagination.refresh();
+            notify.success(`Deployment deleted.`);
+        });
+    };
+
+    const handleBulkDeleteSiteDeployments = (deploymentIds: string[]) => {
+        if (!selectedSite) return;
+        confirmAction("Delete Deployments", `Delete ${deploymentIds.length} site deployments?`, async () => {
+            const sdk = getSdkSites(activeProject);
+            await Promise.all(deploymentIds.map(id => sdk.deleteDeployment(selectedSite.$id, id)));
+            siteDeploymentsPagination.refresh();
+            notify.success(`${deploymentIds.length} deployments deleted.`);
+        });
+    };
+
+    const handleCreateSiteVariable = () => {
+        if (!selectedSite) return;
+        openForm("Create Site Variable", [
+            { name: 'key', label: 'Key', required: true },
+            { name: 'value', label: 'Value', required: true },
+            { name: 'secret', label: 'Secret', type: 'checkbox', defaultValue: false, description: 'Secret values are hidden in the console.' }
+        ], async (d: any) => {
+            await getSdkSites(activeProject).createVariable(selectedSite.$id, d.key, d.value, d.secret);
+            fetchSiteVariables(selectedSite.$id);
+            notify.success(`Variable "${d.key}" created.`);
+        });
+    };
+
+    const handleUpdateSiteVariable = (variable: Models.Variable) => {
+        if (!selectedSite) return;
+        openForm(`Edit Variable: ${variable.key}`, [
+            { name: 'key', label: 'Key', defaultValue: variable.key, required: true },
+            { name: 'value', label: 'Value', defaultValue: variable.value, required: true },
+            { name: 'secret', label: 'Secret', type: 'checkbox', defaultValue: false }
+        ], async (d: any) => {
+            await getSdkSites(activeProject).updateVariable(selectedSite.$id, variable.$id, d.key, d.value, d.secret);
+            fetchSiteVariables(selectedSite.$id);
+            notify.success(`Variable "${d.key}" updated.`);
+        }, "Update");
+    };
+
+    const handleDeleteSiteVariable = (variable: Models.Variable) => {
+        if (!selectedSite) return;
+        confirmAction("Delete Variable", `Delete variable "${variable.key}"?`, async () => {
+            await getSdkSites(activeProject).deleteVariable(selectedSite.$id, variable.$id);
+            fetchSiteVariables(selectedSite.$id);
+            notify.success(`Variable deleted.`);
+        });
+    };
+
+    // ============================================================================
     // BACKUP ACTIONS
     // ============================================================================
 
@@ -1072,7 +1236,12 @@ export function useStudioActions(
         handleUpdateUserName, handleUpdateUserEmail, handleVerifyUserEmail,
         // Teams
         handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership, handleRenameTeam,
+        // Sites
+        handleCreateSite, handleDeleteSite, handleUpdateSite,
+        handleActivateSiteDeployment, handleCancelSiteDeployment, handleDeleteSiteDeployment, handleBulkDeleteSiteDeployments,
+        handleCreateSiteVariable, handleUpdateSiteVariable, handleDeleteSiteVariable,
         // Backups
         handleDeleteBackup, handleRestoreBackup
     };
 }
+

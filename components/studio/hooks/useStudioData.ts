@@ -1,8 +1,8 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Query, handleFetchError } from '../../../services/appwrite';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams } from '../../../services/appwrite';
-import type { AppwriteProject, Database, Bucket, AppwriteFunction, StudioTab } from '../../../types';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites } from '../../../services/appwrite';
+import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { usePaginatedQuery, type PaginatedFetchFn, type PaginatedState } from './usePaginatedQuery';
 
@@ -82,11 +82,13 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const [selectedBucket, setSelectedBucket] = useState<Bucket | null>(null);
     const [selectedFunction, setSelectedFunction] = useState<AppwriteFunction | null>(null);
     const [selectedTeam, setSelectedTeam] = useState<Models.Team<any> | null>(null);
+    const [selectedSite, setSelectedSite] = useState<AppwriteSite | null>(null);
 
     // -- Non-paginated sub-resource states (loaded in full) --
     const [attributes, setAttributes] = useState<any[]>([]);
     const [indexes, setIndexes] = useState<any[]>([]);
     const [variables, setVariables] = useState<Models.Variable[]>([]);
+    const [siteVariables, setSiteVariables] = useState<Models.Variable[]>([]);
 
     const lastProjectIdRef = useRef<string | null>(null);
 
@@ -199,6 +201,39 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         };
     }, [activeProject, selectedTeam, activeTab]);
 
+    // -- Sites --
+    const sitesFetchFn = useMemo<PaginatedFetchFn<AppwriteSite> | null>(() => {
+        if (!activeProject || (activeTab !== 'sites' && activeTab !== 'overview')) return null;
+        return async (rawQueries) => {
+            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const sdk = getSdkSites(activeProject);
+            const res = await sdk.list(queries, searchTerm || undefined);
+            return { items: res.sites as unknown as AppwriteSite[], total: res.total };
+        };
+    }, [activeProject, activeTab]);
+
+    const siteDeploymentsFetchFn = useMemo<PaginatedFetchFn<Models.Deployment> | null>(() => {
+        if (!activeProject || !selectedSite || activeTab !== 'sites') return null;
+        const siteId = selectedSite.$id;
+        return async (rawQueries) => {
+            const queries = buildQueries(rawQueries);
+            const sdk = getSdkSites(activeProject);
+            const res = await sdk.listDeployments(siteId, queries);
+            return { items: res.deployments, total: res.total };
+        };
+    }, [activeProject, selectedSite, activeTab]);
+
+    const siteLogsFetchFn = useMemo<PaginatedFetchFn<Models.Execution> | null>(() => {
+        if (!activeProject || !selectedSite || activeTab !== 'sites') return null;
+        const siteId = selectedSite.$id;
+        return async (rawQueries) => {
+            const queries = buildQueries(rawQueries);
+            const sdk = getSdkSites(activeProject);
+            const res = await sdk.listLogs(siteId, queries);
+            return { items: (res as any).logs ?? (res as any).executions ?? [], total: res.total };
+        };
+    }, [activeProject, selectedSite, activeTab]);
+
     // ========================================================================
     // PAGINATED QUERY INSTANCES
     // ========================================================================
@@ -211,6 +246,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const deploymentsPagination = usePaginatedQuery(deploymentsFetchFn, { pageSize: 25 });
     const executionsPagination = usePaginatedQuery(executionsFetchFn, { pageSize: 25 });
     const membershipsPagination = usePaginatedQuery(membershipsFetchFn, { pageSize: 25 });
+    const sitesPagination = usePaginatedQuery(sitesFetchFn, { pageSize: 25 });
+    const siteDeploymentsPagination = usePaginatedQuery(siteDeploymentsFetchFn, { pageSize: 25 });
+    const siteLogsPagination = usePaginatedQuery(siteLogsFetchFn, { pageSize: 25 });
 
     // ========================================================================
     // COLLECTION DETAILS (attributes + indexes — not paginated)
@@ -262,6 +300,29 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     }, [selectedFunction?.$id, activeTab, fetchVariables]);
 
     // ========================================================================
+    // SITE VARIABLES (per-site — not paginated, loaded in full)
+    // ========================================================================
+
+    const fetchSiteVariables = useCallback(async (siteId: string) => {
+        if (!activeProject) return;
+        try {
+            const sdk = getSdkSites(activeProject);
+            const res = await sdk.listVariables(siteId);
+            setSiteVariables(res.variables);
+        } catch (e) {
+            logCallback(`Studio Error: ${handleFetchError(e)}`);
+        }
+    }, [activeProject, logCallback]);
+
+    useEffect(() => {
+        if (selectedSite && activeTab === 'sites') {
+            fetchSiteVariables(selectedSite.$id);
+        } else {
+            setSiteVariables([]);
+        }
+    }, [selectedSite?.$id, activeTab, fetchSiteVariables]);
+
+    // ========================================================================
     // RESET ON TAB CHANGE
     // ========================================================================
 
@@ -271,9 +332,11 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         setSelectedBucket(null);
         setSelectedFunction(null);
         setSelectedTeam(null);
+        setSelectedSite(null);
         setAttributes([]);
         setIndexes([]);
         setVariables([]);
+        setSiteVariables([]);
     }, [activeTab]);
 
     // ========================================================================
@@ -288,9 +351,11 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
             setSelectedBucket(null);
             setSelectedFunction(null);
             setSelectedTeam(null);
+            setSelectedSite(null);
             setAttributes([]);
             setIndexes([]);
             setVariables([]);
+            setSiteVariables([]);
             lastProjectIdRef.current = projectId;
         }
     }, [activeProject?.$id]);
@@ -355,11 +420,21 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
                     teamsPagination.refresh();
                 }
                 break;
+            case 'sites':
+                if (selectedSite) {
+                    siteDeploymentsPagination.refresh();
+                    siteLogsPagination.refresh();
+                    fetchSiteVariables(selectedSite.$id);
+                } else {
+                    sitesPagination.refresh();
+                }
+                break;
         }
-    }, [activeTab, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam,
+    }, [activeTab, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam, selectedSite,
         usersPagination, teamsPagination, collectionsPagination, documentsPagination,
         filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
-        fetchCollectionMeta, fetchVariables, logCallback]);
+        sitesPagination, siteDeploymentsPagination, siteLogsPagination,
+        fetchCollectionMeta, fetchVariables, fetchSiteVariables, logCallback]);
 
     // ========================================================================
     // COMBINED LOADING STATE
@@ -368,7 +443,8 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const isLoading = usersPagination.isLoading || teamsPagination.isLoading ||
         collectionsPagination.isLoading || documentsPagination.isLoading ||
         filesPagination.isLoading || deploymentsPagination.isLoading ||
-        executionsPagination.isLoading || membershipsPagination.isLoading;
+        executionsPagination.isLoading || membershipsPagination.isLoading ||
+        sitesPagination.isLoading || siteDeploymentsPagination.isLoading || siteLogsPagination.isLoading;
 
     // ========================================================================
     // RETURN
@@ -383,10 +459,11 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         selectedBucket, setSelectedBucket,
         selectedFunction, setSelectedFunction,
         selectedTeam, setSelectedTeam,
+        selectedSite, setSelectedSite,
 
         // Non-paginated sub-resources
-        attributes, indexes, variables,
-        fetchCollectionMeta, fetchVariables,
+        attributes, indexes, variables, siteVariables,
+        fetchCollectionMeta, fetchVariables, fetchSiteVariables,
 
         // Paginated resources
         usersPagination,
@@ -397,6 +474,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         deploymentsPagination,
         executionsPagination,
         membershipsPagination,
+        sitesPagination,
+        siteDeploymentsPagination,
+        siteLogsPagination,
 
         // Refresh
         refreshCurrentView,

@@ -4,6 +4,7 @@ import { storageFunctions, storageToolDefinitions } from './storageTools';
 import { functionsFunctions, functionsToolDefinitions } from './functionsTools';
 import { usersFunctions, usersToolDefinitions } from './usersTools';
 import { teamsFunctions, teamsToolDefinitions } from './teamsTools';
+import { sitesFunctions, sitesToolDefinitions } from './sitesTools';
 
 // Combine all tool functions into a single object.
 export const availableTools = {
@@ -12,6 +13,7 @@ export const availableTools = {
   ...functionsFunctions,
   ...usersFunctions,
   ...teamsFunctions,
+  ...sitesFunctions,
 };
 
 // Group tool definitions by category for dynamic loading.
@@ -21,4 +23,5 @@ export const toolDefinitionGroups: { [key: string]: FunctionDeclaration[] } = {
   functions: functionsToolDefinitions,
   users: usersToolDefinitions,
   teams: teamsToolDefinitions,
+  sites: sitesToolDefinitions,
 };

@@ -1,6 +1,6 @@
 # DV Backend Studio — Project Context
 
-> **The North Star**: DV Backend Studio is an AI-powered Appwrite management IDE that runs entirely in the browser. It uses Gemini AI (via `@google/genai`) to interpret natural language commands and the Appwrite SDK to manage databases, storage, functions, users, and teams across multiple Appwrite projects — all from a single unified interface with an agentic chat, manual dashboards, a code editor, and full migration & backup capabilities.
+> **The North Star**: DV Backend Studio is an AI-powered Appwrite management IDE that runs entirely in the browser. It uses Gemini AI (via `@google/genai`) to interpret natural language commands and the Appwrite SDK to manage databases, storage, functions, users, teams, and sites across multiple Appwrite projects — all from a single unified interface with an agentic chat, manual dashboards, a code editor, and full migration & backup capabilities.
 
 ---
 
@@ -78,7 +78,7 @@ DV Backend Studio/
 │   ├── Code (CodeViewer, CodeViewerSidebar)
 │   ├── Icons.tsx      # Centralized icon wrappers
 │   └── studio/        # Manual dashboard view
-│       ├── tabs/      # Tab panels (DatabasesTab, StorageTab, FunctionsTab, etc.)
+│       ├── tabs/      # Tab panels (DatabasesTab, StorageTab, FunctionsTab, SitesTab, etc.)
 │       ├── ui/        # Reusable Studio sub-components (ResourceTable, StatCard, etc.)
 │       ├── hooks/     # Studio-specific hooks (useStudioActions, useStudioData, useStudioModals)
 │       ├── types.ts   # Studio-specific types
@@ -111,7 +111,8 @@ DV Backend Studio/
     ├── storagTools.ts          # Bucket/file management tools
     ├── functionsTools.ts       # Function/deployment/variable tools
     ├── usersTools.ts           # User management tools
-    └── teamsTools.ts           # Team management tools
+    ├── teamsTools.ts           # Team management tools
+    └── sitesTools.ts           # Site/deployment/variable management tools
 ```
 
 ### 🔗 Layer Responsibilities
@@ -163,7 +164,7 @@ The studio uses its own Appwrite backend for:
 | `sidebarWidth`     | number  | Sidebar pixel width                |
 
 ### Managed Projects (User's Appwrite Projects)
-The studio accesses these via `node-appwrite` with the user's API key. Resources include databases, collections, attributes, indexes, documents, buckets, files, functions, deployments, variables, executions, users, teams, and memberships.
+The studio accesses these via `node-appwrite` with the user's API key. Resources include databases, collections, attributes, indexes, documents, buckets, files, functions, deployments, variables, executions, users, teams, memberships, and sites (with site deployments and site variables).
 
 ---
 
