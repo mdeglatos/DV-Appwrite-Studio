@@ -18,7 +18,7 @@ import { usePaginatedQuery, type PaginatedFetchFn, type PaginatedState } from '.
 // Constants
 // ============================================================================
 
-/** Polling interval for the active Studio tab's primary resource */
+/** Polling interval for the active Studio tab's primary resource (safety net; Realtime is primary) */
 const STUDIO_POLL_INTERVAL_MS = 8_000; // 8 seconds
 /** Polling interval for execution logs (more frequent for live monitoring) */
 const EXECUTION_POLL_INTERVAL_MS = 5_000; // 5 seconds

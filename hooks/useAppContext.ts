@@ -59,7 +59,7 @@ export function useAppContext(
         logCallback(`Connecting to Appwrite: ${activeProject.endpoint}...`);
         setIsContextLoading(true);
         setError(null);
-        
+
         // Note: We do NOT clear setDatabases/setBuckets here anymore.
         // Clearing is handled by the useEffect above when the project ID changes.
         // Keeping data during a refresh (same project) prevents UI flashing.
@@ -143,7 +143,7 @@ export function useAppContext(
             try {
                 const projectDatabases = getSdkDatabases(activeProject);
                 const response = await projectDatabases.listCollections(currentDbId, [Query.limit(CONTEXT_FETCH_LIMIT)]);
-                
+
                 if (currentPid === currentProjectIdRef.current && currentDbId === selectedDatabase.$id) {
                     setCollections(response.collections);
                 }
@@ -176,9 +176,9 @@ export function useAppContext(
             }
         };
 
-        const timer = setInterval(tick, CONTEXT_POLL_INTERVAL_MS);
+        const timer = setInterval(tick, 10_000);
 
-        // Also refresh when tab regains visibility
+        // Also refresh once when the tab regains focus
         const handleVisibility = () => {
             if (document.visibilityState === 'visible') {
                 silentRefreshContextData();
