@@ -16,6 +16,12 @@ export interface PaginationConfig {
     searchDebounceMs?: number;
     /** Whether this query is enabled (will fetch). Default true. */
     enabled?: boolean;
+    /**
+     * If set, automatically re-fetch data at this interval (in ms).
+     * Polling pauses when the browser tab is hidden.
+     * Set to 0 or omit to disable polling.
+     */
+    pollingIntervalMs?: number;
 }
 
 export interface FetchResult<T> {
@@ -84,6 +90,7 @@ export function usePaginatedQuery<T>(
         defaultOrder = 'desc',
         searchDebounceMs = 300,
         enabled = true,
+        pollingIntervalMs = 0,
     } = config;
 
     // --- State ---
@@ -182,6 +189,33 @@ export function usePaginatedQuery<T>(
     useEffect(() => {
         executeFetch();
     }, [executeFetch]);
+
+    // --- Smart Polling ---
+    // Re-fetch on an interval when enabled, but only when the tab is visible.
+    useEffect(() => {
+        if (!pollingIntervalMs || pollingIntervalMs <= 0 || !fetchFn || !enabled) return;
+
+        const tick = () => {
+            if (document.visibilityState === 'visible') {
+                executeFetch();
+            }
+        };
+
+        const timer = setInterval(tick, pollingIntervalMs);
+
+        // Also refresh immediately when the tab regains visibility
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                executeFetch();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
+    }, [pollingIntervalMs, fetchFn, enabled, executeFetch]);
 
     // --- Controls ---
     const nextPage = useCallback(() => {

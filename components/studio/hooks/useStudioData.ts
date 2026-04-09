@@ -2,9 +2,26 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Query, handleFetchError } from '../../../services/appwrite';
 import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites } from '../../../services/appwrite';
+import {
+    matchesEvent,
+    extractDatabaseId,
+    extractCollectionId,
+    extractBucketId,
+    type RealtimeEvent,
+    type RealtimeCallback,
+} from '../../../services/realtimeService';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { usePaginatedQuery, type PaginatedFetchFn, type PaginatedState } from './usePaginatedQuery';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Polling interval for the active Studio tab's primary resource */
+const STUDIO_POLL_INTERVAL_MS = 8_000; // 8 seconds
+/** Polling interval for execution logs (more frequent for live monitoring) */
+const EXECUTION_POLL_INTERVAL_MS = 5_000; // 5 seconds
 
 // ============================================================================
 // Helper: Build Appwrite Query array from usePaginatedQuery's raw query strings
@@ -235,20 +252,20 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     }, [activeProject, selectedSite, activeTab]);
 
     // ========================================================================
-    // PAGINATED QUERY INSTANCES
+    // PAGINATED QUERY INSTANCES (with smart polling)
     // ========================================================================
 
-    const usersPagination = usePaginatedQuery(usersFetchFn, { pageSize: 25 });
-    const teamsPagination = usePaginatedQuery(teamsFetchFn, { pageSize: 25 });
-    const collectionsPagination = usePaginatedQuery(collectionsFetchFn, { pageSize: 25 });
-    const documentsPagination = usePaginatedQuery(documentsFetchFn, { pageSize: 25 });
-    const filesPagination = usePaginatedQuery(filesFetchFn, { pageSize: 25 });
-    const deploymentsPagination = usePaginatedQuery(deploymentsFetchFn, { pageSize: 25 });
-    const executionsPagination = usePaginatedQuery(executionsFetchFn, { pageSize: 25 });
-    const membershipsPagination = usePaginatedQuery(membershipsFetchFn, { pageSize: 25 });
-    const sitesPagination = usePaginatedQuery(sitesFetchFn, { pageSize: 25 });
-    const siteDeploymentsPagination = usePaginatedQuery(siteDeploymentsFetchFn, { pageSize: 25 });
-    const siteLogsPagination = usePaginatedQuery(siteLogsFetchFn, { pageSize: 25 });
+    const usersPagination = usePaginatedQuery(usersFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const teamsPagination = usePaginatedQuery(teamsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const collectionsPagination = usePaginatedQuery(collectionsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const documentsPagination = usePaginatedQuery(documentsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const filesPagination = usePaginatedQuery(filesFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const deploymentsPagination = usePaginatedQuery(deploymentsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const executionsPagination = usePaginatedQuery(executionsFetchFn, { pageSize: 25, pollingIntervalMs: EXECUTION_POLL_INTERVAL_MS });
+    const membershipsPagination = usePaginatedQuery(membershipsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const sitesPagination = usePaginatedQuery(sitesFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const siteDeploymentsPagination = usePaginatedQuery(siteDeploymentsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
+    const siteLogsPagination = usePaginatedQuery(siteLogsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
 
     // ========================================================================
     // COLLECTION DETAILS (attributes + indexes — not paginated)
@@ -361,22 +378,46 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     }, [activeProject?.$id]);
 
     // ========================================================================
-    // EXECUTION POLLING (live feed when function is selected)
+    // REALTIME EVENT HANDLER
+    // Called by the parent component when a Realtime event is received.
+    // Triggers immediate refresh of the affected paginated resource.
     // ========================================================================
 
-    useEffect(() => {
-        let interval: any;
-        if (activeTab === 'functions' && selectedFunction && activeProject) {
-            interval = setInterval(() => {
-                if (document.visibilityState === 'visible') {
-                    executionsPagination.refresh();
-                }
-            }, 5000);
+    const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
+        if (!activeProject) return;
+
+        // --- Document events → refresh documents if viewing the matching collection ---
+        if (matchesEvent(event, 'documents') && selectedCollection && selectedDb) {
+            const eventDbId = extractDatabaseId(event);
+            const eventCollId = extractCollectionId(event);
+            if (eventDbId === selectedDb.$id && eventCollId === selectedCollection.$id) {
+                documentsPagination.refresh();
+            }
         }
-        return () => {
-            if (interval) clearInterval(interval);
-        };
-    }, [activeTab, selectedFunction, activeProject, executionsPagination.refresh]);
+
+        // --- Collection events → refresh collections if viewing the matching database ---
+        if (matchesEvent(event, 'collections') && selectedDb) {
+            const eventDbId = extractDatabaseId(event);
+            if (eventDbId === selectedDb.$id) {
+                collectionsPagination.refresh();
+            }
+        }
+
+        // --- File events → refresh files if viewing the matching bucket ---
+        if (matchesEvent(event, 'files') && selectedBucket) {
+            const eventBucketId = extractBucketId(event);
+            if (eventBucketId === selectedBucket.$id) {
+                filesPagination.refresh();
+            }
+        }
+
+        // --- Bucket events → refresh bucket list ---
+        if (matchesEvent(event, 'buckets') && !matchesEvent(event, 'files')) {
+            // Only bucket-level events (create/delete bucket), not file events
+            // This is handled by useAppContext's polling, but we can also refresh here
+        }
+    }, [activeProject, selectedDb, selectedCollection, selectedBucket,
+        documentsPagination, collectionsPagination, filesPagination]);
 
     // ========================================================================
     // REFRESH CURRENT VIEW
@@ -477,6 +518,9 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         sitesPagination,
         siteDeploymentsPagination,
         siteLogsPagination,
+
+        // Realtime
+        handleRealtimeEvent,
 
         // Refresh
         refreshCurrentView,

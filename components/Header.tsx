@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, Message, AppwriteFunction } from '../types';
+import type { RealtimeConnectionStatus } from '../hooks/useRealtime';
 import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, ExternalLinkIcon, SettingsIcon, KeyIcon, LinksIcon } from './Icons';
 import { RiRobot2Line } from 'react-icons/ri';
 import { AuditLogModal } from './AuditLogModal';
@@ -21,6 +22,7 @@ interface HeaderProps {
     setIsLogSidebarOpen: (isOpen: boolean) => void;
     viewMode: 'agent' | 'studio';
     setViewMode: (mode: 'agent' | 'studio') => void;
+    realtimeStatus?: RealtimeConnectionStatus;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,7 +31,8 @@ export const Header: React.FC<HeaderProps> = ({
     messages, handleClearChat,
     selectedFunction, setIsCodeViewerSidebarOpen,
     setIsLogSidebarOpen,
-    viewMode, setViewMode
+    viewMode, setViewMode,
+    realtimeStatus = 'disconnected',
 }) => {
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
@@ -88,6 +91,26 @@ export const Header: React.FC<HeaderProps> = ({
                                             </div>
                                         </div>
                                     </div>
+                                    
+                                    {/* Realtime Status Indicator */}
+                                    {realtimeStatus === 'connected' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full animate-fade-in" title="Realtime connection active">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                            </span>
+                                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
+                                        </div>
+                                    )}
+                                    {realtimeStatus === 'connecting' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-full animate-fade-in" title="Connecting to Realtime...">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                            </span>
+                                            <span className="text-[10px] font-medium text-amber-400">Connecting</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

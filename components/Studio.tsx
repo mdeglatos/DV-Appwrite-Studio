@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
+import type { UseRealtimeReturn } from '../hooks/useRealtime';
 import { Modal } from './Modal';
 import { LoadingSpinnerIcon, ChevronDownIcon } from './Icons';
 
@@ -40,11 +41,13 @@ interface StudioProps {
     onEditCode: (func: AppwriteFunction) => void;
     logCallback: (msg: string) => void;
     activeTools: { [key: string]: boolean };
+    realtimeHook?: UseRealtimeReturn;
 }
 
 export const Studio: React.FC<StudioProps> = ({ 
     activeProject, projects, databases, buckets, functions, 
-    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback, activeTools
+    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback, activeTools,
+    realtimeHook,
 }) => {
     
     // 1. Initialize Core Logic Hooks
@@ -52,6 +55,13 @@ export const Studio: React.FC<StudioProps> = ({
     const studioData = useStudioData(activeProject, activeTab, logCallback);
     const studioModals = useStudioModals();
     const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast);
+    
+    // 2. Wire Realtime events to Studio data
+    useEffect(() => {
+        if (!realtimeHook?.isConnected || !studioData.handleRealtimeEvent) return;
+        const cleanup = realtimeHook.useEventListener(studioData.handleRealtimeEvent);
+        return cleanup;
+    }, [realtimeHook?.isConnected, realtimeHook?.useEventListener, studioData.handleRealtimeEvent]);
     
     // 2. Local Feature States
     const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false);

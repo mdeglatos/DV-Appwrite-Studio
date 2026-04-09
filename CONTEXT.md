@@ -89,7 +89,8 @@ DV Backend Studio/
 ├── hooks/             # Global custom hooks
 │   ├── useAuth.ts              # Session management
 │   ├── useProjects.ts          # CRUD for registered Appwrite projects
-│   ├── useAppContext.ts        # Active project context (DBs, collections, buckets, functions)
+│   ├── useAppContext.ts        # Active project context (DBs, collections, buckets, functions) + realtime + polling
+│   ├── useRealtime.ts          # Realtime WebSocket lifecycle + smart polling hook
 │   ├── useChatSession.ts       # Gemini chat session lifecycle
 │   ├── useSettings.ts          # User preferences (API key, model, tool toggles)
 │   ├── useCodeMode.ts          # Code editor state
@@ -98,6 +99,7 @@ DV Backend Studio/
 │
 ├── services/          # Backend service layer
 │   ├── appwrite.ts             # Appwrite client init, SDK factories, console URL helpers
+│   ├── realtimeService.ts      # Realtime WebSocket manager for managed projects (client SDK)
 │   ├── authService.ts          # Login, logout, account, preferences
 │   ├── projectService.ts       # CRUD for user's registered projects
 │   ├── geminiService.ts        # AI chat session creation & run loop

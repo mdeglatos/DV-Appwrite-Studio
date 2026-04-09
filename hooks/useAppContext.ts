@@ -2,10 +2,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppwriteProject, Database, Collection, Bucket, AppwriteFunction } from '../types';
 import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query, handleFetchError } from '../services/appwrite';
+import {
+    type RealtimeEvent,
+    type RealtimeConnectionStatus,
+    matchesEvent,
+} from '../services/realtimeService';
 
 const CONTEXT_FETCH_LIMIT = 100;
+const CONTEXT_POLL_INTERVAL_MS = 10_000; // 10 seconds
 
-export function useAppContext(activeProject: AppwriteProject | null, logCallback: (log: string) => void) {
+export function useAppContext(
+    activeProject: AppwriteProject | null,
+    logCallback: (log: string) => void,
+    onRealtimeEvent?: (event: RealtimeEvent) => void,
+) {
     const [databases, setDatabases] = useState<Database[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [buckets, setBuckets] = useState<Bucket[]>([]);
@@ -85,6 +95,33 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
         }
     }, [activeProject, logCallback, resetContext]);
 
+    // Silent refresh — same as refreshContextData but doesn't set loading state or log
+    // Used for polling and realtime-triggered refreshes to avoid UI flicker
+    const silentRefreshContextData = useCallback(async () => {
+        if (!activeProject) return;
+
+        const currentPid = activeProject.$id;
+        try {
+            const projectDatabases = getSdkDatabases(activeProject);
+            const projectStorage = getSdkStorage(activeProject);
+            const projectFunctions = getSdkFunctions(activeProject);
+
+            const [dbResponse, bucketResponse, funcResponse] = await Promise.all([
+                projectDatabases.list([Query.limit(CONTEXT_FETCH_LIMIT)]),
+                projectStorage.listBuckets([Query.limit(CONTEXT_FETCH_LIMIT)]),
+                projectFunctions.list([Query.limit(CONTEXT_FETCH_LIMIT)])
+            ]);
+
+            if (currentPid !== currentProjectIdRef.current) return;
+
+            setDatabases(dbResponse.databases);
+            setBuckets(bucketResponse.buckets);
+            setFunctions(funcResponse.functions as unknown as AppwriteFunction[]);
+        } catch {
+            // Silent — polling failures are expected (transient network issues)
+        }
+    }, [activeProject]);
+
     useEffect(() => {
         if (activeProject) {
             refreshContextData();
@@ -126,10 +163,63 @@ export function useAppContext(activeProject: AppwriteProject | null, logCallback
         fetchCollections();
     }, [selectedDatabase?.$id, activeProject?.$id, logCallback]);
 
+    // ====================================================================
+    // SMART POLLING — Periodically refresh context data in the background
+    // ====================================================================
+
+    useEffect(() => {
+        if (!activeProject) return;
+
+        const tick = () => {
+            if (document.visibilityState === 'visible') {
+                silentRefreshContextData();
+            }
+        };
+
+        const timer = setInterval(tick, CONTEXT_POLL_INTERVAL_MS);
+
+        // Also refresh when tab regains visibility
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                silentRefreshContextData();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            clearInterval(timer);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
+    }, [activeProject, silentRefreshContextData]);
+
+    // ====================================================================
+    // REALTIME EVENT HANDLING — Trigger immediate refresh on relevant events
+    // ====================================================================
+
+    // This is registered as a listener from the parent via useRealtime's event system.
+    // We expose a handler that the parent can wire up.
+    const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
+        if (!activeProject) return;
+
+        // Any database-level event (create/delete DB, create/delete collection)
+        if (matchesEvent(event, 'databases')) {
+            silentRefreshContextData();
+        }
+
+        // Any bucket-level event (create/delete bucket)
+        if (matchesEvent(event, 'buckets')) {
+            silentRefreshContextData();
+        }
+
+        // Forward the event to the parent if they want to handle it further
+        onRealtimeEvent?.(event);
+    }, [activeProject, silentRefreshContextData, onRealtimeEvent]);
+
     return {
         databases, collections, buckets, functions,
         selectedDatabase, selectedCollection, selectedBucket, selectedFunction,
         setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
         isContextLoading, error, setError, refreshContextData,
+        handleRealtimeEvent,
     };
 }

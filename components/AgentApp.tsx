@@ -11,6 +11,7 @@ import { useSettings } from '../hooks/useSettings';
 import { useChatSession } from '../hooks/useChatSession';
 import { useCodeMode } from '../hooks/useCodeMode';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
+import { useRealtime } from '../hooks/useRealtime';
 
 // UI Components
 import { LeftSidebar } from './LeftSidebar';
@@ -118,12 +119,23 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         };
     }, [isResizing, handleSidebarWidthChange]);
 
+    // Initialize Realtime WebSocket connection for the active project
+    const realtime = useRealtime(activeProject);
+
     const {
         databases, collections, buckets, functions,
         selectedDatabase, selectedCollection, selectedBucket, selectedFunction,
         setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
         isContextLoading, error: contextError, setError: setContextError, refreshContextData,
+        handleRealtimeEvent: handleContextRealtimeEvent,
     } = useAppContext(activeProject, logCallback);
+
+    // Wire realtime events to useAppContext's handler
+    useEffect(() => {
+        if (!realtime.isConnected) return;
+        const cleanup = realtime.useEventListener(handleContextRealtimeEvent);
+        return cleanup;
+    }, [realtime.isConnected, realtime.useEventListener, handleContextRealtimeEvent]);
 
     const {
         isFunctionContextLoading, functionFiles, editedFunctionFiles,
@@ -226,6 +238,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                     selectedFunction={selectedFunction} isCodeViewerSidebarOpen={isCodeViewerSidebarOpen}
                     setIsCodeViewerSidebarOpen={setIsCodeViewerSidebarOpen} setIsLogSidebarOpen={setIsLogSidebarOpen}
                     viewMode={viewMode} setViewMode={setViewMode}
+                    realtimeStatus={realtime.status}
                 />
                 
                 {viewMode === 'agent' ? (
@@ -280,6 +293,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                                 }}
                                 logCallback={logCallback}
                                 activeTools={activeTools}
+                                realtimeHook={realtime}
                             />
                         ) : (
                              <div className="flex flex-col items-center justify-center h-full text-center p-8 overflow-y-auto">
