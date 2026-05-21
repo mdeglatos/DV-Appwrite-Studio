@@ -94,7 +94,6 @@ DV Backend Studio/
 │   ├── useChatSession.ts       # Gemini chat session lifecycle
 │   ├── useSettings.ts          # User preferences (API key, model, tool toggles)
 │   ├── useCodeMode.ts          # Code editor state
-│   ├── useStudioData.ts        # Data fetching for Studio dashboard tabs
 │   └── useDragAndDrop.ts       # File drag & drop handling
 │
 ├── services/          # Backend service layer
@@ -210,7 +209,7 @@ db.listDocuments(import.meta.env.VITE_APPWRITE_DATABASE_ID, ...);
 2. Add the tab type to `StudioTab` union in `types.ts`
 3. Add routing logic in `Studio.tsx`
 4. Add the tab button in `StudioNavBar.tsx`
-5. Add data fetching logic in `hooks/useStudioData.ts` if needed
+5. Add data fetching logic in `components/studio/hooks/useStudioData.ts` if needed
 
 ### Adding a New Service
 1. Create `services/newService.ts`

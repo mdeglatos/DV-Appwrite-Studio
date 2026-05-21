@@ -1,14 +1,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppwriteProject, Database, Collection, Bucket, AppwriteFunction } from '../types';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query, handleFetchError } from '../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query, handleFetchError, listAll } from '../services/appwrite';
 import {
     type RealtimeEvent,
     type RealtimeConnectionStatus,
     matchesEvent,
 } from '../services/realtimeService';
 
-const CONTEXT_FETCH_LIMIT = 100;
 const CONTEXT_POLL_INTERVAL_MS = 10_000; // 10 seconds
 
 export function useAppContext(
@@ -69,19 +68,19 @@ export function useAppContext(
             const projectStorage = getSdkStorage(activeProject);
             const projectFunctions = getSdkFunctions(activeProject);
 
-            const [dbResponse, bucketResponse, funcResponse] = await Promise.all([
-                projectDatabases.list([Query.limit(CONTEXT_FETCH_LIMIT)]),
-                projectStorage.listBuckets([Query.limit(CONTEXT_FETCH_LIMIT)]),
-                projectFunctions.list([Query.limit(CONTEXT_FETCH_LIMIT)])
+            const [dbs, bcks, funcs] = await Promise.all([
+                listAll<Database>(q => projectDatabases.list(q), 'databases'),
+                listAll<Bucket>(q => projectStorage.listBuckets(q), 'buckets'),
+                listAll<any>(q => projectFunctions.list(q), 'functions')
             ]);
 
             if (currentPid !== currentProjectIdRef.current) return;
 
-            setDatabases(dbResponse.databases);
-            setBuckets(bucketResponse.buckets);
-            setFunctions(funcResponse.functions as unknown as AppwriteFunction[]);
+            setDatabases(dbs);
+            setBuckets(bcks);
+            setFunctions(funcs as unknown as AppwriteFunction[]);
 
-            logCallback(`Connection successful: Found ${dbResponse.databases.length} Databases, ${bucketResponse.buckets.length} Buckets.`);
+            logCallback(`Connection successful: Found ${dbs.length} Databases, ${bcks.length} Buckets.`);
         } catch (e) {
             const errorMessage = handleFetchError(e);
             if (currentPid === currentProjectIdRef.current) {
@@ -106,17 +105,17 @@ export function useAppContext(
             const projectStorage = getSdkStorage(activeProject);
             const projectFunctions = getSdkFunctions(activeProject);
 
-            const [dbResponse, bucketResponse, funcResponse] = await Promise.all([
-                projectDatabases.list([Query.limit(CONTEXT_FETCH_LIMIT)]),
-                projectStorage.listBuckets([Query.limit(CONTEXT_FETCH_LIMIT)]),
-                projectFunctions.list([Query.limit(CONTEXT_FETCH_LIMIT)])
+            const [dbs, bcks, funcs] = await Promise.all([
+                listAll<Database>(q => projectDatabases.list(q), 'databases'),
+                listAll<Bucket>(q => projectStorage.listBuckets(q), 'buckets'),
+                listAll<any>(q => projectFunctions.list(q), 'functions')
             ]);
 
             if (currentPid !== currentProjectIdRef.current) return;
 
-            setDatabases(dbResponse.databases);
-            setBuckets(bucketResponse.buckets);
-            setFunctions(funcResponse.functions as unknown as AppwriteFunction[]);
+            setDatabases(dbs);
+            setBuckets(bcks);
+            setFunctions(funcs as unknown as AppwriteFunction[]);
         } catch {
             // Silent — polling failures are expected (transient network issues)
         }
@@ -142,10 +141,13 @@ export function useAppContext(
             setIsContextLoading(true);
             try {
                 const projectDatabases = getSdkDatabases(activeProject);
-                const response = await projectDatabases.listCollections(currentDbId, [Query.limit(CONTEXT_FETCH_LIMIT)]);
+                const collist = await listAll<Collection>(
+                    q => projectDatabases.listCollections(currentDbId, q),
+                    'collections'
+                );
 
                 if (currentPid === currentProjectIdRef.current && currentDbId === selectedDatabase.$id) {
-                    setCollections(response.collections);
+                    setCollections(collist);
                 }
             } catch (e) {
                 const errorMessage = handleFetchError(e);

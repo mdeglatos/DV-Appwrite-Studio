@@ -102,6 +102,39 @@ export default async ({ req, res, log, error }) => {
     const teams = new Teams(client);
     const funcs = new Functions(client);
 
+    async function fetchAllOffset(listFn, itemsKey, extraQueries = []) {
+        const allItems = [];
+        let offset = 0;
+        const limit = 100;
+        let total = Infinity;
+        while (offset < total) {
+            const res = await listFn([Query.limit(limit), Query.offset(offset), ...extraQueries]);
+            total = res.total;
+            const items = res[itemsKey];
+            if (!items || items.length === 0) break;
+            allItems.push(...items);
+            offset += items.length;
+        }
+        return allItems;
+    }
+
+    async function fetchAllCursor(listFn, itemsKey, extraQueries = []) {
+        const allItems = [];
+        let cursor = undefined;
+        const limit = 100;
+        while (true) {
+            const q = [Query.limit(limit), ...extraQueries];
+            if (cursor) q.push(Query.cursorAfter(cursor));
+            const res = await listFn(q);
+            const items = res[itemsKey];
+            if (!items || items.length === 0) break;
+            allItems.push(...items);
+            cursor = items[items.length - 1].$id;
+            if (items.length < limit) break;
+        }
+        return allItems;
+    }
+
     try {
         log('Starting project backup (High-Fidelity Mode)');
         const backup = {
@@ -117,16 +150,15 @@ export default async ({ req, res, log, error }) => {
 
         if (options.includeDatabases) {
             log('Scanning Databases & Schemas...');
-            const dbList = await dbs.list();
-            for (const db of dbList.databases) {
+            const databases = await fetchAllOffset(q => dbs.list(q), 'databases');
+            for (const db of databases) {
                 const dbObj = { ...db, collections: [] };
-                const colls = await dbs.listCollections(db.$id);
-                for (const collMeta of colls.collections) {
+                const collections = await fetchAllOffset(q => dbs.listCollections(db.$id, q), 'collections');
+                for (const collMeta of collections) {
                     const c = await dbs.getCollection(db.$id, collMeta.$id);
                     let docs = [];
                     if (options.includeDocuments) {
-                        const docsList = await dbs.listDocuments(db.$id, collMeta.$id, [Query.limit(5000)]);
-                        docs = docsList.documents;
+                        docs = await fetchAllCursor(q => dbs.listDocuments(db.$id, collMeta.$id, q), 'documents');
                     }
                     dbObj.collections.push({ ...c, documents: docs });
                 }
@@ -136,14 +168,13 @@ export default async ({ req, res, log, error }) => {
 
         if (options.includeStorageMetadata) {
             log('Scanning Buckets...');
-            const bucketList = await storage.listBuckets();
-            backup.buckets = bucketList.buckets;
+            backup.buckets = await fetchAllOffset(q => storage.listBuckets(q), 'buckets');
         }
 
         if (options.includeFunctions) {
             log('Scanning Functions...');
-            const funcList = await funcs.list();
-            for (const f of funcList.functions) {
+            const functionsList = await fetchAllOffset(q => funcs.list(q), 'functions');
+            for (const f of functionsList) {
                 const variables = await funcs.listVariables(f.$id);
                 backup.functions.push({ ...f, variables: variables.variables });
             }
@@ -151,16 +182,15 @@ export default async ({ req, res, log, error }) => {
 
         if (options.includeUsers) {
             log('Scanning Users...');
-            const userList = await users.list([Query.limit(5000)]);
-            backup.users = userList.users;
+            backup.users = await fetchAllCursor(q => users.list(q), 'users');
         }
 
         if (options.includeTeams) {
             log('Scanning Teams...');
-            const teamList = await teams.list();
-            for (const t of teamList.teams) {
-                const memberships = await teams.listMemberships(t.$id);
-                backup.teams.push({ ...t, memberships: memberships.memberships });
+            const teamsList = await fetchAllOffset(q => teams.list(q), 'teams');
+            for (const t of teamsList) {
+                const memberships = await fetchAllOffset(q => teams.listMemberships(t.$id, q), 'memberships');
+                backup.teams.push({ ...t, memberships });
             }
         }
 

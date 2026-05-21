@@ -1,6 +1,7 @@
 import { Client, Databases, Storage, Functions, Users, Teams, ID, Query } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../tools/functionsTools';
+import { listAll } from './appwrite';
 
 export interface MigrationResource {
     type: 'database' | 'collection' | 'bucket' | 'function' | 'team' | 'user';
@@ -160,8 +161,8 @@ export class MigrationService {
 
         // Scan Databases & Collections
         if (options.migrateDatabases) {
-            const dbs = await this.sourceDatabases.list([Query.limit(100)]);
-            for (const db of dbs.databases) {
+            const dbs = await listAll<any>(q => this.sourceDatabases.list(q), 'databases');
+            for (const db of dbs) {
                 const dbRes: MigrationResource = {
                     type: 'database',
                     sourceId: db.$id,
@@ -172,8 +173,8 @@ export class MigrationService {
                     children: []
                 };
 
-                const cols = await this.sourceDatabases.listCollections(db.$id, [Query.limit(100)]);
-                for (const col of cols.collections) {
+                const cols = await listAll<any>(q => this.sourceDatabases.listCollections(db.$id, q), 'collections');
+                for (const col of cols) {
                     dbRes.children?.push({
                         type: 'collection',
                         sourceId: col.$id,
@@ -190,8 +191,8 @@ export class MigrationService {
 
         // Scan Storage
         if (options.migrateStorage) {
-            const buckets = await this.sourceStorage.listBuckets([Query.limit(100)]);
-            for (const bucket of buckets.buckets) {
+            const buckets = await listAll<any>(q => this.sourceStorage.listBuckets(q), 'buckets');
+            for (const bucket of buckets) {
                 plan.buckets.push({
                     type: 'bucket',
                     sourceId: bucket.$id,
@@ -206,8 +207,8 @@ export class MigrationService {
 
         // Scan Functions
         if (options.migrateFunctions) {
-            const funcs = await this.sourceFunctions.list([Query.limit(100)]);
-            for (const func of funcs.functions) {
+            const funcs = await listAll<any>(q => this.sourceFunctions.list(q), 'functions');
+            for (const func of funcs) {
                 plan.functions.push({
                     type: 'function',
                     sourceId: func.$id,
@@ -222,8 +223,8 @@ export class MigrationService {
 
         // Scan Teams
         if (options.migrateTeams) {
-            const teams = await this.sourceTeams.list([Query.limit(100)]);
-            for (const team of teams.teams) {
+            const teams = await listAll<any>(q => this.sourceTeams.list(q), 'teams');
+            for (const team of teams) {
                 plan.teams.push({
                     type: 'team',
                     sourceId: team.$id,
@@ -237,8 +238,8 @@ export class MigrationService {
 
         // Scan Users
         if (options.migrateUsers) {
-             const users = await this.sourceUsers.list([Query.limit(100)]);
-             for (const user of users.users) {
+             const users = await listAll<any>(q => this.sourceUsers.list(q), 'users');
+             for (const user of users) {
                 plan.users.push({
                     type: 'user',
                     sourceId: user.$id,
@@ -726,8 +727,8 @@ export class MigrationService {
                 await this.destTeams.create(res.targetId, res.targetName); 
                 this.log(`- Created team: ${res.targetName}`);
             }
-            const members = await this.sourceTeams.listMemberships(res.sourceId);
-            for (const m of members.memberships) {
+            const members = await listAll<any>(q => this.sourceTeams.listMemberships(res.sourceId, q), 'memberships');
+            for (const m of members) {
                  this.checkStop();
                  try { await this.destTeams.createMembership(res.targetId, m.roles, 'http://localhost', m.userEmail, m.userName); } 
                  catch (memErr) { /* ignore */ }

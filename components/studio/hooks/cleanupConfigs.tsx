@@ -3,7 +3,7 @@ import React from 'react';
 import type { Models } from 'node-appwrite';
 import type { AppwriteProject, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { CleanupConfig } from '../ui/CleanupModal';
-import { getSdkUsers, getSdkTeams, getSdkStorage, getSdkDatabases, getSdkFunctions, getSdkSites, Query } from '../../../services/appwrite';
+import { getSdkUsers, getSdkTeams, getSdkStorage, getSdkDatabases, getSdkFunctions, getSdkSites, Query, listAll } from '../../../services/appwrite';
 
 // ============================================================================
 // HELPERS
@@ -16,27 +16,6 @@ function matchesDateFilter(dateStr: string, filterMode?: string, filterDate?: st
     return filterMode === 'before' ? itemDate < targetDate : itemDate > targetDate;
 }
 
-function fetchAllPaginated<T>(
-    listFn: (queries: string[]) => Promise<{ total: number; [key: string]: unknown }>,
-    itemsKey: string
-): () => Promise<T[]> {
-    return async () => {
-        const allItems: T[] = [];
-        let offset = 0;
-        const limit = 100;
-        let total = Infinity;
-
-        while (offset < total) {
-            const res = await listFn([Query.limit(limit), Query.offset(offset), Query.orderDesc('$createdAt')]);
-            total = res.total;
-            const items = res[itemsKey] as T[] | undefined;
-            if (!items || items.length === 0) break;
-            allItems.push(...items);
-            offset += items.length;
-        }
-        return allItems;
-    };
-}
 
 // ============================================================================
 // USER CLEANUP CONFIG
@@ -95,9 +74,10 @@ export function getUserCleanupConfig(project: AppwriteProject): CleanupConfig<Mo
                 filters: {} // Will show all, user can refine with labelContains
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.User<any>>(
             (queries) => sdk.list(queries),
-            'users'
+            'users',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (user, filters) => {
             if (filters.status === 'active' && !user.status) return false;
@@ -233,9 +213,10 @@ export function getTeamCleanupConfig(project: AppwriteProject): CleanupConfig<Mo
                 filters: { memberCount: '0', createdMode: 'before', createdDate: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0] }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.Team<any>>(
             (queries) => sdk.list(queries),
-            'teams'
+            'teams',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (team, filters) => {
             if (filters.memberCount === '0' && team.total !== 0) return false;
@@ -341,9 +322,10 @@ export function getFileCleanupConfig(project: AppwriteProject, bucketId: string)
                 filters: { mimeType: 'image/' }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.File>(
             (queries) => sdk.listFiles(bucketId, queries),
-            'files'
+            'files',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (file, filters) => {
             if (filters.extension) {
@@ -444,9 +426,10 @@ export function getExecutionCleanupConfig(project: AppwriteProject, functionId: 
                 filters: { durationMode: 'longer', durationValue: 10 }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.Execution>(
             (queries) => sdk.listExecutions(functionId, queries),
-            'executions'
+            'executions',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (exec, filters) => {
             if (filters.status && exec.status !== filters.status) return false;
@@ -535,9 +518,10 @@ export function getDeploymentCleanupConfig(project: AppwriteProject, func: Appwr
                 filters: { active: 'inactive', dateMode: 'before', dateValue: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0] }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.Deployment>(
             (queries) => sdk.listDeployments(func.$id, queries),
-            'deployments'
+            'deployments',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (dep, filters) => {
             if (filters.status && dep.status !== filters.status) return false;
@@ -618,9 +602,10 @@ export function getDocumentCleanupConfig(
                 filters: { createdMode: 'before', createdDate: new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString().split('T')[0] }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.Document>(
             (queries) => sdk.listDocuments(dbId, collId, queries),
-            'documents'
+            'documents',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (doc, filters) => {
             if (!matchesDateFilter(doc.$createdAt, filters.createdMode, filters.createdDate)) return false;
@@ -806,9 +791,10 @@ export function getSiteCleanupConfig(project: AppwriteProject): CleanupConfig<Ap
                 filters: { nameContains: 'test' }
             },
         ],
-        fetchAll: fetchAllPaginated<AppwriteSite>(
+        fetchAll: () => listAll<AppwriteSite>(
             (queries) => sdk.list(queries) as any,
-            'sites'
+            'sites',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (site, filters) => {
             if (filters.framework && site.framework !== filters.framework) return false;
@@ -928,9 +914,10 @@ export function getSiteDeploymentCleanupConfig(project: AppwriteProject, site: A
                 filters: { active: 'inactive', dateMode: 'before', dateValue: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0] }
             },
         ],
-        fetchAll: fetchAllPaginated(
+        fetchAll: () => listAll<Models.Deployment>(
             (queries) => sdk.listDeployments(site.$id, queries),
-            'deployments'
+            'deployments',
+            [Query.orderDesc('$createdAt')]
         ),
         filterFn: (dep, filters) => {
             if (filters.status && dep.status !== filters.status) return false;

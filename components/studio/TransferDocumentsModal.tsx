@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../Modal';
 import { LoadingSpinnerIcon, DatabaseIcon, RiRocketLine, RiShareForwardLine, ChevronDownIcon, CheckIcon, AddIcon, DeleteIcon, WarningIcon, DownloadCloudIcon, CloseIcon } from '../Icons';
 import type { AppwriteProject, Database } from '../../types';
-import { getSdkDatabases, getSdkFunctions, Query, ID } from '../../services/appwrite';
+import { getSdkDatabases, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
 
 interface MappingRow {
@@ -65,11 +65,11 @@ export const TransferDocumentsModal: React.FC<TransferDocumentsModalProps> = ({
         if (!dbId) return;
         try {
             const sdk = getSdkDatabases(project);
-            const res = await sdk.listCollections(dbId, [Query.limit(100)]);
+            const collections = await listAll<any>(q => sdk.listCollections(dbId, q), 'collections');
             if (isExternal) {
-                setExtCollections(prev => ({ ...prev, [dbId]: res.collections }));
+                setExtCollections(prev => ({ ...prev, [dbId]: collections }));
             } else {
-                setSourceCollections(prev => ({ ...prev, [dbId]: res.collections }));
+                setSourceCollections(prev => ({ ...prev, [dbId]: collections }));
             }
         } catch (e) {
             console.error("Failed to load collections", e);

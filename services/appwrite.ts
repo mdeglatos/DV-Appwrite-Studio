@@ -128,4 +128,31 @@ export function getSdkSites(project: AppwriteProject): Sites {
     return new Sites(createProjectAdminClient(project));
 }
 
+export async function listAll<T>(
+    listFn: (queries: string[]) => Promise<{ total: number; [key: string]: any }>,
+    itemsKey: string,
+    extraQueries: string[] = [],
+    maxItems: number = 5000
+): Promise<T[]> {
+    const allItems: T[] = [];
+    let offset = 0;
+    const limit = 100;
+    let total = Infinity;
+
+    while (offset < total && allItems.length < maxItems) {
+        const res = await listFn([
+            Query.limit(limit),
+            Query.offset(offset),
+            ...extraQueries
+        ]);
+        total = res.total;
+        const items = res[itemsKey] as T[] | undefined;
+        if (!items || items.length === 0) break;
+        allItems.push(...items);
+        offset += items.length;
+    }
+    return allItems;
+}
+
 export { ID, Query, Permission, Role, AppwriteException };
+

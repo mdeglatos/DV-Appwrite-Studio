@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Modal } from '../Modal';
 import { LoadingSpinnerIcon, RefreshIcon, StorageIcon, RiRocketLine, RiShareForwardLine, ChevronDownIcon, CheckIcon } from '../Icons';
 import type { AppwriteProject, Bucket } from '../../types';
-import { getSdkStorage, getSdkFunctions, Query, ID } from '../../services/appwrite';
+import { getSdkStorage, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
 
 interface ConsolidateBucketsModalProps {
@@ -57,10 +57,10 @@ export const ConsolidateBucketsModal: React.FC<ConsolidateBucketsModalProps> = (
                 apiKey
             };
             const storage = getSdkStorage(tempProj);
-            const res = await storage.listBuckets([Query.limit(100)]);
-            setExtBuckets(res.buckets);
-            if (res.buckets.length > 0) {
-                setExtBucketId(res.buckets[0].$id);
+            const bucketsList = await listAll<any>(q => storage.listBuckets(q), 'buckets');
+            setExtBuckets(bucketsList);
+            if (bucketsList.length > 0) {
+                setExtBucketId(bucketsList[0].$id);
             } else {
                 setExtBucketId('');
             }

@@ -1,5 +1,5 @@
 import { ID, Query } from '../../../services/appwrite';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, normalizeEndpoint } from '../../../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, normalizeEndpoint, listAll } from '../../../services/appwrite';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
@@ -101,14 +101,14 @@ export function useStudioActions(
         const sdk = getSdkDatabases(activeProject);
         
         try {
-            const collectionsRes = await sdk.listCollections(db.$id, [Query.limit(100)]);
+            const collectionsRes = await listAll<any>(q => sdk.listCollections(db.$id, q), 'collections');
             const fullSchema: any = {
                 databaseId: db.$id,
                 name: db.name,
                 collections: []
             };
 
-            for (const col of collectionsRes.collections) {
+            for (const col of collectionsRes) {
                 logCallback(`   - Inspecting collection: ${col.name}`);
                 fullSchema.collections.push({
                     $id: col.$id,
