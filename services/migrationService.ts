@@ -1,7 +1,7 @@
 import { Client, Databases, Storage, Functions, Users, Teams, ID, Query } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../tools/functionsTools';
-import { listAll } from './appwrite';
+import { listAll, configureClient } from './appwrite';
 
 export interface MigrationResource {
     type: 'database' | 'collection' | 'bucket' | 'function' | 'team' | 'user';
@@ -77,15 +77,15 @@ export class MigrationService {
         this.destProjectConfig = dest;
         this.sourceProjectConfig = source;
 
-        this.sourceClient = new Client()
+        this.sourceClient = configureClient(new Client()
             .setEndpoint(source.endpoint)
             .setProject(source.projectId)
-            .setKey(source.apiKey);
+            .setKey(source.apiKey));
 
-        this.destClient = new Client()
+        this.destClient = configureClient(new Client()
             .setEndpoint(dest.endpoint)
             .setProject(dest.projectId)
-            .setKey(dest.apiKey);
+            .setKey(dest.apiKey));
 
         this.sourceDatabases = new Databases(this.sourceClient);
         this.destDatabases = new Databases(this.destClient);

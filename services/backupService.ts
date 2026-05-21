@@ -2,6 +2,7 @@
 import { Client, Databases, Storage, Functions, Users, Teams, ID, Query } from 'node-appwrite';
 import type { AppwriteProject, BackupOptions } from '../types';
 import { deployCodeFromString } from '../tools/functionsTools';
+import { configureClient } from './appwrite';
 
 // Appwrite IDs cannot start with a special character like '_'
 export const BACKUP_BUCKET_ID = 'dv-backups';
@@ -18,10 +19,10 @@ export class BackupService {
     constructor(project: AppwriteProject, logCallback: (msg: string) => void) {
         this.project = project;
         this.logCallback = logCallback;
-        this.client = new Client()
+        this.client = configureClient(new Client()
             .setEndpoint(project.endpoint)
             .setProject(project.projectId)
-            .setKey(project.apiKey);
+            .setKey(project.apiKey));
         this.functions = new Functions(this.client);
         this.storage = new Storage(this.client);
     }

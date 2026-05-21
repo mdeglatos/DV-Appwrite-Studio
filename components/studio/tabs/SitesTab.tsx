@@ -7,6 +7,7 @@ import { SitesIcon, AddIcon, DeleteIcon, ArrowLeftIcon, ExternalLinkIcon, CheckI
 import { consoleLinks } from '../../../services/appwrite';
 import { CopyButton } from '../ui/CopyButton';
 import { PaginationFooter } from '../ui/PaginationFooter';
+import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { CleanupModal } from '../ui/CleanupModal';
 import { getSiteCleanupConfig, getSiteDeploymentCleanupConfig, getSiteVariableCleanupConfig } from '../hooks/cleanupConfigs';
 
@@ -30,6 +31,7 @@ interface SitesTabProps {
     onCreateVariable: () => void;
     onUpdateVariable: (v: Models.Variable) => void;
     onDeleteVariable: (v: Models.Variable) => void;
+    sitesPagination: PaginatedState<AppwriteSite>;
     siteDeploymentsPagination: PaginatedState<Models.Deployment>;
     siteLogsPagination: PaginatedState<any>;
     onRefresh: () => void;
@@ -85,6 +87,7 @@ export const SitesTab: React.FC<SitesTabProps> = ({
     onSelectSite, onCreateSite, onDeleteSite, onUpdateSite,
     onActivateDeployment, onCancelDeployment, onDeleteDeployment, onBulkDeleteDeployments,
     onCreateVariable, onUpdateVariable, onDeleteVariable,
+    sitesPagination,
     siteDeploymentsPagination, siteLogsPagination,
     onRefresh,
 }) => {
@@ -145,6 +148,15 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                     </div>
                 </header>
 
+                <ResourceSearchBar
+                    value={sitesPagination.searchQuery}
+                    onChange={sitesPagination.setSearch}
+                    placeholder="Search sites by name..."
+                    total={sitesPagination.searchQuery ? sitesPagination.total : undefined}
+                    isLoading={sitesPagination.isLoading}
+                    className="mb-4"
+                />
+
                 {sites.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                         <SitesIcon size={48} className="text-gray-700 mb-4" />
@@ -195,6 +207,24 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {sites.length > 0 && (
+                    <div className="mt-4">
+                        <PaginationFooter
+                            page={sitesPagination.page}
+                            pageSize={sitesPagination.pageSize}
+                            total={sitesPagination.total}
+                            totalPages={sitesPagination.totalPages}
+                            hasNextPage={sitesPagination.hasNextPage}
+                            hasPrevPage={sitesPagination.hasPrevPage}
+                            pageInfo={sitesPagination.pageInfo}
+                            onNextPage={sitesPagination.nextPage}
+                            onPrevPage={sitesPagination.prevPage}
+                            onPageSizeChange={sitesPagination.setPageSize}
+                            isLoading={sitesPagination.isLoading}
+                        />
                     </div>
                 )}
 

@@ -19,15 +19,23 @@ interface OverviewTabProps {
     onCreateDatabase?: () => void;
     onCreateBucket?: () => void;
     onCreateUser?: () => void;
+    sitesTotal?: number;
+    usersTotal?: number;
+    teamsTotal?: number;
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ 
     activeProject, databases, buckets, functions, sites, users, teams, onTabChange,
-    onCreateDatabase, onCreateBucket, onCreateUser
+    onCreateDatabase, onCreateBucket, onCreateUser,
+    sitesTotal, usersTotal, teamsTotal
 }) => {
     const activeFunctions = functions.filter(f => f.enabled);
     const verifiedUsers = users.filter(u => u.emailVerification);
     const activeUsers = users.filter(u => u.status);
+
+    const finalSitesCount = sitesTotal !== undefined ? sitesTotal : sites.length;
+    const finalUsersCount = usersTotal !== undefined ? usersTotal : users.length;
+    const finalTeamsCount = teamsTotal !== undefined ? teamsTotal : teams.length;
 
     return (
         <>
@@ -103,7 +111,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 />
                 <StatCard 
                     title="Sites" 
-                    value={sites.length} 
+                    value={finalSitesCount} 
                     icon={<SitesIcon />} 
                     color="text-cyan-400"
                     onClick={() => onTabChange('sites')}
@@ -111,7 +119,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 />
                 <StatCard 
                     title="Users" 
-                    value={users.length} 
+                    value={finalUsersCount} 
                     icon={<UserIcon />} 
                     color="text-purple-400"
                     onClick={() => onTabChange('users')}
@@ -119,7 +127,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 />
                 <StatCard 
                     title="Teams" 
-                    value={teams.length} 
+                    value={finalTeamsCount} 
                     icon={<TeamIcon />} 
                     color="text-yellow-400"
                     onClick={() => onTabChange('teams')}

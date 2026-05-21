@@ -200,6 +200,14 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         </a>
                     </div>
                 </div>
+                <ResourceSearchBar
+                    value={collectionsPagination.searchQuery}
+                    onChange={collectionsPagination.setSearch}
+                    placeholder="Search collections..."
+                    total={collectionsPagination.searchQuery ? collectionsPagination.total : undefined}
+                    isLoading={collectionsPagination.isLoading}
+                    className="mb-4 mt-4"
+                />
                 <ResourceTable<Models.Collection> 
                     title={`Collections in ${selectedDb.name}`} 
                     data={collections} 
@@ -213,6 +221,21 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                             {c.enabled ? 'Active' : 'Disabled'}
                         </span>
                     )}
+                    footer={
+                        <PaginationFooter
+                            page={collectionsPagination.page}
+                            pageSize={collectionsPagination.pageSize}
+                            total={collectionsPagination.total}
+                            totalPages={collectionsPagination.totalPages}
+                            hasNextPage={collectionsPagination.hasNextPage}
+                            hasPrevPage={collectionsPagination.hasPrevPage}
+                            pageInfo={collectionsPagination.pageInfo}
+                            onNextPage={collectionsPagination.nextPage}
+                            onPrevPage={collectionsPagination.prevPage}
+                            onPageSizeChange={collectionsPagination.setPageSize}
+                            isLoading={collectionsPagination.isLoading}
+                        />
+                    }
                 />
                  <TransferDocumentsModal 
                     isOpen={isTransferModalOpen} 

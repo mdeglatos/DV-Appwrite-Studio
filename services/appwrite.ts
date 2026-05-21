@@ -68,9 +68,171 @@ export function handleFetchError(error: any): string {
     return msg;
 }
 
+function jsonToLegacyQuery(qObj: { method?: string; attribute?: string; values?: any[] } | null | undefined): string | null {
+    if (!qObj || typeof qObj !== 'object' || !qObj.method) {
+        return null;
+    }
+    const method = qObj.method;
+    const attribute = qObj.attribute;
+    const values = qObj.values;
+
+    const formatValue = (val: any): string => {
+        if (Array.isArray(val)) {
+            return '[' + val.map(formatValue).join(',') + ']';
+        }
+        if (typeof val === 'string') {
+            return `"${val.replace(/"/g, '\\"')}"`;
+        }
+        if (typeof val === 'number' || typeof val === 'boolean') {
+            return String(val);
+        }
+        if (val === null) {
+            return 'null';
+        }
+        return String(val);
+    };
+
+    if (attribute !== undefined && attribute !== null) {
+        if (values !== undefined && values !== null) {
+            if (values.length === 1) {
+                return `${method}("${attribute}", ${formatValue(values[0])})`;
+            }
+            return `${method}("${attribute}", ${formatValue(values)})`;
+        }
+        return `${method}("${attribute}")`;
+    } else {
+        if (values !== undefined && values !== null) {
+            if (values.length === 1) {
+                return `${method}(${formatValue(values[0])})`;
+            }
+            return `${method}(${formatValue(values)})`;
+        }
+        return `${method}()`;
+    }
+}
+
+const versionCache: Record<string, { isLegacy: boolean; version?: string; checking?: Promise<boolean> }> = {};
+
+/**
+ * Detects whether the Appwrite server at the given endpoint is legacy (v1.3 or older)
+ * by making a lightweight fetch check or checking the domain name.
+ */
+export async function detectServerVersion(endpoint: string): Promise<boolean> {
+    if (!endpoint) return false;
+    const cleanEndpoint = normalizeEndpoint(endpoint);
+    
+    if (versionCache[cleanEndpoint]) {
+        if (versionCache[cleanEndpoint].checking) {
+            return versionCache[cleanEndpoint].checking!;
+        }
+        return versionCache[cleanEndpoint].isLegacy;
+    }
+
+    const promise = (async () => {
+        try {
+            if (cleanEndpoint.includes('cloud.appwrite.io')) {
+                versionCache[cleanEndpoint] = { isLegacy: false, version: 'cloud' };
+                return false;
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            const res = await fetch(cleanEndpoint, {
+                method: 'GET',
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            const data = await res.json();
+            if (data && typeof data === 'object' && typeof data.version === 'string') {
+                const verParts = data.version.split('.').map(Number);
+                const isLegacy = verParts[0] < 1 || (verParts[0] === 1 && verParts[1] < 4);
+                versionCache[cleanEndpoint] = { isLegacy, version: data.version };
+                return isLegacy;
+            }
+        } catch (e) {
+            // Ignore fetch/parse errors - defaults to modern
+        }
+        return false;
+    })();
+
+    versionCache[cleanEndpoint] = { isLegacy: false, checking: promise };
+    const isLegacy = await promise;
+    versionCache[cleanEndpoint] = { isLegacy };
+    return isLegacy;
+}
+
 /**
  * Creates a temporary, admin-level Appwrite client for a specific user-defined project.
  */
+export function configureClient(client: NodeClient): NodeClient {
+    // Force disable caching for admin requests to prevent stale data
+    if (typeof (client as any).addHeader === 'function') {
+        (client as any).addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        (client as any).addHeader('Pragma', 'no-cache');
+        (client as any).addHeader('Expires', '0');
+    }
+
+    // Monkey-patch the 'call' method to inject a unique timestamp query parameter
+    // into GET requests. This forces the browser to bypass cache even if headers are ignored.
+    // Also parse and extract limit, offset, and search from queries for legacy Appwrite server compatibility.
+    const originalCall = (client as any).call.bind(client);
+    (client as any).call = async (method: string, url: URL, headers: any, params: any, responseType: any) => {
+        const endpoint = (client as any).config?.endpoint;
+        const isLegacy = endpoint ? await detectServerVersion(endpoint) : false;
+
+        if (method.toLowerCase() === 'get') {
+            params = params || {};
+            // Using a specific key that Appwrite likely ignores or treats as extra
+            params['__t'] = Date.now();
+
+            if (isLegacy && Array.isArray(params.queries)) {
+                params.queries = params.queries.map((q: any) => {
+                    if (typeof q === 'string') {
+                        if (q.trim().startsWith('{')) {
+                            try {
+                                const parsed = JSON.parse(q);
+                                const legacy = jsonToLegacyQuery(parsed);
+                                if (legacy) {
+                                    if (parsed.method === 'limit' && parsed.values && parsed.values[0] !== undefined) {
+                                        params.limit = parsed.values[0];
+                                    } else if (parsed.method === 'offset' && parsed.values && parsed.values[0] !== undefined) {
+                                        params.offset = parsed.values[0];
+                                    } else if (parsed.method === 'search' && parsed.values && parsed.values[0] !== undefined) {
+                                        params.search = parsed.values[0];
+                                    }
+                                    return legacy;
+                                }
+                            } catch (e) {
+                                // Ignore JSON parse errors
+                            }
+                        } else {
+                            // Extract limit, offset, and search from legacy strings if present
+                            const limitMatch = q.match(/^limit\((\d+)\)$/);
+                            if (limitMatch) {
+                                params.limit = parseInt(limitMatch[1], 10);
+                            }
+                            const offsetMatch = q.match(/^offset\((\d+)\)$/);
+                            if (offsetMatch) {
+                                params.offset = parseInt(offsetMatch[1], 10);
+                            }
+                            const searchMatch = q.match(/^search\((.+)\)$/);
+                            if (searchMatch) {
+                                params.search = searchMatch[1];
+                            }
+                        }
+                    }
+                    return q;
+                });
+            }
+        }
+        return originalCall(method, url, headers, params, responseType);
+    };
+
+    return client;
+}
+
 function createProjectAdminClient(project: AppwriteProject): NodeClient {
     if (!project || !project.endpoint || !project.projectId || !project.apiKey) {
         throw new Error('Appwrite project configuration is missing or incomplete.');
@@ -82,26 +244,7 @@ function createProjectAdminClient(project: AppwriteProject): NodeClient {
         .setProject(project.projectId.trim())
         .setKey(project.apiKey.trim());
 
-    // Force disable caching for admin requests to prevent stale data
-    if (typeof (client as any).addHeader === 'function') {
-        (client as any).addHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        (client as any).addHeader('Pragma', 'no-cache');
-        (client as any).addHeader('Expires', '0');
-    }
-
-    // Monkey-patch the 'call' method to inject a unique timestamp query parameter
-    // into GET requests. This forces the browser to bypass cache even if headers are ignored.
-    const originalCall = (client as any).call.bind(client);
-    (client as any).call = (method: string, url: URL, headers: any, params: any, responseType: any) => {
-        if (method.toLowerCase() === 'get') {
-            params = params || {};
-            // Using a specific key that Appwrite likely ignores or treats as extra
-            params['__t'] = Date.now();
-        }
-        return originalCall(method, url, headers, params, responseType);
-    };
-
-    return client;
+    return configureClient(client);
 }
 
 export function getSdkDatabases(project: AppwriteProject): Databases {

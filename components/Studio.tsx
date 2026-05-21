@@ -190,6 +190,9 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateDatabase={studioActions.handleCreateDatabase}
                             onCreateBucket={studioActions.handleCreateBucket}
                             onCreateUser={studioActions.handleCreateUser}
+                            sitesTotal={sitesPagination.total}
+                            usersTotal={usersPagination.total}
+                            teamsTotal={teamsPagination.total}
                         />
                     )}
 
@@ -276,6 +279,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onCreateVariable={studioActions.handleCreateSiteVariable}
                             onUpdateVariable={studioActions.handleUpdateSiteVariable}
                             onDeleteVariable={studioActions.handleDeleteSiteVariable}
+                            sitesPagination={sitesPagination}
                             siteDeploymentsPagination={siteDeploymentsPagination}
                             siteLogsPagination={siteLogsPagination}
                             onRefresh={handleStudioRefresh}
