@@ -48,7 +48,30 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     const { params } = route;
 
     const viewMode = route.name.startsWith('studio') ? 'studio' : 'agent';
-    const activeStudioTab = (params.tab as StudioTab) || 'overview';
+    
+    const activeStudioTab = (() => {
+        if (route.name.startsWith('studio_')) {
+            if (route.name === 'studio_database' || route.name === 'studio_collection' || route.name === 'studio_document') {
+                return 'database';
+            }
+            if (route.name === 'studio_storage' || route.name === 'studio_file') {
+                return 'storage';
+            }
+            if (route.name === 'studio_function' || route.name === 'studio_function_code' || route.name === 'studio_execution') {
+                return 'functions';
+            }
+            if (route.name === 'studio_site') {
+                return 'sites';
+            }
+            if (route.name === 'studio_team') {
+                return 'teams';
+            }
+            if (route.name === 'studio_tab') {
+                return (params.tab as StudioTab) || 'overview';
+            }
+        }
+        return 'overview';
+    })();
 
     const setViewMode = (mode: 'agent' | 'studio') => {
         localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
