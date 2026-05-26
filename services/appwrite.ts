@@ -117,7 +117,7 @@ const versionCache: Record<string, { isLegacy: boolean; version?: string; checki
  * Detects whether the Appwrite server at the given endpoint is legacy (v1.3 or older)
  * by making a lightweight fetch check or checking the domain name.
  */
-export async function detectServerVersion(endpoint: string): Promise<boolean> {
+export async function detectServerVersion(endpoint: string, projectId?: string): Promise<boolean> {
     if (!endpoint) return false;
     const cleanEndpoint = normalizeEndpoint(endpoint);
     
@@ -138,8 +138,14 @@ export async function detectServerVersion(endpoint: string): Promise<boolean> {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000);
 
+            const headers: Record<string, string> = {};
+            if (projectId) {
+                headers['x-appwrite-project'] = projectId.trim();
+            }
+
             const res = await fetch(cleanEndpoint, {
                 method: 'GET',
+                headers,
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
@@ -180,7 +186,8 @@ export function configureClient(client: NodeClient): NodeClient {
     const originalCall = (client as any).call.bind(client);
     (client as any).call = async (method: string, url: URL, headers: any, params: any, responseType: any) => {
         const endpoint = (client as any).config?.endpoint;
-        const isLegacy = endpoint ? await detectServerVersion(endpoint) : false;
+        const projectId = (client as any).config?.project;
+        const isLegacy = endpoint ? await detectServerVersion(endpoint, projectId) : false;
 
         if (method.toLowerCase() === 'get') {
             params = params || {};
