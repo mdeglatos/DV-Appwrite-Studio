@@ -1,15 +1,30 @@
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import LoginPage from './components/LoginPage';
 import { AgentApp } from './components/AgentApp';
 import { LandingPage } from './components/LandingPage';
 import { LoadingSpinnerIcon } from './components/Icons';
 import { useAuth } from './hooks/useAuth';
+import { useRouter } from './services/router';
 
 const App: React.FC = () => {
     // isAuthLoading is now only true during the very first session check
     const { currentUser, setCurrentUser, isAuthLoading, handleLogout, refreshUser } = useAuth();
-    const [showLanding, setShowLanding] = useState(true);
+    const { route, navigate } = useRouter();
+
+    useEffect(() => {
+        if (isAuthLoading) return;
+
+        if (currentUser) {
+            if (route.name === 'login' || route.name === 'landing') {
+                navigate('/', { replace: true });
+            }
+        } else {
+            if (route.name !== 'login' && route.name !== 'landing') {
+                navigate('/landing', { replace: true });
+            }
+        }
+    }, [currentUser, isAuthLoading, route.name, navigate]);
 
     if (isAuthLoading) {
         return (
@@ -26,11 +41,11 @@ const App: React.FC = () => {
         return <AgentApp currentUser={currentUser} onLogout={handleLogout} refreshUser={refreshUser} />;
     }
 
-    if (showLanding) {
-        return <LandingPage onGetStarted={() => setShowLanding(false)} />;
+    if (route.name === 'login') {
+        return <LoginPage onLoginSuccess={setCurrentUser} />;
     }
 
-    return <LoginPage onLoginSuccess={setCurrentUser} />;
+    return <LandingPage onGetStarted={() => navigate('/login')} />;
 };
 
 export default App;

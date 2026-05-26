@@ -92,14 +92,73 @@ function buildQueriesWithClientSearch(rawQueries: string[]): { queries: string[]
 // Main Hook
 // ============================================================================
 
-export function useStudioData(activeProject: AppwriteProject, activeTab: StudioTab, logCallback: (msg: string) => void) {
-    // -- Drill-down selection states --
-    const [selectedDb, setSelectedDb] = useState<Database | null>(null);
-    const [selectedCollection, setSelectedCollection] = useState<Models.Collection | null>(null);
-    const [selectedBucket, setSelectedBucket] = useState<Bucket | null>(null);
-    const [selectedFunction, setSelectedFunction] = useState<AppwriteFunction | null>(null);
-    const [selectedTeam, setSelectedTeam] = useState<Models.Team<any> | null>(null);
-    const [selectedSite, setSelectedSite] = useState<AppwriteSite | null>(null);
+export function useStudioData(
+    activeProject: AppwriteProject,
+    activeTab: StudioTab,
+    logCallback: (msg: string) => void,
+    routerParams: Record<string, string>,
+    navigate: (path: string) => void,
+    databases: Database[],
+    buckets: Bucket[],
+    functions: AppwriteFunction[]
+) {
+    // -- Drill-down selections derived from URL --
+    const selectedDb = databases.find(d => d.$id === routerParams.dbId) || null;
+    const selectedBucket = buckets.find(b => b.$id === routerParams.bucketId) || null;
+    const selectedFunction = functions.find(f => f.$id === routerParams.fnId) || null;
+
+    // -- Drill-down selection states (dynamic/paginated resources) --
+    const [selectedCollection, setSelectedCollectionState] = useState<Models.Collection | null>(null);
+    const [selectedTeam, setSelectedTeamState] = useState<Models.Team<any> | null>(null);
+    const [selectedSite, setSelectedSiteState] = useState<AppwriteSite | null>(null);
+
+    const setSelectedDb = useCallback((db: Database | null) => {
+        if (db) {
+            navigate(`/project/${activeProject.$id}/studio/database/${db.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/studio/database`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedCollection = useCallback((coll: Models.Collection | null) => {
+        if (coll && selectedDb) {
+            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${coll.$id}`);
+        } else if (selectedDb) {
+            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}`);
+        }
+    }, [activeProject?.$id, selectedDb?.$id, navigate]);
+
+    const setSelectedBucket = useCallback((b: Bucket | null) => {
+        if (b) {
+            navigate(`/project/${activeProject.$id}/studio/storage/${b.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/studio/storage`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedFunction = useCallback((f: AppwriteFunction | null) => {
+        if (f) {
+            navigate(`/project/${activeProject.$id}/studio/functions/${f.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/studio/functions`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedTeam = useCallback((t: Models.Team<any> | null) => {
+        if (t) {
+            navigate(`/project/${activeProject.$id}/studio/teams/${t.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/studio/teams`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedSite = useCallback((s: AppwriteSite | null) => {
+        if (s) {
+            navigate(`/project/${activeProject.$id}/studio/sites/${s.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/studio/sites`);
+        }
+    }, [activeProject?.$id, navigate]);
 
     // -- Non-paginated sub-resource states (loaded in full) --
     const [attributes, setAttributes] = useState<any[]>([]);
@@ -108,6 +167,8 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const [siteVariables, setSiteVariables] = useState<Models.Variable[]>([]);
 
     const lastProjectIdRef = useRef<string | null>(null);
+
+
 
     // ========================================================================
     // PAGINATED FETCH FUNCTIONS
@@ -267,6 +328,93 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     const siteDeploymentsPagination = usePaginatedQuery(siteDeploymentsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
     const siteLogsPagination = usePaginatedQuery(siteLogsFetchFn, { pageSize: 25, pollingIntervalMs: STUDIO_POLL_INTERVAL_MS });
 
+    // Sync Collection selection with URL
+    useEffect(() => {
+        if (!routerParams.collId || !selectedDb || !activeProject) {
+            setSelectedCollectionState(null);
+            return;
+        }
+
+        const found = (collectionsPagination.items as any[]).find(c => c.$id === routerParams.collId);
+        if (found) {
+            setSelectedCollectionState(found);
+            return;
+        }
+
+        let isCurrent = true;
+        const resolveCollection = async () => {
+            try {
+                const sdk = getSdkDatabases(activeProject);
+                const res = await sdk.getCollection(selectedDb.$id, routerParams.collId);
+                if (isCurrent) {
+                    setSelectedCollectionState(res);
+                }
+            } catch (e) {
+                console.error("Failed to resolve collection by ID", e);
+            }
+        };
+        resolveCollection();
+        return () => { isCurrent = false; };
+    }, [routerParams.collId, selectedDb?.$id, activeProject?.$id, collectionsPagination.items]);
+
+    // Sync Team selection with URL
+    useEffect(() => {
+        if (!routerParams.teamId || !activeProject) {
+            setSelectedTeamState(null);
+            return;
+        }
+
+        const found = (teamsPagination.items as any[]).find(t => t.$id === routerParams.teamId);
+        if (found) {
+            setSelectedTeamState(found);
+            return;
+        }
+
+        let isCurrent = true;
+        const resolveTeam = async () => {
+            try {
+                const sdk = getSdkTeams(activeProject);
+                const res = await sdk.get(routerParams.teamId);
+                if (isCurrent) {
+                    setSelectedTeamState(res);
+                }
+            } catch (e) {
+                console.error("Failed to resolve team by ID", e);
+            }
+        };
+        resolveTeam();
+        return () => { isCurrent = false; };
+    }, [routerParams.teamId, activeProject?.$id, teamsPagination.items]);
+
+    // Sync Site selection with URL
+    useEffect(() => {
+        if (!routerParams.siteId || !activeProject) {
+            setSelectedSiteState(null);
+            return;
+        }
+
+        const found = (sitesPagination.items as any[]).find(s => s.$id === routerParams.siteId);
+        if (found) {
+            setSelectedSiteState(found as unknown as AppwriteSite);
+            return;
+        }
+
+        let isCurrent = true;
+        const resolveSite = async () => {
+            try {
+                const sdk = getSdkSites(activeProject);
+                const res = await sdk.get(routerParams.siteId);
+                if (isCurrent) {
+                    setSelectedSiteState(res as unknown as AppwriteSite);
+                }
+            } catch (e) {
+                console.error("Failed to resolve site by ID", e);
+            }
+        };
+        resolveSite();
+        return () => { isCurrent = false; };
+    }, [routerParams.siteId, activeProject?.$id, sitesPagination.items]);
+
     // ========================================================================
     // COLLECTION DETAILS (attributes + indexes — not paginated)
     // ========================================================================
@@ -339,17 +487,7 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
         }
     }, [selectedSite?.$id, activeTab, fetchSiteVariables]);
 
-    // ========================================================================
-    // RESET ON TAB CHANGE
-    // ========================================================================
-
     useEffect(() => {
-        setSelectedDb(null);
-        setSelectedCollection(null);
-        setSelectedBucket(null);
-        setSelectedFunction(null);
-        setSelectedTeam(null);
-        setSelectedSite(null);
         setAttributes([]);
         setIndexes([]);
         setVariables([]);
@@ -363,17 +501,11 @@ export function useStudioData(activeProject: AppwriteProject, activeTab: StudioT
     useEffect(() => {
         const projectId = activeProject?.$id;
         if (projectId !== lastProjectIdRef.current) {
-            setSelectedDb(null);
-            setSelectedCollection(null);
-            setSelectedBucket(null);
-            setSelectedFunction(null);
-            setSelectedTeam(null);
-            setSelectedSite(null);
             setAttributes([]);
             setIndexes([]);
             setVariables([]);
             setSiteVariables([]);
-            lastProjectIdRef.current = projectId;
+            lastProjectIdRef.current = projectId || null;
         }
     }, [activeProject?.$id]);
 

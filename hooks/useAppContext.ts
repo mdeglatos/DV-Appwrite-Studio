@@ -13,18 +13,57 @@ const CONTEXT_POLL_INTERVAL_MS = 10_000; // 10 seconds
 export function useAppContext(
     activeProject: AppwriteProject | null,
     logCallback: (log: string) => void,
+    routerParams: Record<string, string>,
+    navigate: (path: string) => void,
     onRealtimeEvent?: (event: RealtimeEvent) => void,
 ) {
     const [databases, setDatabases] = useState<Database[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [buckets, setBuckets] = useState<Bucket[]>([]);
     const [functions, setFunctions] = useState<AppwriteFunction[]>([]);
-    const [selectedDatabase, setSelectedDatabase] = useState<Database | null>(null);
-    const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-    const [selectedBucket, setSelectedBucket] = useState<Bucket | null>(null);
-    const [selectedFunction, setSelectedFunction] = useState<AppwriteFunction | null>(null);
     const [isContextLoading, setIsContextLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const selectedDatabase = databases.find(d => d.$id === routerParams.dbId) || null;
+    const selectedCollection = collections.find(c => c.$id === routerParams.collId) || null;
+    const selectedBucket = buckets.find(b => b.$id === routerParams.bucketId) || null;
+    const selectedFunction = functions.find(f => f.$id === routerParams.fnId) || null;
+
+    const setSelectedDatabase = useCallback((db: Database | null) => {
+        if (!activeProject) return;
+        if (db) {
+            navigate(`/project/${activeProject.$id}/agent/database/${db.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/agent`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedCollection = useCallback((coll: Collection | null) => {
+        if (!activeProject) return;
+        if (coll && selectedDatabase) {
+            navigate(`/project/${activeProject.$id}/agent/database/${selectedDatabase.$id}/collection/${coll.$id}`);
+        } else if (selectedDatabase) {
+            navigate(`/project/${activeProject.$id}/agent/database/${selectedDatabase.$id}`);
+        }
+    }, [activeProject?.$id, selectedDatabase?.$id, navigate]);
+
+    const setSelectedBucket = useCallback((b: Bucket | null) => {
+        if (!activeProject) return;
+        if (b) {
+            navigate(`/project/${activeProject.$id}/agent/storage/${b.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/agent`);
+        }
+    }, [activeProject?.$id, navigate]);
+
+    const setSelectedFunction = useCallback((f: AppwriteFunction | null) => {
+        if (!activeProject) return;
+        if (f) {
+            navigate(`/project/${activeProject.$id}/agent/function/${f.$id}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/agent`);
+        }
+    }, [activeProject?.$id, navigate]);
 
     const currentProjectIdRef = useRef<string | null>(null);
 
@@ -33,10 +72,6 @@ export function useAppContext(
         setCollections([]);
         setBuckets([]);
         setFunctions([]);
-        setSelectedDatabase(null);
-        setSelectedCollection(null);
-        setSelectedBucket(null);
-        setSelectedFunction(null);
         setError(null);
     }, []);
 
@@ -130,7 +165,6 @@ export function useAppContext(
     useEffect(() => {
         if (!selectedDatabase || !activeProject || activeProject.$id !== currentProjectIdRef.current) {
             setCollections([]);
-            setSelectedCollection(null);
             return;
         }
 

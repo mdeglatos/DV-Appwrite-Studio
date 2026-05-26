@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, ModelMessage, StudioTab, AppwriteFunction } from '../types';
 import { getSdkFunctions } from '../services/appwrite';
+import { useRouter } from '../services/router';
 
 // Custom Hooks
 import { useProjects } from '../hooks/useProjects';
@@ -43,16 +44,25 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     const [isCreateFunctionModalOpen, setIsCreateFunctionModalOpen] = useState(false);
     const [sessionLogs, setSessionLogs] = useState<string[]>([]);
     
-    const [viewMode, setViewModeState] = useState<'agent' | 'studio'>(() => {
-        const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-        return (saved === 'agent' || saved === 'studio') ? saved : 'agent';
-    });
-    
-    const [activeStudioTab, setActiveStudioTab] = useState<StudioTab>('overview');
+    const { route, navigate } = useRouter();
+    const { params } = route;
+
+    const viewMode = route.name.startsWith('studio') ? 'studio' : 'agent';
+    const activeStudioTab = (params.tab as StudioTab) || 'overview';
 
     const setViewMode = (mode: 'agent' | 'studio') => {
-        setViewModeState(mode);
         localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
+        if (!activeProject) return;
+        if (mode === 'studio') {
+            navigate(`/project/${activeProject.$id}/studio/${activeStudioTab}`);
+        } else {
+            navigate(`/project/${activeProject.$id}/agent`);
+        }
+    };
+
+    const setActiveStudioTab = (tab: StudioTab) => {
+        if (!activeProject) return;
+        navigate(`/project/${activeProject.$id}/studio/${tab}`);
     };
     
     const [confirmationState, setConfirmationState] = useState<{
@@ -67,7 +77,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     const {
         projects, activeProject, handleSaveProject, handleUpdateProject, handleDeleteProject, handleSelectProject,
         error: projectError, setError: setProjectError
-    } = useProjects(currentUser, refreshUser, logCallback);
+    } = useProjects(currentUser, refreshUser, logCallback, params.projectId);
 
     const {
         activeTools, handleToolsChange,
@@ -128,7 +138,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
         isContextLoading, error: contextError, setError: setContextError, refreshContextData,
         handleRealtimeEvent: handleContextRealtimeEvent,
-    } = useAppContext(activeProject, logCallback);
+    } = useAppContext(activeProject, logCallback, params, navigate);
 
     // Wire realtime events to useAppContext's handler
     useEffect(() => {
@@ -137,14 +147,37 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         return cleanup;
     }, [realtime.isConnected, realtime.useEventListener, handleContextRealtimeEvent]);
 
+    const isCodeViewerSidebarOpen = route.name === 'studio_function_code' || route.name === 'agent_function_code';
+
+    const setIsCodeViewerSidebarOpen = useCallback((open: boolean) => {
+        if (!activeProject || !selectedFunction) return;
+        const currentMode = route.name.startsWith('studio') ? 'studio' : 'agent';
+        if (open) {
+            navigate(`/project/${activeProject.$id}/${currentMode}/functions/${selectedFunction.$id}/code`);
+        } else {
+            navigate(`/project/${activeProject.$id}/${currentMode}/functions/${selectedFunction.$id}`);
+        }
+    }, [activeProject?.$id, selectedFunction?.$id, route.name, navigate]);
+
     const {
         isFunctionContextLoading, functionFiles, editedFunctionFiles,
-        isCodeViewerSidebarOpen, isDeploying, setIsCodeViewerSidebarOpen,
+        isDeploying,
         handleCodeGenerated, handleFileContentChange,
         handleFileAdd, handleFileDelete, handleFileRename, handleDeployChanges,
         error: codeModeError, setError: setCodeModeError,
         codeModeEvent, clearCodeModeEvent,
-    } = useCodeMode(activeProject, selectedFunction, logCallback);
+    } = useCodeMode(activeProject, selectedFunction, logCallback, isCodeViewerSidebarOpen, setIsCodeViewerSidebarOpen);
+
+    // Redirect / or /projects to active project
+    useEffect(() => {
+        if (route.name === 'root' || route.name === 'projects') {
+            if (activeProject) {
+                navigate(`/project/${activeProject.$id}/${viewMode}`, { replace: true });
+            } else if (projects.length > 0) {
+                navigate(`/project/${projects[0].$id}/${viewMode}`, { replace: true });
+            }
+        }
+    }, [route.name, activeProject?.$id, projects, viewMode, navigate]);
     
     const {
         messages, setMessages, isLoading, error: chatError, setError: setChatError,
@@ -215,7 +248,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                 isOpen={isLeftSidebarOpen} onClose={() => setIsLeftSidebarOpen(false)}
                 projects={projects} activeProject={activeProject} onSave={handleSaveProject}
                 onDelete={requestProjectDeletion} onEdit={handleUpdateProject} 
-                onSelect={(p: AppwriteProject) => { handleSelectProject(p); if (window.innerWidth < 768) { setIsLeftSidebarOpen(false); } }}
+                onSelect={(p: AppwriteProject) => { navigate(`/project/${p.$id}/${viewMode}`); if (window.innerWidth < 768) { setIsLeftSidebarOpen(false); } }}
                 activeTools={activeTools} onToolsChange={handleToolsChange}
                 geminiApiKey={geminiApiKey} geminiModel={geminiModel} geminiModels={GEMINI_MODELS}
                 geminiThinkingEnabled={geminiThinkingEnabled} onSaveGeminiSettings={handleSaveGeminiSettings}

@@ -8,7 +8,8 @@ import * as projectService from '../services/projectService';
 export function useProjects(
     currentUser: Models.User<UserPrefs> | null, 
     refreshUser: () => Promise<void>,
-    logCallback: (log: string) => void
+    logCallback: (log: string) => void,
+    urlProjectId?: string
 ) {
     const [projects, setProjects] = useState<AppwriteProject[]>([]);
     const [activeProject, setActiveProject] = useState<AppwriteProject | null>(null);
@@ -23,11 +24,15 @@ export function useProjects(
                 const userProjects = await projectService.getProjects(currentUser.$id);
                 setProjects(userProjects);
                 
-                const activeProjectId = currentUser.prefs.activeProjectId;
-                if (activeProjectId) {
-                    const active = userProjects.find(p => p.$id === activeProjectId);
+                const targetProjectId = urlProjectId || currentUser.prefs.activeProjectId;
+                if (targetProjectId) {
+                    const active = userProjects.find(p => p.$id === targetProjectId || p.projectId === targetProjectId);
                     if (active) {
                         setActiveProject(active);
+                        if (active.$id !== currentUser.prefs.activeProjectId) {
+                            await projectService.setActiveProjectPreference(active.$id);
+                            await refreshUser();
+                        }
                     } else {
                         await projectService.setActiveProjectPreference(null);
                         await refreshUser();
@@ -44,6 +49,21 @@ export function useProjects(
         };
         loadData();
     }, [currentUser, refreshUser]);
+
+    // Synchronize active project when urlProjectId changes
+    useEffect(() => {
+        if (isLoading || projects.length === 0) return;
+
+        if (urlProjectId) {
+            const project = projects.find(p => p.$id === urlProjectId || p.projectId === urlProjectId);
+            if (project) {
+                if (activeProject?.$id !== project.$id) {
+                    setActiveProject(project);
+                    projectService.setActiveProjectPreference(project.$id).then(refreshUser);
+                }
+            }
+        }
+    }, [urlProjectId, projects, isLoading, activeProject?.$id, refreshUser]);
 
     const handleSaveProject = useCallback(async (projectData: NewAppwriteProject) => {
         if (!currentUser) return;

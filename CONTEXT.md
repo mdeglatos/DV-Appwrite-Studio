@@ -132,6 +132,7 @@ DV Backend Studio/
 2. **Import maps in `index.html`**: Dependencies are mapped for ESM resolution in the browser via a `<script type="importmap">` — this is a legacy from the Google AI Studio export origin. Vite handles resolution at dev/build time.
 3. **Tailwind via CDN**: Tailwind is loaded as a runtime CDN script, not installed via npm. Configuration is inline in `index.html`.
 4. **AI tool system**: Each tool module exports both function implementations (callable at runtime) and Gemini `FunctionDeclaration` schemas. The AI calls tools; the runtime routes to the matching function.
+5. **History-based Deep Routing Engine**: The studio uses a custom type-safe client-side History Router (`services/router.tsx`) that synchronizes every workspace state variable (selected database, collection, bucket, function, site, team, tab, and modal) directly to clean URL paths. This supports direct page reloads and deep linking. Direct page access is supported in production on Appwrite Sites via index.html fallback mapping.
 
 ---
 
@@ -282,6 +283,46 @@ npm run build      # Production build
 npm run preview    # Preview production build
 npm run typecheck  # TypeScript type check (no emit)
 ```
+
+---
+
+## 11. URL Routing Map
+
+The studio uses a custom client-side History Router that synchronizes workspace and modal states directly with the URL path.
+
+### 1. Gate Level (Logged Out)
+* `/landing` — Landing page
+* `/login` — Login page
+
+### 2. top-Level Paths (Logged In)
+* `/` or `/projects` — Project list/selector or auto-redirect to active project path
+* `/project/:projectId/agent` — Agent view (Chat interface)
+* `/project/:projectId/studio` — Studio dashboard (Overview tab)
+
+### 3. Agent View Resource Selections
+* `/project/:projectId/agent/database/:dbId` — Selected Database
+* `/project/:projectId/agent/database/:dbId/collection/:collId` — Selected Collection
+* `/project/:projectId/agent/storage/:bucketId` — Selected Bucket
+* `/project/:projectId/agent/function/:fnId` — Selected Function
+* `/project/:projectId/agent/function/:fnId/code` — Function selected with Code Editor sidebar open
+
+### 4. Studio View Tabs & Selections
+* `/project/:projectId/studio/:tabName` — Studio tab (where `:tabName` is one of `database`, `storage`, `functions`, `users`, `teams`, `sites`, `migrations`, `backups`)
+* **Database Tab**:
+  * `/project/:projectId/studio/database/:dbId` — Database selected
+  * `/project/:projectId/studio/database/:dbId/collection/:collId` — Collection selected
+  * `/project/:projectId/studio/database/:dbId/collection/:collId/document/:docId` — Collection selected with Document Preview modal open
+* **Storage Tab**:
+  * `/project/:projectId/studio/storage/:bucketId` — Bucket selected
+  * `/project/:projectId/studio/storage/:bucketId/file/:fileId` — Bucket selected with File Preview modal open
+* **Functions Tab**:
+  * `/project/:projectId/studio/functions/:fnId` — Function selected
+  * `/project/:projectId/studio/functions/:fnId/execution/:execId` — Function selected with Execution Log Details modal open
+  * `/project/:projectId/studio/functions/:fnId/code` — Function selected with Function Code Editor open
+* **Teams Tab**:
+  * `/project/:projectId/studio/teams/:teamId` — Team selected
+* **Sites Tab**:
+  * `/project/:projectId/studio/sites/:siteId` — Site selected
 
 ---
 

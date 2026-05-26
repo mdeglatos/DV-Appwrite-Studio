@@ -7,15 +7,20 @@ import { getSdkFunctions, Query } from '../services/appwrite';
 export function useCodeMode(
     activeProject: AppwriteProject | null,
     selectedFunction: AppwriteFunction | null,
-    logCallback: (log: string) => void
+    logCallback: (log: string) => void,
+    isCodeViewerSidebarOpenParam?: boolean,
+    setIsCodeViewerSidebarOpenParam?: (open: boolean) => void
 ) {
     const [isFunctionContextLoading, setIsFunctionContextLoading] = useState(false);
     const [functionFiles, setFunctionFiles] = useState<UnpackedFile[] | null>(null);
     const [editedFunctionFiles, setEditedFunctionFiles] = useState<UnpackedFile[] | null>(null);
-    const [isCodeViewerSidebarOpen, setIsCodeViewerSidebarOpen] = useState(false);
+    const [localIsCodeViewerSidebarOpen, setLocalIsCodeViewerSidebarOpen] = useState(false);
     const [isDeploying, setIsDeploying] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [codeModeEvent, setCodeModeEvent] = useState<{ message: string } | null>(null);
+
+    const isCodeViewerSidebarOpen = isCodeViewerSidebarOpenParam !== undefined ? isCodeViewerSidebarOpenParam : localIsCodeViewerSidebarOpen;
+    const setIsCodeViewerSidebarOpen = setIsCodeViewerSidebarOpenParam !== undefined ? setIsCodeViewerSidebarOpenParam : setLocalIsCodeViewerSidebarOpen;
 
     const clearCodeModeEvent = useCallback(() => {
         setCodeModeEvent(null);

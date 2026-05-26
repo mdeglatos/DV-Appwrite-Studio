@@ -27,6 +27,7 @@ import { useStudioData } from './studio/hooks/useStudioData';
 import { useStudioModals } from './studio/hooks/useStudioModals';
 import { useStudioActions } from './studio/hooks/useStudioActions';
 import { useToast } from '../hooks/useToast';
+import { useRouter } from '../services/router';
 
 interface StudioProps {
     activeProject: AppwriteProject;
@@ -50,10 +51,23 @@ export const Studio: React.FC<StudioProps> = ({
     realtimeHook,
 }) => {
     
-    // 1. Initialize Core Logic Hooks
+    // 1. Initialize Router & Core Logic Hooks
+    const { route, navigate } = useRouter();
+    const { params } = route;
+
     const toast = useToast();
-    const studioData = useStudioData(activeProject, activeTab, logCallback);
     const studioModals = useStudioModals();
+
+    const studioData = useStudioData(
+        activeProject,
+        activeTab,
+        logCallback,
+        params,
+        navigate,
+        databases,
+        buckets,
+        functions
+    );
     const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast);
     
     // 2. Wire Realtime events to Studio data
@@ -80,28 +94,134 @@ export const Studio: React.FC<StudioProps> = ({
         refreshCurrentView,
     } = studioData;
 
-    const { modal, setFormValues, formValues, modalLoading, closeModal, openCustomModal, setModalLoading } = studioModals;
+    const originalClose = studioModals.closeModal;
+    const closeModal = useCallback(() => {
+        originalClose();
+        if (params.docId && selectedCollection && selectedDb) {
+            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${selectedCollection.$id}`);
+        } else if (params.fileId && selectedBucket) {
+            navigate(`/project/${activeProject.$id}/studio/storage/${selectedBucket.$id}`);
+        } else if (params.execId && selectedFunction) {
+            navigate(`/project/${activeProject.$id}/studio/functions/${selectedFunction.$id}`);
+        }
+    }, [params.docId, params.fileId, params.execId, selectedCollection?.$id, selectedDb?.$id, selectedBucket?.$id, selectedFunction?.$id, activeProject?.$id, navigate, originalClose]);
 
-    // Special handlers that need local UI components
+    // Bind overridden closeModal back to studioModals so all internal components trigger URL changes on close
+    studioModals.closeModal = closeModal;
+
+    const { modal, setFormValues, formValues, modalLoading, openCustomModal, setModalLoading } = studioModals;
+
+    // Special handlers that need local UI components — now they navigate to their deep routes
     const handleViewExecution = (exec: Models.Execution) => {
-        openCustomModal(
-            "Execution Details", 
-            <ExecutionDetails execution={exec} allExecutions={executionsPagination.items} />, 
-            '3xl'
-        );
+        if (!selectedFunction) return;
+        navigate(`/project/${activeProject.$id}/studio/functions/${selectedFunction.$id}/execution/${exec.$id}`);
     };
 
     const handleViewDocument = (doc: Models.Document) => {
-        openCustomModal(
-            "Document Preview", 
-            <DocumentDetails 
-                document={doc} 
-                onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
-                onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
-            />, 
-            '3xl'
-        );
+        if (!selectedDb || !selectedCollection) return;
+        navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${selectedCollection.$id}/document/${doc.$id}`);
     };
+
+    const handlePreviewFile = (file: Models.File) => {
+        if (!selectedBucket) return;
+        navigate(`/project/${activeProject.$id}/studio/storage/${selectedBucket.$id}/file/${file.$id}`);
+    };
+
+    // Sync deep-linked modals with router parameters
+    useEffect(() => {
+        // 1. Handle Document Details Modal
+        if (params.docId && selectedCollection && selectedDb) {
+            const doc = (documentsPagination.items as any[]).find(d => d.$id === params.docId);
+            if (doc) {
+                openCustomModal(
+                    "Document Preview", 
+                    <DocumentDetails 
+                        document={doc as any} 
+                        onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
+                        onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
+                    />, 
+                    '3xl'
+                );
+            } else {
+                const fetchAndOpen = async () => {
+                    try {
+                        const sdk = (await import('../services/appwrite')).getSdkDatabases(activeProject);
+                        const res = await sdk.getDocument(selectedDb.$id, selectedCollection.$id, params.docId);
+                        openCustomModal(
+                            "Document Preview", 
+                            <DocumentDetails 
+                                document={res as any} 
+                                onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
+                                onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
+                            />, 
+                            '3xl'
+                        );
+                    } catch (e) {
+                        console.error("Could not fetch document details for route", e);
+                    }
+                };
+                fetchAndOpen();
+            }
+        }
+        // 2. Handle File Preview Modal
+        else if (params.fileId && selectedBucket) {
+            const file = (filesPagination.items as any[]).find(f => f.$id === params.fileId);
+            if (file) {
+                studioActions.handlePreviewFile(file as any);
+            } else {
+                const fetchAndOpen = async () => {
+                    try {
+                        const sdk = (await import('../services/appwrite')).getSdkStorage(activeProject);
+                        const res = await sdk.getFile(selectedBucket.$id, params.fileId);
+                        studioActions.handlePreviewFile(res as any);
+                    } catch (e) {
+                        console.error("Could not fetch file details for route", e);
+                    }
+                };
+                fetchAndOpen();
+            }
+        }
+        // 3. Handle Execution Details Modal
+        else if (params.execId && selectedFunction) {
+            const exec = (executionsPagination.items as any[]).find(e => e.$id === params.execId);
+            if (exec) {
+                openCustomModal(
+                    "Execution Details", 
+                    <ExecutionDetails execution={exec as any} allExecutions={executionsPagination.items as any[]} />, 
+                    '3xl'
+                );
+            } else {
+                const fetchAndOpen = async () => {
+                    try {
+                        const sdk = (await import('../services/appwrite')).getSdkFunctions(activeProject);
+                        const res = await sdk.getExecution(selectedFunction.$id, params.execId);
+                        openCustomModal(
+                            "Execution Details", 
+                            <ExecutionDetails execution={res as any} allExecutions={executionsPagination.items as any[]} />, 
+                            '3xl'
+                        );
+                    } catch (e) {
+                        console.error("Could not fetch execution details for route", e);
+                    }
+                };
+                fetchAndOpen();
+            }
+        }
+    }, [
+        params.docId, 
+        params.fileId, 
+        params.execId, 
+        selectedCollection?.$id, 
+        selectedDb?.$id, 
+        selectedBucket?.$id, 
+        selectedFunction?.$id, 
+        activeProject, 
+        documentsPagination.items, 
+        filesPagination.items, 
+        executionsPagination.items,
+        openCustomModal,
+        studioActions
+    ]);
 
     const handleStudioRefresh = async () => {
         refreshData();
@@ -231,7 +351,7 @@ export const Studio: React.FC<StudioProps> = ({
                             onBulkDeleteFiles={studioActions.handleBulkDeleteFiles}
                             onUploadFile={studioActions.handleUploadFile}
                             onDownloadFile={studioActions.handleDownloadFile}
-                            onPreviewFile={studioActions.handlePreviewFile}
+                            onPreviewFile={handlePreviewFile}
                             onUpdateBucket={studioActions.handleUpdateBucket}
                             filesPagination={filesPagination}
                         />
