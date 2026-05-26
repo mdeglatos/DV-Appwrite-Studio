@@ -246,7 +246,7 @@ db.listDocuments(import.meta.env.VITE_APPWRITE_DATABASE_ID, ...);
 - **`UserPrefs`** — Extends Appwrite `Models.Preferences` with app-specific keys
 - **`Database`**, **`Collection`**, **`Bucket`**, **`AppwriteFunction`** — Appwrite resource types
 - **`BackupOptions`** — Toggles for backup scope
-- **`StudioTab`** — Union literal: `'overview' | 'database' | 'storage' | 'functions' | 'users' | 'teams' | 'migrations' | 'backups'`
+- **`StudioTab`** — Union literal: `'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups' | 'messaging' | 'health' | 'webhooks' | 'project-settings' | 'erd'`
 
 ---
 
@@ -307,7 +307,7 @@ The studio uses a custom client-side History Router that synchronizes workspace 
 * `/project/:projectId/agent/function/:fnId/code` — Function selected with Code Editor sidebar open
 
 ### 4. Studio View Tabs & Selections
-* `/project/:projectId/studio/:tabName` — Studio tab (where `:tabName` is one of `database`, `storage`, `functions`, `users`, `teams`, `sites`, `migrations`, `backups`)
+* `/project/:projectId/studio/:tabName` — Studio tab (where `:tabName` is one of `database`, `storage`, `functions`, `users`, `teams`, `sites`, `migrations`, `backups`, `messaging`, `health`, `webhooks`, `project-settings`, `erd`)
 * **Database Tab**:
   * `/project/:projectId/studio/database/:dbId` — Database selected
   * `/project/:projectId/studio/database/:dbId/collection/:collId` — Collection selected

@@ -17,6 +17,11 @@ import { TeamsTab } from './studio/tabs/TeamsTab';
 import { SitesTab } from './studio/tabs/SitesTab';
 import { MigrationsTab } from './studio/tabs/MigrationsTab';
 import { BackupsTab } from './studio/tabs/BackupsTab';
+import { MessagingTab } from './studio/tabs/MessagingTab';
+import { HealthTab } from './studio/tabs/HealthTab';
+import { WebhooksTab } from './studio/tabs/WebhooksTab';
+import { ProjectSettingsTab } from './studio/tabs/ProjectSettingsTab';
+import { ErdTab } from './studio/tabs/ErdTab';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
 import { DocumentDetails } from './studio/ui/DocumentDetails';
@@ -448,6 +453,29 @@ export const Studio: React.FC<StudioProps> = ({
                             logCallback={logCallback} 
                             onDeleteBackup={studioActions.handleDeleteBackup}
                             onRestoreBackup={studioActions.handleRestoreBackup}
+                        />
+                    )}
+
+                    {activeTab === 'messaging' && (
+                        <MessagingTab activeProject={activeProject} />
+                    )}
+
+                    {activeTab === 'health' && (
+                        <HealthTab activeProject={activeProject} />
+                    )}
+
+                    {activeTab === 'webhooks' && (
+                        <WebhooksTab activeProject={activeProject} />
+                    )}
+
+                    {activeTab === 'project-settings' && (
+                        <ProjectSettingsTab activeProject={activeProject} />
+                    )}
+
+                    {activeTab === 'erd' && (
+                        <ErdTab 
+                            activeProject={activeProject} 
+                            databases={databases} 
                         />
                     )}
                 </div>

@@ -1,6 +1,6 @@
 
 import { Client, Account, ID, AppwriteException, Query, Permission, Role } from 'appwrite';
-import { Client as NodeClient, Databases, Storage, Functions, Users, Teams, Sites } from 'node-appwrite';
+import { Client as NodeClient, Databases, Storage, Functions, Users, Teams, Sites, Messaging, Health } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
 import { appwriteConfig } from '../config';
 
@@ -233,7 +233,7 @@ export function configureClient(client: NodeClient): NodeClient {
     return client;
 }
 
-function createProjectAdminClient(project: AppwriteProject): NodeClient {
+export function createProjectAdminClient(project: AppwriteProject): NodeClient {
     if (!project || !project.endpoint || !project.projectId || !project.apiKey) {
         throw new Error('Appwrite project configuration is missing or incomplete.');
     }
@@ -269,6 +269,14 @@ export function getSdkTeams(project: AppwriteProject): Teams {
 
 export function getSdkSites(project: AppwriteProject): Sites {
     return new Sites(createProjectAdminClient(project));
+}
+
+export function getSdkMessaging(project: AppwriteProject): Messaging {
+    return new Messaging(createProjectAdminClient(project));
+}
+
+export function getSdkHealth(project: AppwriteProject): Health {
+    return new Health(createProjectAdminClient(project));
 }
 
 export async function listAll<T>(

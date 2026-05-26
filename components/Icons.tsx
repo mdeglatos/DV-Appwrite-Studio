@@ -3,7 +3,7 @@ import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
 import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
-import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine, RiArrowRightSLine, RiPlayLine, RiSearchLine, RiDownloadLine, RiUploadLine, RiImageLine, RiShieldCheckLine, RiMailCheckLine, RiPhoneLine, RiLockLine, RiLockUnlockLine, RiInformationLine, RiFilter3Line, RiDeleteBin2Line } from 'react-icons/ri';
+import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiCommandLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiCloudLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiPlugLine, RiArrowRightSLine, RiPlayLine, RiSearchLine, RiDownloadLine, RiUploadLine, RiImageLine, RiShieldCheckLine, RiMailCheckLine, RiPhoneLine, RiLockLine, RiLockUnlockLine, RiInformationLine, RiFilter3Line, RiDeleteBin2Line, RiMessage3Line, RiHeartPulseLine, RiWebhookLine, RiGitForkLine } from 'react-icons/ri';
 
 interface IconProps {
     size?: number;
@@ -95,4 +95,9 @@ export const UnlockIcon: React.FC<IconProps> = ({ size = 16, className }) => <Ri
 export const InfoIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiInformationLine size={size} className={className} />;
 export const FilterIcon: React.FC<IconProps> = ({ size = 16, className }) => <RiFilter3Line size={size} className={className} />;
 export const CleanupIcon: React.FC<IconProps> = ({ size = 18, className }) => <RiDeleteBin2Line size={size} className={className} />;
+export const MessageIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiMessage3Line size={size} className={className} />;
+export const HealthIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiHeartPulseLine size={size} className={className} />;
+export const WebhookIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiWebhookLine size={size} className={className} />;
+export const ErdIcon: React.FC<IconProps> = ({ size = 20, className }) => <RiGitForkLine size={size} className={className} />;
+
 

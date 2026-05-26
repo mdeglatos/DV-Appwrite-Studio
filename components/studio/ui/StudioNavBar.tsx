@@ -1,7 +1,7 @@
 
 import React from 'react';
 import type { StudioTab } from '../../../types';
-import { DashboardIcon, DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, MigrationIcon, BackupIcon, RefreshIcon, LoadingSpinnerIcon, SitesIcon } from '../../Icons';
+import { DashboardIcon, DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, MigrationIcon, BackupIcon, RefreshIcon, LoadingSpinnerIcon, SitesIcon, MessageIcon, HealthIcon, WebhookIcon, ErdIcon, SettingsIcon } from '../../Icons';
 
 interface StudioNavBarProps {
     activeTab: StudioTab;
@@ -14,13 +14,18 @@ export const StudioNavBar: React.FC<StudioNavBarProps> = ({ activeTab, onTabChan
     const tabs: { id: StudioTab, label: string, icon: React.ReactNode }[] = [
         { id: 'overview', label: 'Overview', icon: <DashboardIcon size={16} /> },
         { id: 'database', label: 'Databases', icon: <DatabaseIcon size={16} /> },
+        { id: 'erd', label: 'ERD Schema', icon: <ErdIcon size={16} /> },
         { id: 'storage', label: 'Storage', icon: <StorageIcon size={16} /> },
         { id: 'functions', label: 'Functions', icon: <FunctionIcon size={16} /> },
         { id: 'sites', label: 'Sites', icon: <SitesIcon size={16} /> },
         { id: 'users', label: 'Users', icon: <UserIcon size={16} /> },
         { id: 'teams', label: 'Teams', icon: <TeamIcon size={16} /> },
+        { id: 'messaging', label: 'Messaging', icon: <MessageIcon size={16} /> },
+        { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon size={16} /> },
+        { id: 'health', label: 'Health', icon: <HealthIcon size={16} /> },
         { id: 'migrations', label: 'Migrations', icon: <MigrationIcon size={16} /> },
         { id: 'backups', label: 'Backups', icon: <BackupIcon size={16} /> },
+        { id: 'project-settings', label: 'Settings', icon: <SettingsIcon size={16} /> },
     ];
 
     return (

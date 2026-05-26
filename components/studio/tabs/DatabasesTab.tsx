@@ -7,11 +7,13 @@ import { PaginationFooter } from '../ui/PaginationFooter';
 import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { Breadcrumb } from '../ui/Breadcrumb';
 import { CollectionSettings } from '../CollectionSettings';
-import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon } from '../../Icons';
+import { DatabaseIcon, FileIcon, KeyIcon, SettingsIcon, ChevronDownIcon, ExternalLinkIcon, EyeIcon, RiLayoutMasonryLine, CopyIcon, RiShareForwardLine, EditIcon, DeleteIcon, LoadingSpinnerIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import { TransferDocumentsModal } from '../TransferDocumentsModal';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
+import { Modal } from '../../Modal';
+import { useToast } from '../../../hooks/useToast';
 
 type CollectionTab = 'documents' | 'attributes' | 'indexes' | 'settings';
 
@@ -76,11 +78,39 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
     collectionsPagination,
     documentsPagination,
 }) => {
+    const toast = useToast();
     const [collectionTab, setCollectionTab] = useState<CollectionTab>('documents');
     const [attributeType, setAttributeType] = useState<string>('string');
     const [allowWrap, setAllowWrap] = useState(false);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+    
+    // Seeding state
+    const [showSeedModal, setShowSeedModal] = useState(false);
+    const [seedCount, setSeedCount] = useState(25);
+    const [isSeeding, setIsSeeding] = useState(false);
+
+    const handleSeedMockData = async () => {
+        if (!selectedDb || !selectedCollection) return;
+        setIsSeeding(true);
+        try {
+            const { seedCollection } = await import('../../../services/databaseToolsService');
+            const successes = await seedCollection(
+                activeProject,
+                selectedDb.$id,
+                selectedCollection.$id,
+                attributes,
+                seedCount
+            );
+            toast.success(`Successfully seeded ${successes} documents!`);
+            documentsPagination.refresh();
+            setShowSeedModal(false);
+        } catch (e: any) {
+            toast.error(`Seeding failed: ${e.message}`);
+        } finally {
+            setIsSeeding(false);
+        }
+    };
 
     // Reset tab when collection changes
     useEffect(() => {
@@ -337,6 +367,12 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                             headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
                             extraActions={
                                 <div className="flex items-center gap-2 mr-2">
+                                    <button 
+                                        onClick={() => setShowSeedModal(true)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-cyan-600/10 hover:bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 text-xs font-bold rounded-lg transition-colors"
+                                    >
+                                        Seed Mock Data
+                                    </button>
                                     {wrapToggle}
                                     {selectedDocIds.length > 0 && handleBulkDeleteDocuments && (
                                         <button 
@@ -517,6 +553,45 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     }
                 }}
             />
+
+            {/* Seed Mock Data Modal */}
+            {showSeedModal && (
+                <Modal isOpen={showSeedModal} onClose={() => setShowSeedModal(false)} title="Seed Mock Data" size="md">
+                    <div className="space-y-4">
+                        <p className="text-xs text-gray-400">
+                            Populate the collection <strong className="text-cyan-400">{selectedCollection.name}</strong> with realistic mock documents matching your schema fields.
+                        </p>
+                        <div>
+                            <label className="block text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-1.5">Number of documents to generate</label>
+                            <input
+                                type="number"
+                                min={1}
+                                max={500}
+                                className="w-full bg-gray-950 border border-white/5 rounded-xl p-2.5 text-sm text-gray-100 font-mono outline-none focus:ring-1 focus:ring-cyan-500"
+                                value={seedCount}
+                                onChange={e => setSeedCount(parseInt(e.target.value, 10) || 10)}
+                            />
+                        </div>
+                        <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-6">
+                            <button
+                                onClick={() => setShowSeedModal(false)}
+                                disabled={isSeeding}
+                                className="px-4 py-2 text-xs text-gray-400 hover:text-white transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSeedMockData}
+                                disabled={isSeeding}
+                                className="px-4 py-2 text-xs font-semibold rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white transition-all shadow-inner flex items-center gap-1.5"
+                            >
+                                {isSeeding && <LoadingSpinnerIcon size={12} className="animate-spin" />}
+                                Generate & Seed
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 };

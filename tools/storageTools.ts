@@ -237,6 +237,20 @@ async function getFileUrl(context: AIContext, { bucketId, fileId }: { bucketId?:
     }
 }
 
+async function createFileToken(context: AIContext, { bucketId, fileId }: { bucketId?: string, fileId: string }) {
+    const finalBucketId = bucketId || context.bucket?.$id;
+    if (!finalBucketId) return { error: 'Bucket ID is missing.' };
+
+    console.log(`Executing createFileToken tool for file '${fileId}' in bucket '${finalBucketId}'`);
+    try {
+        const storage = getSdkStorage(context.project);
+        const client = (storage as any).client;
+        return await client.call('POST', new URL(`${client.config.endpoint}/storage/buckets/${finalBucketId}/files/${fileId}/tokens`));
+    } catch (error) {
+        return handleApiError(error);
+    }
+}
+
 export const storageFunctions = {
     // Buckets
     listBuckets,
@@ -252,6 +266,7 @@ export const storageFunctions = {
     updateFilePermissions,
     deleteFile,
     getFileUrl,
+    createFileToken,
 };
 
 export const storageToolDefinitions: FunctionDeclaration[] = [
@@ -412,6 +427,18 @@ export const storageToolDefinitions: FunctionDeclaration[] = [
     {
         name: 'getFileUrl',
         description: 'Constructs a public URL to view a file in the browser. Uses active context for bucketId if not provided.',
+        parameters: {
+            type: Type.OBJECT,
+            properties: {
+                bucketId: { type: Type.STRING, description: 'Optional. The bucket ID. Defaults to active bucket.' },
+                fileId: { type: Type.STRING, description: 'The ID of the file.' },
+            },
+            required: ['fileId'],
+        },
+    },
+    {
+        name: 'createFileToken',
+        description: 'Generates a secure, short-lived sharing token for a storage file.',
         parameters: {
             type: Type.OBJECT,
             properties: {

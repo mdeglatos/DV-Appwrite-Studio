@@ -152,4 +152,76 @@ export interface BackupOptions {
     includeTeams: boolean;
 }
 
-export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups';
+export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups' | 'messaging' | 'health' | 'webhooks' | 'project-settings' | 'erd';
+
+export interface ApiKey {
+    $id: string;
+    name: string;
+    scopes: string[];
+    secret: string;
+    $createdAt: string;
+}
+
+export interface Platform {
+    $id: string;
+    name: string;
+    type: 'web' | 'android' | 'apple';
+    hostname?: string;
+    packageIdentifier?: string;
+    bundleId?: string;
+    $createdAt: string;
+}
+
+export interface ProjectVariable {
+    $id: string;
+    key: string;
+    value: string;
+    $createdAt: string;
+    $updatedAt: string;
+}
+
+export interface Webhook {
+    $id: string;
+    name: string;
+    url: string;
+    events: string[];
+    security: boolean;
+    signatureKey: string;
+    enabled: boolean;
+    $createdAt: string;
+}
+
+export interface MessageProvider {
+    $id: string;
+    name: string;
+    type: 'sms' | 'email' | 'push';
+    enabled: boolean;
+    provider: string;
+    options?: any;
+}
+
+export interface MessageTopic {
+    $id: string;
+    name: string;
+    description?: string;
+    subscribersCount: number;
+    $createdAt: string;
+}
+
+export interface MessageSubscriber {
+    $id: string;
+    providerId: string;
+    target: string;
+    userId: string;
+    $createdAt: string;
+}
+
+export interface HealthStatus {
+    db: string;
+    cache: string;
+    queue: number;
+    storage: number;
+    certificates: string;
+    time: number;
+}
+

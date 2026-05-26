@@ -1,9 +1,9 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { StatCard } from '../ui/StatCard';
-import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon, SitesIcon } from '../../Icons';
+import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon, SitesIcon, LoadingSpinnerIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 
@@ -29,6 +29,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     onCreateDatabase, onCreateBucket, onCreateUser,
     sitesTotal, usersTotal, teamsTotal
 }) => {
+    const [usage, setUsage] = useState<any>(null);
+    const [usageLoading, setUsageLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUsage = async () => {
+            setUsageLoading(true);
+            try {
+                const { getProjectUsage } = await import('../../../services/projectAdminService');
+                const data = await getProjectUsage(activeProject);
+                setUsage(data);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setUsageLoading(false);
+            }
+        };
+        fetchUsage();
+    }, [activeProject]);
+
     const activeFunctions = functions.filter(f => f.enabled);
     const verifiedUsers = users.filter(u => u.emailVerification);
     const activeUsers = users.filter(u => u.status);
@@ -133,6 +152,53 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                     onClick={() => onTabChange('teams')}
                     description="Organization & Roles"
                 />
+            </div>
+
+            {/* Live Usage Statistics Panel */}
+            <div className="mb-6 bg-gray-900/40 border border-gray-800/50 rounded-xl p-5">
+                <div className="flex items-center gap-3 mb-4">
+                    <InfoIcon size={18} className="text-cyan-400" />
+                    <h2 className="text-sm font-bold text-gray-300 uppercase tracking-wider">Usage Statistics</h2>
+                </div>
+                {usageLoading ? (
+                    <div className="flex justify-center items-center py-4">
+                        <LoadingSpinnerIcon size={16} className="text-cyan-400 animate-spin" />
+                    </div>
+                ) : usage ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Bandwidth Gauge */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-gray-400">Monthly Bandwidth</span>
+                                <span className="text-gray-200">{(usage.bandwidth / (1024 * 1024)).toFixed(1)} MB</span>
+                            </div>
+                            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-white/5">
+                                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min(100, (usage.bandwidth / (1024 * 1024 * 1000)) * 100)}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-gray-500">
+                                <span>0 MB</span>
+                                <span>1 GB Limit</span>
+                            </div>
+                        </div>
+
+                        {/* Storage Gauge */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-semibold">
+                                <span className="text-gray-400">Project Cloud Storage</span>
+                                <span className="text-gray-200">{(usage.storage / (1024 * 1024)).toFixed(1)} MB</span>
+                            </div>
+                            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-white/5">
+                                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min(100, (usage.storage / (1024 * 1024 * 500)) * 100)}%` }} />
+                            </div>
+                            <div className="flex justify-between text-[10px] text-gray-500">
+                                <span>0 MB</span>
+                                <span>500 MB Limit</span>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-xs text-gray-500 italic py-2">Could not load usage statistics.</div>
+                )}
             </div>
 
             {/* Quick Actions Row */}

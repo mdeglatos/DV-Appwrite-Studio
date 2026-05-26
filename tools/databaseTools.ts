@@ -12,17 +12,24 @@ async function handleApiError(error: unknown) {
 }
 
 // Document-level functions
-async function listDocuments(context: AIContext, { databaseId, collectionId, limit = 100 }: { databaseId?: string, collectionId?: string, limit?: number }) {
+async function listDocuments(context: AIContext, { databaseId, collectionId, limit = 100, queries }: { databaseId?: string, collectionId?: string, limit?: number, queries?: string[] }) {
   const finalDbId = databaseId || context.database?.$id;
   const finalCollectionId = collectionId || context.collection?.$id;
   if (!finalDbId) return { error: 'Database ID is missing. Please provide a databaseId or select a database from the context menu.' };
   if (!finalCollectionId) return { error: 'Collection ID is missing. Please provide a collectionId or select a collection from the context menu.' };
   
   const finalLimit = Math.min(limit, 100);
-  console.log(`Executing listDocuments tool with: db='${finalDbId}', collection='${finalCollectionId}', limit=${finalLimit}`);
+  const queryArray: string[] = [Query.limit(finalLimit)];
+  if (queries && Array.isArray(queries)) {
+    queries.forEach(q => {
+      queryArray.push(q);
+    });
+  }
+  
+  console.log(`Executing listDocuments tool with: db='${finalDbId}', collection='${finalCollectionId}', limit=${finalLimit}, queries=${queries?.length || 0}`);
   try {
     const databases = getSdkDatabases(context.project);
-    return await databases.listDocuments(finalDbId, finalCollectionId, [Query.limit(finalLimit)]);
+    return await databases.listDocuments(finalDbId, finalCollectionId, queryArray);
   } catch (error) {
     return handleApiError(error);
   }
@@ -431,10 +438,93 @@ async function updateIndex(context: AIContext, { databaseId, collectionId, key, 
     }
 }
 
+// Transactions
+async function createTransaction(context: AIContext, { databaseId }: { databaseId?: string }) {
+    const finalDbId = databaseId || context.database?.$id;
+    if (!finalDbId) return { error: 'Database ID is missing.' };
+    try {
+        const databases = getSdkDatabases(context.project);
+        const client = (databases as any).client;
+        const response = await client.call('POST', new URL(`${client.config.endpoint}/databases/${finalDbId}/transactions`));
+        return response;
+    } catch (e: any) {
+        return handleApiError(e);
+    }
+}
+
+async function commitTransaction(context: AIContext, { databaseId, transactionId }: { databaseId?: string, transactionId: string }) {
+    const finalDbId = databaseId || context.database?.$id;
+    if (!finalDbId) return { error: 'Database ID is missing.' };
+    try {
+        const databases = getSdkDatabases(context.project);
+        const client = (databases as any).client;
+        const response = await client.call('PUT', new URL(`${client.config.endpoint}/databases/${finalDbId}/transactions/${transactionId}/commit`));
+        return response;
+    } catch (e: any) {
+        return handleApiError(e);
+    }
+}
+
+async function rollbackTransaction(context: AIContext, { databaseId, transactionId }: { databaseId?: string, transactionId: string }) {
+    const finalDbId = databaseId || context.database?.$id;
+    if (!finalDbId) return { error: 'Database ID is missing.' };
+    try {
+        const databases = getSdkDatabases(context.project);
+        const client = (databases as any).client;
+        const response = await client.call('PUT', new URL(`${client.config.endpoint}/databases/${finalDbId}/transactions/${transactionId}/rollback`));
+        return response;
+    } catch (e: any) {
+        return handleApiError(e);
+    }
+}
+
+// Atomic increment
+async function incrementDocumentField(
+    context: AIContext,
+    { databaseId, collectionId, documentId, attribute, value }: { databaseId?: string, collectionId?: string, documentId: string, attribute: string, value: number }
+) {
+    const finalDbId = databaseId || context.database?.$id;
+    const finalCollectionId = collectionId || context.collection?.$id;
+    if (!finalDbId || !finalCollectionId) return { error: 'Database or Collection ID missing.' };
+    try {
+        const databases = getSdkDatabases(context.project);
+        const doc = await databases.getDocument(finalDbId, finalCollectionId, documentId);
+        const currentValue = typeof doc[attribute] === 'number' ? doc[attribute] : 0;
+        const newValue = currentValue + value;
+        return await databases.updateDocument(finalDbId, finalCollectionId, documentId, { [attribute]: newValue });
+    } catch (e: any) {
+        return handleApiError(e);
+    }
+}
+
+// Mock seeder
+async function seedCollectionWithMockData(
+    context: AIContext,
+    { databaseId, collectionId, count = 20 }: { databaseId?: string, collectionId?: string, count?: number }
+) {
+    const finalDbId = databaseId || context.database?.$id;
+    const finalCollectionId = collectionId || context.collection?.$id;
+    if (!finalDbId || !finalCollectionId) return { error: 'Database or Collection ID missing.' };
+    try {
+        const databases = getSdkDatabases(context.project);
+        const collection = await databases.getCollection(finalDbId, finalCollectionId);
+        const { seedCollection } = await import('../services/databaseToolsService');
+        const successes = await seedCollection(context.project, finalDbId, finalCollectionId, collection.attributes, count);
+        return { success: `Successfully seeded ${successes} documents into collection "${finalCollectionId}".` };
+    } catch (e: any) {
+        return handleApiError(e);
+    }
+}
+
 export const databaseFunctions = {
   // Documents
   listDocuments,
   getDocument,
+  createTransaction,
+  commitTransaction,
+  rollbackTransaction,
+  incrementDocumentField,
+  seedCollectionWithMockData,
   createDocument,
   updateDocument,
   deleteDocument,
@@ -489,6 +579,7 @@ export const databaseToolDefinitions: FunctionDeclaration[] = [
         databaseId: { type: Type.STRING, description: 'Optional. The database ID. Defaults to the active context.' },
         collectionId: { type: Type.STRING, description: 'Optional. The collection ID. Defaults to the active context.' },
         limit: { type: Type.INTEGER, description: 'Optional. The maximum number of documents to return. Default is 100. Maximum is 100.' },
+        queries: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Optional. An array of query strings for filtering, e.g. ["equal(\"status\", true)", "orderDesc(\"$createdAt\")"].' },
       },
       required: [],
     },
@@ -648,7 +739,7 @@ export const databaseToolDefinitions: FunctionDeclaration[] = [
           databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
           collectionId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
           key: { type: Type.STRING, description: 'The unique key for the attribute.' },
-          size: { type: Type.INTEGER, description: 'The size of the string in bytes. (e.g., 255)' },
+          size: { type: Type.INTEGER, description: 'The size of the string. Pass <= 65535 for varchar/text, <= 16777215 for mediumtext, <= 4294967295 for longtext.' },
           required: { type: Type.BOOLEAN, description: 'Is this attribute required?' },
           'default': { type: Type.STRING, description: 'Optional. Default value.' },
           array: { type: Type.BOOLEAN, description: 'Optional. Defaults to false.' },
@@ -939,6 +1030,69 @@ export const databaseToolDefinitions: FunctionDeclaration[] = [
           key: { type: Type.STRING },
         },
         required: ['key'],
+      },
+  },
+  {
+      name: 'createTransaction',
+      description: 'Start a database transaction (supported on Relational databases / MongoDB replica sets).',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+        },
+        required: [],
+      },
+  },
+  {
+      name: 'commitTransaction',
+      description: 'Commit an active transaction to save all changes.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          transactionId: { type: Type.STRING, description: 'Active Transaction unique ID.' },
+        },
+        required: ['transactionId'],
+      },
+  },
+  {
+      name: 'rollbackTransaction',
+      description: 'Roll back an active transaction to discard changes.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          transactionId: { type: Type.STRING, description: 'Active Transaction unique ID.' },
+        },
+        required: ['transactionId'],
+      },
+  },
+  {
+      name: 'incrementDocumentField',
+      description: 'Atomically increment or decrement a numeric field value in a document.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          collectionId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          documentId: { type: Type.STRING, description: 'Document unique ID.' },
+          attribute: { type: Type.STRING, description: 'Target integer/float attribute key.' },
+          value: { type: Type.INTEGER, description: 'Value to add (use negative number to subtract).' },
+        },
+        required: ['documentId', 'attribute', 'value'],
+      },
+  },
+  {
+      name: 'seedCollectionWithMockData',
+      description: 'Generate realistic schema-compliant mock documents inside a collection.',
+      parameters: {
+        type: Type.OBJECT,
+        properties: {
+          databaseId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          collectionId: { type: Type.STRING, description: 'Optional. Defaults to active context.' },
+          count: { type: Type.INTEGER, description: 'Number of mock documents to generate. Default is 20.' },
+        },
+        required: [],
       },
   },
 ];
