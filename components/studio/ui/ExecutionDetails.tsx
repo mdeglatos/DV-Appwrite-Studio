@@ -7,33 +7,33 @@ import { ArrowLeftIcon, ArrowRightIcon, CopyIcon, CheckIcon } from '../../Icons'
 interface ExecutionDetailsProps {
     execution: Models.Execution;
     allExecutions?: Models.Execution[];
+    onNavigate?: (exec: Models.Execution) => void;
 }
 
-export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({ execution: initialExecution, allExecutions }) => {
-    const [currentExecution, setCurrentExecution] = useState(initialExecution);
+export const ExecutionDetails: React.FC<ExecutionDetailsProps> = ({ execution, allExecutions, onNavigate }) => {
     const [isCopied, setIsCopied] = useState(false);
 
-    useEffect(() => {
-        setCurrentExecution(initialExecution);
-    }, [initialExecution]);
-
-    const e = currentExecution as any;
+    const e = execution as any;
     const logs = e.logs || e.stdout || '';
     const errors = e.errors || e.stderr || '';
     const statusCode = e.responseStatusCode || 200;
 
     // Navigation Logic
     // Assuming allExecutions is sorted DESC (Newest at index 0)
-    const currentIndex = allExecutions?.findIndex(ex => ex.$id === currentExecution.$id) ?? -1;
+    const currentIndex = allExecutions?.findIndex(ex => ex.$id === execution.$id) ?? -1;
     const hasNewer = currentIndex > 0;
     const hasOlder = allExecutions && currentIndex !== -1 && currentIndex < allExecutions.length - 1;
 
     const handleNewer = () => {
-        if (hasNewer && allExecutions) setCurrentExecution(allExecutions[currentIndex - 1]);
+        if (hasNewer && allExecutions && onNavigate) {
+            onNavigate(allExecutions[currentIndex - 1]);
+        }
     };
 
     const handleOlder = () => {
-        if (hasOlder && allExecutions) setCurrentExecution(allExecutions[currentIndex + 1]);
+        if (hasOlder && allExecutions && onNavigate) {
+            onNavigate(allExecutions[currentIndex + 1]);
+        }
     };
 
     const handleCopyReport = () => {

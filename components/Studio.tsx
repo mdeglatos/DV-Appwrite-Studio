@@ -192,7 +192,11 @@ export const Studio: React.FC<StudioProps> = ({
             if (exec) {
                 openCustomModal(
                     "Execution Details", 
-                    <ExecutionDetails execution={exec as any} allExecutions={executionsPagination.items as any[]} />, 
+                    <ExecutionDetails 
+                        execution={exec as any} 
+                        allExecutions={executionsPagination.items as any[]} 
+                        onNavigate={handleViewExecution}
+                    />, 
                     '3xl'
                 );
             } else {
@@ -202,7 +206,11 @@ export const Studio: React.FC<StudioProps> = ({
                         const res = await sdk.getExecution(selectedFunction.$id, params.execId);
                         openCustomModal(
                             "Execution Details", 
-                            <ExecutionDetails execution={res as any} allExecutions={executionsPagination.items as any[]} />, 
+                            <ExecutionDetails 
+                                execution={res as any} 
+                                allExecutions={executionsPagination.items as any[]} 
+                                onNavigate={handleViewExecution}
+                            />, 
                             '3xl'
                         );
                     } catch (e) {
