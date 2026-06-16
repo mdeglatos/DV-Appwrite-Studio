@@ -7,6 +7,7 @@ import {
     type RealtimeConnectionStatus,
     matchesEvent,
 } from '../services/realtimeService';
+import { useSmartPolling } from './useRealtime';
 
 const CONTEXT_POLL_INTERVAL_MS = 10_000; // 10 seconds
 
@@ -203,30 +204,7 @@ export function useAppContext(
     // SMART POLLING — Periodically refresh context data in the background
     // ====================================================================
 
-    useEffect(() => {
-        if (!activeProject) return;
-
-        const tick = () => {
-            if (document.visibilityState === 'visible') {
-                silentRefreshContextData();
-            }
-        };
-
-        const timer = setInterval(tick, 10_000);
-
-        // Also refresh once when the tab regains focus
-        const handleVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                silentRefreshContextData();
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibility);
-
-        return () => {
-            clearInterval(timer);
-            document.removeEventListener('visibilitychange', handleVisibility);
-        };
-    }, [activeProject, silentRefreshContextData]);
+    useSmartPolling(silentRefreshContextData, CONTEXT_POLL_INTERVAL_MS, !!activeProject);
 
     // ====================================================================
     // REALTIME EVENT HANDLING — Trigger immediate refresh on relevant events
@@ -235,7 +213,7 @@ export function useAppContext(
     // This is registered as a listener from the parent via useRealtime's event system.
     // We expose a handler that the parent can wire up.
     const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
-        if (!activeProject) return;
+        if (!activeProject || document.visibilityState !== 'visible') return;
 
         // Any database-level event (create/delete DB, create/delete collection)
         if (matchesEvent(event, 'databases')) {

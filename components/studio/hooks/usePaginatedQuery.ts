@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSmartPolling } from '../../../hooks/useRealtime';
 
 // ============================================================================
 // Types
@@ -190,32 +191,7 @@ export function usePaginatedQuery<T>(
         executeFetch();
     }, [executeFetch]);
 
-    // --- Smart Polling ---
-    // Re-fetch on an interval when enabled, but only when the tab is visible.
-    useEffect(() => {
-        if (!pollingIntervalMs || pollingIntervalMs <= 0 || !fetchFn || !enabled) return;
-
-        const tick = () => {
-            if (document.visibilityState === 'visible') {
-                executeFetch();
-            }
-        };
-
-        const timer = setInterval(tick, pollingIntervalMs);
-
-        // Also refresh immediately when the tab regains visibility
-        const handleVisibility = () => {
-            if (document.visibilityState === 'visible') {
-                executeFetch();
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibility);
-
-        return () => {
-            clearInterval(timer);
-            document.removeEventListener('visibilitychange', handleVisibility);
-        };
-    }, [pollingIntervalMs, fetchFn, enabled, executeFetch]);
+    useSmartPolling(executeFetch, pollingIntervalMs, enabled && !!fetchFn);
 
     // --- Controls ---
     const nextPage = useCallback(() => {

@@ -46,27 +46,33 @@ export function useRealtime(activeProject: AppwriteProject | null): UseRealtimeR
     const [eventCount, setEventCount] = useState(0);
     const callbacksRef = useRef<Set<RealtimeCallback>>(new Set());
 
-    // Connect/disconnect on project change
+    // Connect/disconnect on project change AND tab visibility change
     useEffect(() => {
-        if (!activeProject) {
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                if (activeProject) {
+                    console.log('[useRealtime] Tab visible, reconnecting Realtime...');
+                    realtimeManager.connect(activeProject);
+                }
+            } else {
+                console.log('[useRealtime] Tab hidden, disconnecting Realtime...');
+                realtimeManager.disconnect();
+            }
+        };
+
+        if (activeProject && document.visibilityState === 'visible') {
+            realtimeManager.connect(activeProject);
+        } else {
             realtimeManager.disconnect();
-            return;
         }
 
-        realtimeManager.connect(activeProject);
+        document.addEventListener('visibilitychange', handleVisibility);
 
         return () => {
-            // Don't disconnect on every re-render — only when project actually changes
-            // The connect() method handles deduplication internally
-        };
-    }, [activeProject?.endpoint, activeProject?.projectId]);
-
-    // Disconnect on full unmount
-    useEffect(() => {
-        return () => {
+            document.removeEventListener('visibilitychange', handleVisibility);
             realtimeManager.disconnect();
         };
-    }, []);
+    }, [activeProject?.endpoint, activeProject?.projectId]);
 
     // Track connection status
     useEffect(() => {
@@ -133,16 +139,48 @@ export function useSmartPolling(
     refreshRef.current = refreshFn;
 
     useEffect(() => {
-        if (!enabled || !refreshRef.current || intervalMs <= 0) return;
+        if (!enabled || intervalMs <= 0) return;
 
-        const tick = () => {
-            if (document.visibilityState === 'visible' && refreshRef.current) {
-                refreshRef.current();
+        let timer: ReturnType<typeof setInterval> | null = null;
+
+        const startTimer = () => {
+            if (timer) clearInterval(timer);
+            timer = setInterval(() => {
+                if (refreshRef.current) {
+                    refreshRef.current();
+                }
+            }, intervalMs);
+        };
+
+        const stopTimer = () => {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
             }
         };
 
-        const timer = setInterval(tick, intervalMs);
-        return () => clearInterval(timer);
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                if (refreshRef.current) {
+                    refreshRef.current();
+                }
+                startTimer();
+            } else {
+                stopTimer();
+            }
+        };
+
+        // Start timer initially if visible
+        if (document.visibilityState === 'visible') {
+            startTimer();
+        }
+
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            stopTimer();
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, [intervalMs, enabled]);
 }
 

@@ -516,7 +516,7 @@ export function useStudioData(
     // ========================================================================
 
     const handleRealtimeEvent = useCallback((event: RealtimeEvent) => {
-        if (!activeProject) return;
+        if (!activeProject || document.visibilityState !== 'visible') return;
 
         // --- Document events → refresh documents if viewing the matching collection ---
         if (matchesEvent(event, 'documents') && selectedCollection && selectedDb) {
