@@ -3,6 +3,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { RouterProvider } from './services/router';
+import { ToastProvider } from './hooks/useToast';
+import { ConfirmProvider } from './hooks/useConfirm';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,7 +15,11 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <RouterProvider>
-      <App />
+      <ToastProvider>
+        <ConfirmProvider>
+          <App />
+        </ConfirmProvider>
+      </ToastProvider>
     </RouterProvider>
   </React.StrictMode>
 );

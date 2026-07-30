@@ -6,11 +6,12 @@ import { ResourceTable } from '../ui/ResourceTable';
 import { PaginationFooter } from '../ui/PaginationFooter';
 import { CleanupModal } from '../ui/CleanupModal';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, PlayIcon, EditIcon, AddIcon, CleanupIcon } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, PlayIcon, EditIcon, AddIcon, CleanupIcon, FunctionIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
 import { getExecutionCleanupConfig, getDeploymentCleanupConfig } from '../hooks/cleanupConfigs';
+import { TabShell } from '../ui/TabShell';
 
 type FunctionSubTab = 'deployments' | 'executions' | 'variables' | 'settings';
 
@@ -32,10 +33,8 @@ interface FunctionsTabProps {
 
     // Bulk Actions
     onBulkDeleteDeployments?: (deploymentIds: string[]) => void;
-    onRedeployAll?: () => void;
-    
+
     onEditCode?: (f: AppwriteFunction) => void;
-    onRedeploy?: (f: AppwriteFunction) => void;
     onRefresh?: () => void;
 
     // Pagination
@@ -67,9 +66,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
     onActivateDeployment,
     onViewExecution,
     onBulkDeleteDeployments,
-    onRedeployAll,
     onEditCode,
-    onRedeploy,
     onRefresh,
     deploymentsPagination, executionsPagination,
     onCreateVariable, onUpdateVariable, onDeleteVariable,
@@ -96,33 +93,19 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
 
     if (!selectedFunction) {
         return (
-            <ResourceTable<AppwriteFunction> 
-                title="Functions" 
-                data={functions} 
-                onCreate={onCreateFunction} 
-                onDelete={onDeleteFunction} 
-                onSelect={(item) => onSelectFunction(item)} 
-                createLabel="Create Function" 
-                extraActions={
-                    <div className="flex items-center gap-2 mr-2">
-                        <a 
-                            href={consoleLinks.functions(activeProject)} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                        >
-                            <ExternalLinkIcon size={14} /> Console
-                        </a>
-                        {onRedeployAll && (
-                            <button 
-                                onClick={onRedeployAll}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors"
-                            >
-                                <RefreshIcon size={14} /> Redeploy All
-                            </button>
-                        )}
-                    </div>
-                }
+            <TabShell
+                title="Functions"
+                subtitle="Deploy and run serverless functions, and inspect their executions and variables."
+                icon={<FunctionIcon size={24} className="text-cyan-400" />}
+                consoleHref={consoleLinks.functions(activeProject)}
+            >
+            <ResourceTable<AppwriteFunction>
+                title="Functions"
+                data={functions}
+                onCreate={onCreateFunction}
+                onDelete={onDeleteFunction}
+                onSelect={(item) => onSelectFunction(item)}
+                createLabel="Create Function"
                 renderExtra={(f) => (
                     <div className="flex items-center gap-3">
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${f.enabled ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>{f.runtime}</span>
@@ -137,6 +120,7 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     </div>
                 )}
             />
+            </TabShell>
         );
     }
 
@@ -195,14 +179,6 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-semibold rounded-lg shadow-lg shadow-green-900/20 transition-all transform hover:scale-105"
                         >
                             <PlayIcon size={16} /> Execute
-                        </button>
-                    )}
-                    {onRedeploy && (
-                        <button
-                            onClick={() => onRedeploy(selectedFunction)}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg border border-gray-600 transition-all hover:border-gray-500"
-                        >
-                            <RiRocketLine size={16} /> Redeploy
                         </button>
                     )}
                     {onEditCode && (

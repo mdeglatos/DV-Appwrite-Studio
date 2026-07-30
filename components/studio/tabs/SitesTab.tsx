@@ -10,6 +10,7 @@ import { PaginationFooter } from '../ui/PaginationFooter';
 import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { CleanupModal } from '../ui/CleanupModal';
 import { getSiteCleanupConfig, getSiteDeploymentCleanupConfig, getSiteVariableCleanupConfig } from '../hooks/cleanupConfigs';
+import { TabShell } from '../ui/TabShell';
 
 type SiteDetailSubTab = 'deployments' | 'variables' | 'logs';
 
@@ -121,18 +122,13 @@ export const SitesTab: React.FC<SitesTabProps> = ({
     // ========================================================================
     if (!selectedSite) {
         return (
-            <>
-                <header className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold text-gray-100">Sites</h1>
-                    <div className="flex items-center gap-2">
-                        <a 
-                            href={consoleLinks.sites(activeProject)} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                        >
-                            <ExternalLinkIcon size={14} /> Console
-                        </a>
+            <TabShell
+                title="Sites"
+                subtitle="Host web applications on Appwrite with automatic SSL, CDN and custom domains."
+                icon={<SitesIcon size={24} className="text-cyan-400" />}
+                consoleHref={consoleLinks.sites(activeProject)}
+                actions={
+                    <>
                         <button
                             onClick={() => setCleanupTarget('sites')}
                             className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 border border-red-800/50 text-red-300 text-xs font-bold rounded-lg transition-colors"
@@ -141,13 +137,13 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                         </button>
                         <button
                             onClick={onCreateSite}
-                            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all"
+                            className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition-all whitespace-nowrap"
                         >
                             <AddIcon size={16} /> New Site
                         </button>
-                    </div>
-                </header>
-
+                    </>
+                }
+            >
                 <ResourceSearchBar
                     value={sitesPagination.searchQuery}
                     onChange={sitesPagination.setSearch}
@@ -235,7 +231,7 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                     config={siteListCleanupConfig}
                     onComplete={onRefresh}
                 />
-            </>
+            </TabShell>
         );
     }
 

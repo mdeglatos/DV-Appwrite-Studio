@@ -4,7 +4,8 @@ import * as adminService from '../../../services/projectAdminService';
 import { KeyIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon, WarningIcon, VerifiedIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
-import { ConfirmationModal } from '../../ConfirmationModal';
+import { useConfirm } from '../../../hooks/useConfirm';
+import { TabShell } from '../ui/TabShell';
 
 interface ProjectSettingsTabProps {
     activeProject: AppwriteProject;
@@ -29,11 +30,13 @@ const ALL_SCOPES = [
     'platforms.read', 'platforms.write',
     'health.read',
     'migrations.read', 'migrations.write',
-    'messaging.read', 'messaging.write'
+    'messaging.read', 'messaging.write',
+    'sites.read', 'sites.write'
 ];
 
 export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activeProject }) => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
     const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -44,14 +47,6 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
     const [newKeyName, setNewKeyName] = useState('');
     const [selectedScopes, setSelectedScopes] = useState<string[]>(['databases.read', 'databases.write', 'documents.read', 'documents.write']);
     const [isCreatingKey, setIsCreatingKey] = useState(false);
-
-    // Confirmation Modal state
-    const [confirmation, setConfirmation] = useState<{
-        isOpen: boolean;
-        title: string;
-        message: string;
-        onConfirm: () => void;
-    } | null>(null);
 
     const [newPlatformName, setNewPlatformName] = useState('');
     const [newPlatformType, setNewPlatformType] = useState<'web' | 'android' | 'apple'>('web');
@@ -108,21 +103,19 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
         }
     };
 
-    const handleDeleteApiKey = (keyId: string) => {
-        setConfirmation({
-            isOpen: true,
+    const handleDeleteApiKey = async (keyId: string) => {
+        const confirmed = await confirm({
             title: 'Revoke API Key',
             message: 'Are you sure you want to revoke this API key? This action is permanent.',
-            onConfirm: async () => {
-                try {
-                    await adminService.deleteApiKey(activeProject, keyId);
-                    setApiKeys(prev => prev.filter(k => k.$id !== keyId));
-                    toast.success('Successfully revoked API Key.');
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            await adminService.deleteApiKey(activeProject, keyId);
+            setApiKeys(prev => prev.filter(k => k.$id !== keyId));
+            toast.success('Successfully revoked API Key.');
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     const handleCreatePlatform = async (e: React.FormEvent) => {
@@ -151,21 +144,19 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
         }
     };
 
-    const handleDeletePlatform = (platformId: string) => {
-        setConfirmation({
-            isOpen: true,
+    const handleDeletePlatform = async (platformId: string) => {
+        const confirmed = await confirm({
             title: 'Delete Platform',
             message: 'Are you sure you want to delete this platform registration?',
-            onConfirm: async () => {
-                try {
-                    await adminService.deletePlatform(activeProject, platformId);
-                    setPlatforms(prev => prev.filter(p => p.$id !== platformId));
-                    toast.success('Successfully removed platform registration.');
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            await adminService.deletePlatform(activeProject, platformId);
+            setPlatforms(prev => prev.filter(p => p.$id !== platformId));
+            toast.success('Successfully removed platform registration.');
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     const handleCorsAutoFix = async () => {
@@ -204,21 +195,19 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
         }
     };
 
-    const handleDeleteVariable = (varId: string) => {
-        setConfirmation({
-            isOpen: true,
+    const handleDeleteVariable = async (varId: string) => {
+        const confirmed = await confirm({
             title: 'Delete Variable',
             message: 'Are you sure you want to delete this environment variable?',
-            onConfirm: async () => {
-                try {
-                    await adminService.deleteGlobalVariable(activeProject, varId);
-                    setVariables(prev => prev.filter(v => v.$id !== varId));
-                    toast.success('Successfully deleted variable.');
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            await adminService.deleteGlobalVariable(activeProject, varId);
+            setVariables(prev => prev.filter(v => v.$id !== varId));
+            toast.success('Successfully deleted variable.');
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     const handleToggleAuthMethod = async (method: 'emailPassword' | 'magicLink' | 'anonymous' | 'phone' | 'invites', currentVal: boolean) => {
@@ -249,25 +238,12 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
     }
 
     return (
-        <div className="space-y-8">
-            {/* Header section with console links */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-2">
-                        <KeyIcon size={24} className="text-cyan-400" />
-                        Project Settings Dashboard
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Manage API Keys, allowed platforms, authentication configurations, and global variables.</p>
-                </div>
-                <a 
-                    href={consoleLinks.settings(activeProject)} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-900/60 hover:bg-gray-800 border border-white/5 rounded-xl text-xs font-bold text-gray-300 transition-all shadow-inner"
-                >
-                    <ExternalLinkIcon size={14} /> Open in Console
-                </a>
-            </div>
+        <TabShell
+            title="Project Settings Dashboard"
+            subtitle="Manage API Keys, allowed platforms, authentication configurations, and global variables."
+            icon={<KeyIcon size={24} className="text-cyan-400" />}
+            consoleHref={consoleLinks.settings(activeProject)}
+        >
 
             {/* Platform & CORS Fixer section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -596,18 +572,6 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                     )}
                 </div>
             </div>
-            {confirmation && (
-                <ConfirmationModal
-                    isOpen={confirmation.isOpen}
-                    title={confirmation.title}
-                    message={confirmation.message}
-                    onConfirm={() => {
-                        confirmation.onConfirm();
-                        setConfirmation(null);
-                    }}
-                    onClose={() => setConfirmation(null)}
-                />
-            )}
-        </div>
+        </TabShell>
     );
 };

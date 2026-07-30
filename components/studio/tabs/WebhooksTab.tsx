@@ -4,7 +4,8 @@ import * as adminService from '../../../services/projectAdminService';
 import { WebhookIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
-import { ConfirmationModal } from '../../ConfirmationModal';
+import { useConfirm } from '../../../hooks/useConfirm';
+import { TabShell } from '../ui/TabShell';
 
 interface WebhooksTabProps {
     activeProject: AppwriteProject;
@@ -26,6 +27,7 @@ const COMMON_EVENTS = [
 
 export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
 
@@ -35,14 +37,6 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
     const [selectedEvents, setSelectedEvents] = useState<string[]>(['databases.*.collections.*.documents.*.create']);
     const [newSecurity, setNewSecurity] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-
-    // Confirmation Modal state
-    const [confirmation, setConfirmation] = useState<{
-        isOpen: boolean;
-        title: string;
-        message: string;
-        onConfirm: () => void;
-    } | null>(null);
 
     // Load webhooks
     const loadWebhooks = async () => {
@@ -80,21 +74,19 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
     };
 
     // Delete webhook handler
-    const handleDeleteWebhook = (webhookId: string) => {
-        setConfirmation({
-            isOpen: true,
+    const handleDeleteWebhook = async (webhookId: string) => {
+        const confirmed = await confirm({
             title: 'Deregister Webhook',
             message: 'Are you sure you want to deregister and delete this webhook configuration?',
-            onConfirm: async () => {
-                try {
-                    await adminService.deleteWebhook(activeProject, webhookId);
-                    setWebhooks(prev => prev.filter(w => w.$id !== webhookId));
-                    toast.success('Successfully deleted webhook.');
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            await adminService.deleteWebhook(activeProject, webhookId);
+            setWebhooks(prev => prev.filter(w => w.$id !== webhookId));
+            toast.success('Successfully deleted webhook.');
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     if (isLoading) {
@@ -107,25 +99,12 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-2">
-                        <WebhookIcon size={24} className="text-cyan-400" />
-                        Webhooks Plane
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Configure HTTP POST webhook endpoints that listen and fire automatically on Appwrite system events.</p>
-                </div>
-                <a 
-                    href={consoleLinks.overview(activeProject) + '/webhooks'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-900/60 hover:bg-gray-800 border border-white/5 rounded-xl text-xs font-bold text-gray-300 transition-all shadow-inner"
-                >
-                    <ExternalLinkIcon size={14} /> Open in Console
-                </a>
-            </div>
+        <TabShell
+            title="Webhooks Plane"
+            subtitle="Configure HTTP POST webhook endpoints that listen and fire automatically on Appwrite system events."
+            icon={<WebhookIcon size={24} className="text-cyan-400" />}
+            consoleHref={consoleLinks.overview(activeProject) + '/webhooks'}
+        >
 
             {/* List and Create layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -248,18 +227,6 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
                     </form>
                 </div>
             </div>
-            {confirmation && (
-                <ConfirmationModal
-                    isOpen={confirmation.isOpen}
-                    title={confirmation.title}
-                    message={confirmation.message}
-                    onConfirm={() => {
-                        confirmation.onConfirm();
-                        setConfirmation(null);
-                    }}
-                    onClose={() => setConfirmation(null)}
-                />
-            )}
-        </div>
+        </TabShell>
     );
 };

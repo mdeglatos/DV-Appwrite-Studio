@@ -152,6 +152,15 @@ export interface BackupOptions {
     includeTeams: boolean;
 }
 
+/**
+ * The set of Studio sections. This union is the authority on *what exists*.
+ *
+ * Grouping, ordering, labels and URL segments are owned by `services/studioNav.ts`;
+ * the icon and panel component for each section are owned by
+ * `components/studio/navigation.tsx`. Both bind to this union through explicit
+ * `Record<StudioTab, …>` annotations, so adding a literal here without registering
+ * it in those two modules is a compile error.
+ */
 export type StudioTab = 'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups' | 'messaging' | 'health' | 'webhooks' | 'project-settings' | 'erd';
 
 export interface ApiKey {

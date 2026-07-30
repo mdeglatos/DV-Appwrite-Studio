@@ -2,6 +2,31 @@
 import React, { useEffect, useRef } from 'react';
 import { CloseIcon } from './Icons';
 
+/**
+ * How many dialogs are currently mounted, app-wide.
+ *
+ * Global keyboard shortcuts must not fire behind an open dialog. Testing a
+ * single modal's state is not enough — `CleanupModal`, `TransferDocumentsModal`,
+ * `ConsolidateBucketsModal` and `BackupsTab`'s config modal each own their own —
+ * so every `Modal` registers itself here for the duration it is open.
+ */
+let openDialogCount = 0;
+
+/** Registers an open dialog and returns its (idempotent) release function. */
+export function registerOpenDialog(): () => void {
+    openDialogCount++;
+    let released = false;
+    return () => {
+        if (released) return;
+        released = true;
+        openDialogCount = Math.max(0, openDialogCount - 1);
+    };
+}
+
+export function hasOpenDialog(): boolean {
+    return openDialogCount > 0;
+}
+
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -18,6 +43,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
     useEffect(() => {
         onCloseRef.current = onClose;
     }, [onClose]);
+
+    // Make this dialog visible to global keyboard-shortcut handlers while it is open
+    useEffect(() => {
+        if (!isOpen) return;
+        return registerOpenDialog();
+    }, [isOpen]);
 
     // Handle initial focus once per open
     useEffect(() => {

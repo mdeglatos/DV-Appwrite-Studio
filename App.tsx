@@ -5,7 +5,7 @@ import { AgentApp } from './components/AgentApp';
 import { LandingPage } from './components/LandingPage';
 import { LoadingSpinnerIcon } from './components/Icons';
 import { useAuth } from './hooks/useAuth';
-import { useRouter } from './services/router';
+import { useRouter, routes } from './services/router';
 
 const App: React.FC = () => {
     // isAuthLoading is now only true during the very first session check
@@ -16,12 +16,13 @@ const App: React.FC = () => {
         if (isAuthLoading) return;
 
         if (currentUser) {
-            if (route.name === 'login' || route.name === 'landing') {
+            // An unmatched path must never reach a render — send it to the project resolver.
+            if (route.name === 'login' || route.name === 'landing' || route.name === 'not-found') {
                 navigate('/', { replace: true });
             }
         } else {
             if (route.name !== 'login' && route.name !== 'landing') {
-                navigate('/landing', { replace: true });
+                navigate(routes.landing(), { replace: true });
             }
         }
     }, [currentUser, isAuthLoading, route.name, navigate]);
@@ -45,7 +46,7 @@ const App: React.FC = () => {
         return <LoginPage onLoginSuccess={setCurrentUser} />;
     }
 
-    return <LandingPage onGetStarted={() => navigate('/login')} />;
+    return <LandingPage onGetStarted={() => navigate(routes.login())} />;
 };
 
 export default App;

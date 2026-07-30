@@ -1,5 +1,6 @@
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
@@ -18,6 +19,18 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      test: {
+        environment: 'jsdom',
+        globals: false,
+        setupFiles: ['./test/setup.ts'],
+        env: {
+          VITE_APPWRITE_ENDPOINT: 'https://test.appwrite.local/v1',
+          VITE_APPWRITE_PROJECT_ID: 'test-project',
+          VITE_APPWRITE_DATABASE_ID: 'test-db',
+          VITE_APPWRITE_PROJECTS_COLLECTION_ID: 'test-projects',
+        },
+        exclude: ['node_modules/**', 'dist/**'],
       }
     };
 });

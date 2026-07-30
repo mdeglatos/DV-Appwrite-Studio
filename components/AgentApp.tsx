@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, ModelMessage, StudioTab, AppwriteFunction } from '../types';
 import { getSdkFunctions } from '../services/appwrite';
-import { useRouter } from '../services/router';
+import { useRouter, routes, resolveStudioSection } from '../services/router';
 
 // Custom Hooks
 import { useProjects } from '../hooks/useProjects';
@@ -13,12 +13,12 @@ import { useChatSession } from '../hooks/useChatSession';
 import { useCodeMode } from '../hooks/useCodeMode';
 import { useDragAndDrop } from '../hooks/useDragAndDrop';
 import { useRealtime } from '../hooks/useRealtime';
+import { useConfirm } from '../hooks/useConfirm';
 
 // UI Components
 import { LeftSidebar } from './LeftSidebar';
 import { LogSidebar } from './LogSidebar';
 import { CodeViewerSidebar } from './CodeViewerSidebar';
-import { ConfirmationModal } from './ConfirmationModal';
 import { CreateFunctionModal } from './CreateFunctionModal';
 import { Header } from './Header';
 import { ContextBar } from './ContextBar';
@@ -36,7 +36,6 @@ interface AgentAppProps {
 
 const MIN_SIDEBAR_WIDTH = 280;
 const MAX_SIDEBAR_WIDTH = 500;
-const VIEW_MODE_STORAGE_KEY = 'dv_appwrite_view_mode';
 
 export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refreshUser }) => {
     const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
@@ -49,48 +48,28 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
 
     const viewMode = route.name.startsWith('studio') ? 'studio' : 'agent';
     
-    const activeStudioTab = (() => {
-        if (route.name.startsWith('studio_')) {
-            if (route.name === 'studio_database' || route.name === 'studio_collection' || route.name === 'studio_document') {
-                return 'database';
-            }
-            if (route.name === 'studio_storage' || route.name === 'studio_file') {
-                return 'storage';
-            }
-            if (route.name === 'studio_function' || route.name === 'studio_function_code' || route.name === 'studio_execution') {
-                return 'functions';
-            }
-            if (route.name === 'studio_site') {
-                return 'sites';
-            }
-            if (route.name === 'studio_team') {
-                return 'teams';
-            }
-            if (route.name === 'studio_tab') {
-                return (params.tab as StudioTab) || 'overview';
-            }
-        }
-        return 'overview';
-    })();
+    const resolvedStudioSection = resolveStudioSection(route);
+    const activeStudioTab: StudioTab = resolvedStudioSection ?? 'overview';
+
+    /** The landing path for a project in the current view mode. */
+    const viewRootPath = (projectId: string) =>
+        viewMode === 'studio' ? routes.studioSection(projectId, 'overview') : routes.agent(projectId);
 
     const setViewMode = (mode: 'agent' | 'studio') => {
-        localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode);
         if (!activeProject) return;
         if (mode === 'studio') {
-            navigate(`/project/${activeProject.$id}/studio/${activeStudioTab}`);
+            navigate(routes.studioSection(activeProject.$id, activeStudioTab));
         } else {
-            navigate(`/project/${activeProject.$id}/agent`);
+            navigate(routes.agent(activeProject.$id));
         }
     };
 
     const setActiveStudioTab = (tab: StudioTab) => {
         if (!activeProject) return;
-        navigate(`/project/${activeProject.$id}/studio/${tab}`);
+        navigate(routes.studioSection(activeProject.$id, tab));
     };
-    
-    const [confirmationState, setConfirmationState] = useState<{
-        isOpen: boolean; title: string; message: string; confirmText: string; confirmButtonClass: string; onConfirm: () => void;
-    } | null>(null);
+
+    const confirm = useConfirm();
 
     const logCallback = useCallback((log: string) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -161,24 +140,28 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
         isContextLoading, error: contextError, setError: setContextError, refreshContextData,
         handleRealtimeEvent: handleContextRealtimeEvent,
-    } = useAppContext(activeProject, logCallback, params, navigate);
+    } = useAppContext(activeProject, logCallback, params, navigate, viewMode === 'agent');
 
     // Wire realtime events to useAppContext's handler
     useEffect(() => {
         if (!realtime.isConnected) return;
-        const cleanup = realtime.useEventListener(handleContextRealtimeEvent);
+        const cleanup = realtime.addEventListener(handleContextRealtimeEvent);
         return cleanup;
-    }, [realtime.isConnected, realtime.useEventListener, handleContextRealtimeEvent]);
+    }, [realtime.isConnected, realtime.addEventListener, handleContextRealtimeEvent]);
 
     const isCodeViewerSidebarOpen = route.name === 'studio_function_code' || route.name === 'agent_function_code';
 
     const setIsCodeViewerSidebarOpen = useCallback((open: boolean) => {
         if (!activeProject || !selectedFunction) return;
-        const currentMode = route.name.startsWith('studio') ? 'studio' : 'agent';
+        const isStudio = route.name.startsWith('studio');
         if (open) {
-            navigate(`/project/${activeProject.$id}/${currentMode}/functions/${selectedFunction.$id}/code`);
+            navigate(isStudio
+                ? routes.studioFunctionCode(activeProject.$id, selectedFunction.$id)
+                : routes.agentFunctionCode(activeProject.$id, selectedFunction.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/${currentMode}/functions/${selectedFunction.$id}`);
+            navigate(isStudio
+                ? routes.studioFunction(activeProject.$id, selectedFunction.$id)
+                : routes.agentFunction(activeProject.$id, selectedFunction.$id));
         }
     }, [activeProject?.$id, selectedFunction?.$id, route.name, navigate]);
 
@@ -195,12 +178,20 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     useEffect(() => {
         if (route.name === 'root' || route.name === 'projects') {
             if (activeProject) {
-                navigate(`/project/${activeProject.$id}/${viewMode}`, { replace: true });
+                navigate(viewRootPath(activeProject.$id), { replace: true });
             } else if (projects.length > 0) {
-                navigate(`/project/${projects[0].$id}/${viewMode}`, { replace: true });
+                navigate(viewRootPath(projects[0].$id), { replace: true });
             }
         }
     }, [route.name, activeProject?.$id, projects, viewMode, navigate]);
+
+    // An unknown studio group/section can never reach a render — send it to Overview.
+    useEffect(() => {
+        if (viewMode !== 'studio' || resolvedStudioSection !== null) return;
+        const projectId = activeProject?.$id ?? params.projectId;
+        if (!projectId) return;
+        navigate(routes.studioSection(projectId, 'overview'), { replace: true });
+    }, [viewMode, resolvedStudioSection, activeProject?.$id, params.projectId, navigate]);
     
     const {
         messages, setMessages, isLoading, error: chatError, setError: setChatError,
@@ -229,22 +220,24 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         setCodeModeError(msg);
     }, [setProjectError, setContextError, setChatError, setCodeModeError]);
 
-    // Confirmation Modals Logic
-    const requestProjectDeletion = useCallback((projectId: string, projectName: string) => {
-        setConfirmationState({
-            isOpen: true, title: `Delete Project "${projectName}"?`, message: 'This action is irreversible.',
-            confirmText: 'Delete Project', confirmButtonClass: 'bg-red-600 hover:bg-red-700',
-            onConfirm: () => { handleDeleteProject(projectId); setConfirmationState(null); },
+    // Confirmation flows — routed through the app-wide confirmation owner.
+    const requestProjectDeletion = useCallback(async (projectId: string, projectName: string) => {
+        const confirmed = await confirm({
+            title: `Delete Project "${projectName}"?`,
+            message: 'This action is irreversible.',
+            confirmText: 'Delete Project',
         });
-    }, [handleDeleteProject]);
-    
-    const requestFileDelete = useCallback((path: string, type: 'file' | 'folder') => {
-        setConfirmationState({
-            isOpen: true, title: `Delete ${type} "${path}"?`, message: `This action is irreversible.`,
-            confirmText: `Delete ${type}`, confirmButtonClass: 'bg-red-600 hover:bg-red-700',
-            onConfirm: () => { handleFileDelete(path, type); setConfirmationState(null); },
+        if (confirmed) handleDeleteProject(projectId);
+    }, [confirm, handleDeleteProject]);
+
+    const requestFileDelete = useCallback(async (path: string, type: 'file' | 'folder') => {
+        const confirmed = await confirm({
+            title: `Delete ${type} "${path}"?`,
+            message: 'This action is irreversible.',
+            confirmText: `Delete ${type}`,
         });
-    }, [handleFileDelete]);
+        if (confirmed) handleFileDelete(path, type);
+    }, [confirm, handleFileDelete]);
     
     const handleFunctionCreated = useCallback(async (functionId: string) => {
         if (!activeProject) return;
@@ -271,7 +264,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                 isOpen={isLeftSidebarOpen} onClose={() => setIsLeftSidebarOpen(false)}
                 projects={projects} activeProject={activeProject} onSave={handleSaveProject}
                 onDelete={requestProjectDeletion} onEdit={handleUpdateProject} 
-                onSelect={(p: AppwriteProject) => { navigate(`/project/${p.$id}/${viewMode}`); if (window.innerWidth < 768) { setIsLeftSidebarOpen(false); } }}
+                onSelect={(p: AppwriteProject) => { navigate(viewRootPath(p.$id)); if (window.innerWidth < 768) { setIsLeftSidebarOpen(false); } }}
                 activeTools={activeTools} onToolsChange={handleToolsChange}
                 geminiApiKey={geminiApiKey} geminiModel={geminiModel} geminiModels={GEMINI_MODELS}
                 geminiThinkingEnabled={geminiThinkingEnabled} onSaveGeminiSettings={handleSaveGeminiSettings}
@@ -279,8 +272,8 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                 isResizing={isResizing} 
                 onResizeStart={handleResizeMouseDown}
                 viewMode={viewMode}
-                activeStudioTab={activeStudioTab}
-                onStudioTabChange={setActiveStudioTab}
+                activeStudioSection={activeStudioTab}
+                onStudioSectionChange={setActiveStudioTab}
             />
             
             {/* Main Canvas - Flex Column Layout */}
@@ -348,7 +341,6 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                                     setIsCodeViewerSidebarOpen(true);
                                 }}
                                 logCallback={logCallback}
-                                activeTools={activeTools}
                                 realtimeHook={realtime}
                             />
                         ) : (
@@ -376,10 +368,6 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
             />
             <LogSidebar isOpen={isLogSidebarOpen} onClose={() => setIsLogSidebarOpen(false)} logs={sessionLogs} onClear={() => setSessionLogs([])} />
 
-            {confirmationState?.isOpen && (
-                <ConfirmationModal {...confirmationState} onClose={() => setConfirmationState(null)} />
-            )}
-            
             {activeProject && (
                 <CreateFunctionModal 
                     isOpen={isCreateFunctionModalOpen} 

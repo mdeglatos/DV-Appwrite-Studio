@@ -4,7 +4,8 @@ import { getSdkMessaging, ID, Query } from '../../../services/appwrite';
 import { MessageIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon, PlayIcon, EmailVerifiedIcon, PhoneIcon, BotIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
-import { ConfirmationModal } from '../../ConfirmationModal';
+import { useConfirm } from '../../../hooks/useConfirm';
+import { TabShell } from '../ui/TabShell';
 
 interface MessagingTabProps {
     activeProject: AppwriteProject;
@@ -12,6 +13,7 @@ interface MessagingTabProps {
 
 export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
     const [providers, setProviders] = useState<MessageProvider[]>([]);
     const [topics, setTopics] = useState<MessageTopic[]>([]);
@@ -24,13 +26,6 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
     const [newTopicName, setNewTopicName] = useState('');
     const [isCreatingTopic, setIsCreatingTopic] = useState(false);
 
-    // Confirmation Modal state
-    const [confirmation, setConfirmation] = useState<{
-        isOpen: boolean;
-        title: string;
-        message: string;
-        onConfirm: () => void;
-    } | null>(null);
 
     const [newSubId, setNewSubId] = useState('');
     const [newSubTarget, setNewSubTarget] = useState('');
@@ -107,27 +102,25 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
         }
     };
 
-    const handleDeleteTopic = (topicId: string, e: React.MouseEvent) => {
+    const handleDeleteTopic = async (topicId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        setConfirmation({
-            isOpen: true,
+        const confirmed = await confirm({
             title: 'Delete Topic',
             message: 'Are you sure you want to deregister and delete this broadcast topic?',
-            onConfirm: async () => {
-                try {
-                    const sdk = getSdkMessaging(activeProject);
-                    await sdk.deleteTopic(topicId);
-                    setTopics(prev => prev.filter(t => t.$id !== topicId));
-                    if (selectedTopic?.$id === topicId) {
-                        setSelectedTopic(null);
-                        setSubscribers([]);
-                    }
-                    toast.success('Successfully deleted topic.');
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            const sdk = getSdkMessaging(activeProject);
+            await sdk.deleteTopic(topicId);
+            setTopics(prev => prev.filter(t => t.$id !== topicId));
+            if (selectedTopic?.$id === topicId) {
+                setSelectedTopic(null);
+                setSubscribers([]);
+            }
+            toast.success('Successfully deleted topic.');
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     // Subscriber handlers
@@ -152,25 +145,23 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
         }
     };
 
-    const handleDeleteSubscriber = (subId: string) => {
+    const handleDeleteSubscriber = async (subId: string) => {
         if (!selectedTopic) return;
-        setConfirmation({
-            isOpen: true,
+        const confirmed = await confirm({
             title: 'Unsubscribe Target',
             message: 'Are you sure you want to unsubscribe this target from the topic?',
-            onConfirm: async () => {
-                try {
-                    const sdk = getSdkMessaging(activeProject);
-                    await sdk.deleteSubscriber(selectedTopic.$id, subId);
-                    setSubscribers(prev => prev.filter(s => s.$id !== subId));
-                    toast.success('Successfully unsubscribed target.');
-                    // Refresh topic subscriber count in listing
-                    setTopics(prev => prev.map(t => t.$id === selectedTopic.$id ? { ...t, subscribersCount: Math.max(0, t.subscribersCount - 1) } : t));
-                } catch (err: any) {
-                    toast.error(err.message);
-                }
-            }
         });
+        if (!confirmed) return;
+        try {
+            const sdk = getSdkMessaging(activeProject);
+            await sdk.deleteSubscriber(selectedTopic.$id, subId);
+            setSubscribers(prev => prev.filter(s => s.$id !== subId));
+            toast.success('Successfully unsubscribed target.');
+            // Refresh topic subscriber count in listing
+            setTopics(prev => prev.map(t => t.$id === selectedTopic.$id ? { ...t, subscribersCount: Math.max(0, t.subscribersCount - 1) } : t));
+        } catch (err: any) {
+            toast.error(err.message);
+        }
     };
 
     // Send dispatch campaign handler
@@ -219,25 +210,12 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-2">
-                        <MessageIcon size={24} className="text-cyan-400" />
-                        Unified Messaging Suite
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Configure notification providers, manage subscription topics, and dispatch push, email, and SMS campaigns.</p>
-                </div>
-                <a 
-                    href={consoleLinks.overview(activeProject) + '/messaging'} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-900/60 hover:bg-gray-800 border border-white/5 rounded-xl text-xs font-bold text-gray-300 transition-all shadow-inner"
-                >
-                    <ExternalLinkIcon size={14} /> Open in Console
-                </a>
-            </div>
+        <TabShell
+            title="Unified Messaging Suite"
+            subtitle="Configure notification providers, manage subscription topics, and dispatch push, email, and SMS campaigns."
+            icon={<MessageIcon size={24} className="text-cyan-400" />}
+            consoleHref={consoleLinks.overview(activeProject) + '/messaging'}
+        >
 
             {/* Providers check */}
             <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
@@ -481,18 +459,6 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
                     )}
                 </div>
             </div>
-            {confirmation && (
-                <ConfirmationModal
-                    isOpen={confirmation.isOpen}
-                    title={confirmation.title}
-                    message={confirmation.message}
-                    onConfirm={() => {
-                        confirmation.onConfirm();
-                        setConfirmation(null);
-                    }}
-                    onClose={() => setConfirmation(null)}
-                />
-            )}
-        </div>
+        </TabShell>
     );
 };

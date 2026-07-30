@@ -1,38 +1,27 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../types';
 import type { Models } from 'node-appwrite';
 import type { UseRealtimeReturn } from '../hooks/useRealtime';
-import { Modal } from './Modal';
+import { Modal, hasOpenDialog } from './Modal';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions } from '../services/appwrite';
 import { LoadingSpinnerIcon, ChevronDownIcon } from './Icons';
 
 // Sub-components & UI
 import { StudioNavBar } from './studio/ui/StudioNavBar';
-import { OverviewTab } from './studio/tabs/OverviewTab';
-import { DatabasesTab } from './studio/tabs/DatabasesTab';
-import { StorageTab } from './studio/tabs/StorageTab';
-import { FunctionsTab } from './studio/tabs/FunctionsTab';
-import { UsersTab } from './studio/tabs/UsersTab';
-import { TeamsTab } from './studio/tabs/TeamsTab';
-import { SitesTab } from './studio/tabs/SitesTab';
-import { MigrationsTab } from './studio/tabs/MigrationsTab';
-import { BackupsTab } from './studio/tabs/BackupsTab';
-import { MessagingTab } from './studio/tabs/MessagingTab';
-import { HealthTab } from './studio/tabs/HealthTab';
-import { WebhooksTab } from './studio/tabs/WebhooksTab';
-import { ProjectSettingsTab } from './studio/tabs/ProjectSettingsTab';
-import { ErdTab } from './studio/tabs/ErdTab';
+import { StudioSubNav } from './studio/ui/StudioSubNav';
+import { STUDIO_SECTION_UI, type StudioSectionProps } from './studio/navigation';
+import { groupOf, defaultSectionOf, type StudioGroupId } from '../services/studioNav';
 import { ConsolidateBucketsModal } from './studio/ConsolidateBucketsModal';
 import { ExecutionDetails } from './studio/ui/ExecutionDetails';
 import { DocumentDetails } from './studio/ui/DocumentDetails';
-import { ToastContainer } from './studio/ui/Toast';
 
 // Hooks
 import { useStudioData } from './studio/hooks/useStudioData';
 import { useStudioModals } from './studio/hooks/useStudioModals';
 import { useStudioActions } from './studio/hooks/useStudioActions';
 import { useToast } from '../hooks/useToast';
-import { useRouter } from '../services/router';
+import { useRouter, routes } from '../services/router';
 
 interface StudioProps {
     activeProject: AppwriteProject;
@@ -46,13 +35,12 @@ interface StudioProps {
     onTabChange: (tab: StudioTab) => void;
     onEditCode: (func: AppwriteFunction) => void;
     logCallback: (msg: string) => void;
-    activeTools: { [key: string]: boolean };
     realtimeHook?: UseRealtimeReturn;
 }
 
-export const Studio: React.FC<StudioProps> = ({ 
-    activeProject, projects, databases, buckets, functions, 
-    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback, activeTools,
+export const Studio: React.FC<StudioProps> = ({
+    activeProject, projects, databases, buckets, functions,
+    refreshData, onCreateFunction, activeTab, onTabChange, onEditCode, logCallback,
     realtimeHook,
 }) => {
     
@@ -61,7 +49,6 @@ export const Studio: React.FC<StudioProps> = ({
     const { params } = route;
 
     const toast = useToast();
-    const studioModals = useStudioModals();
 
     const studioData = useStudioData(
         activeProject,
@@ -73,20 +60,9 @@ export const Studio: React.FC<StudioProps> = ({
         buckets,
         functions
     );
-    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast);
-    
-    // 2. Wire Realtime events to Studio data
-    useEffect(() => {
-        if (!realtimeHook?.isConnected || !studioData.handleRealtimeEvent) return;
-        const cleanup = realtimeHook.useEventListener(studioData.handleRealtimeEvent);
-        return cleanup;
-    }, [realtimeHook?.isConnected, realtimeHook?.useEventListener, studioData.handleRealtimeEvent]);
-    
-    // 2. Local Feature States
-    const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false);
 
-    // 3. Destructure hooks for cleaner prop passing
-    const { 
+    // 2. Destructure data hooks for cleaner prop passing
+    const {
         isLoading: dataLoading,
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
         selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction,
@@ -99,70 +75,103 @@ export const Studio: React.FC<StudioProps> = ({
         refreshCurrentView,
     } = studioData;
 
-    const originalClose = studioModals.closeModal;
-    const closeModal = useCallback(() => {
-        originalClose();
+    // Closing a deep-linked modal must also drop its segment from the URL.
+    const handleAfterModalClose = useCallback(() => {
         if (params.docId && selectedCollection && selectedDb) {
-            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${selectedCollection.$id}`);
+            navigate(routes.studioCollection(activeProject.$id, selectedDb.$id, selectedCollection.$id));
         } else if (params.fileId && selectedBucket) {
-            navigate(`/project/${activeProject.$id}/studio/storage/${selectedBucket.$id}`);
+            navigate(routes.studioStorage(activeProject.$id, selectedBucket.$id));
         } else if (params.execId && selectedFunction) {
-            navigate(`/project/${activeProject.$id}/studio/functions/${selectedFunction.$id}`);
+            navigate(routes.studioFunction(activeProject.$id, selectedFunction.$id));
         }
-    }, [params.docId, params.fileId, params.execId, selectedCollection?.$id, selectedDb?.$id, selectedBucket?.$id, selectedFunction?.$id, activeProject?.$id, navigate, originalClose]);
+    }, [params.docId, params.fileId, params.execId, selectedCollection?.$id, selectedDb?.$id, selectedBucket?.$id, selectedFunction?.$id, activeProject?.$id, navigate]);
 
-    // Bind overridden closeModal back to studioModals so all internal components trigger URL changes on close
-    studioModals.closeModal = closeModal;
+    const studioModals = useStudioModals(handleAfterModalClose);
 
-    const { modal, setFormValues, formValues, modalLoading, openCustomModal, setModalLoading } = studioModals;
+    // BackupsTab owns its own snapshot listing; it publishes its refresh here so
+    // the delete/restore actions can re-run it.
+    const backupsRefreshRef = useRef<(() => void) | null>(null);
+    const registerBackupsRefresh = useCallback((refresh: (() => void) | null) => {
+        backupsRefreshRef.current = refresh;
+    }, []);
+    const notifyBackupsChanged = useCallback(() => {
+        backupsRefreshRef.current?.();
+    }, []);
+
+    const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast, notifyBackupsChanged);
+
+    // 3. Wire Realtime events to Studio data
+    useEffect(() => {
+        if (!realtimeHook?.isConnected || !studioData.handleRealtimeEvent) return;
+        const cleanup = realtimeHook.addEventListener(studioData.handleRealtimeEvent);
+        return cleanup;
+    }, [realtimeHook?.isConnected, realtimeHook?.addEventListener, studioData.handleRealtimeEvent]);
+
+    // 4. Local Feature States
+    const [isConsolidateModalOpen, setIsConsolidateModalOpen] = useState(false);
+
+    const { modal, setFormValues, formValues, modalLoading, openCustomModal, setModalLoading, closeModal } = studioModals;
 
     // Special handlers that need local UI components — now they navigate to their deep routes
     const handleViewExecution = (exec: Models.Execution) => {
         if (!selectedFunction) return;
-        navigate(`/project/${activeProject.$id}/studio/functions/${selectedFunction.$id}/execution/${exec.$id}`);
+        navigate(routes.studioExecution(activeProject.$id, selectedFunction.$id, exec.$id));
     };
 
     const handleViewDocument = (doc: Models.Document) => {
         if (!selectedDb || !selectedCollection) return;
-        navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${selectedCollection.$id}/document/${doc.$id}`);
+        navigate(routes.studioDocument(activeProject.$id, selectedDb.$id, selectedCollection.$id, doc.$id));
     };
 
     const handlePreviewFile = (file: Models.File) => {
         if (!selectedBucket) return;
-        navigate(`/project/${activeProject.$id}/studio/storage/${selectedBucket.$id}/file/${file.$id}`);
+        navigate(routes.studioFile(activeProject.$id, selectedBucket.$id, file.$id));
     };
 
-    // Sync deep-linked modals with router parameters
+    // Always-current handles, so the deep-link effect below need not depend on
+    // objects that are re-created on every render.
+    const latestRef = useRef({ studioActions, openCustomModal, closeModal, handleViewExecution });
+    latestRef.current = { studioActions, openCustomModal, closeModal, handleViewExecution };
+
+    // Sync deep-linked modals with router parameters.
+    // Guarded by the last-opened deep-link key so the modal is created once per
+    // parameter change, not once per render.
+    const lastDeepLinkRef = useRef<string | null>(null);
+
     useEffect(() => {
+        const deepLinkKey = `${params.docId || ''}|${params.fileId || ''}|${params.execId || ''}`;
+        if (deepLinkKey === '||') {
+            lastDeepLinkRef.current = null;
+            return;
+        }
+        if (lastDeepLinkRef.current === deepLinkKey) return;
+
         // 1. Handle Document Details Modal
         if (params.docId && selectedCollection && selectedDb) {
-            const doc = (documentsPagination.items as any[]).find(d => d.$id === params.docId);
-            if (doc) {
-                openCustomModal(
-                    "Document Preview", 
-                    <DocumentDetails 
-                        document={doc as any} 
-                        onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
-                        onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
-                    />, 
+            lastDeepLinkRef.current = deepLinkKey;
+            const renderDocument = (document: any) => {
+                latestRef.current.openCustomModal(
+                    "Document Preview",
+                    <DocumentDetails
+                        document={document}
+                        onEdit={(d) => { latestRef.current.closeModal(); latestRef.current.studioActions.handleUpdateDocument(d); }}
+                        onDelete={(d) => { latestRef.current.closeModal(); latestRef.current.studioActions.handleDeleteDocument(d); }}
+                    />,
                     '3xl'
                 );
+            };
+            const doc = (documentsPagination.items as any[]).find(d => d.$id === params.docId);
+            if (doc) {
+                renderDocument(doc);
             } else {
                 const fetchAndOpen = async () => {
                     try {
-                        const sdk = (await import('../services/appwrite')).getSdkDatabases(activeProject);
+                        const sdk = getSdkDatabases(activeProject);
                         const res = await sdk.getDocument(selectedDb.$id, selectedCollection.$id, params.docId);
-                        openCustomModal(
-                            "Document Preview", 
-                            <DocumentDetails 
-                                document={res as any} 
-                                onEdit={(d) => { closeModal(); studioActions.handleUpdateDocument(d); }}
-                                onDelete={(d) => { closeModal(); studioActions.handleDeleteDocument(d); }}
-                            />, 
-                            '3xl'
-                        );
+                        renderDocument(res);
                     } catch (e) {
                         console.error("Could not fetch document details for route", e);
+                        lastDeepLinkRef.current = null;
                     }
                 };
                 fetchAndOpen();
@@ -170,17 +179,19 @@ export const Studio: React.FC<StudioProps> = ({
         }
         // 2. Handle File Preview Modal
         else if (params.fileId && selectedBucket) {
+            lastDeepLinkRef.current = deepLinkKey;
             const file = (filesPagination.items as any[]).find(f => f.$id === params.fileId);
             if (file) {
-                studioActions.handlePreviewFile(file as any);
+                latestRef.current.studioActions.handlePreviewFile(file as any);
             } else {
                 const fetchAndOpen = async () => {
                     try {
-                        const sdk = (await import('../services/appwrite')).getSdkStorage(activeProject);
+                        const sdk = getSdkStorage(activeProject);
                         const res = await sdk.getFile(selectedBucket.$id, params.fileId);
-                        studioActions.handlePreviewFile(res as any);
+                        latestRef.current.studioActions.handlePreviewFile(res as any);
                     } catch (e) {
                         console.error("Could not fetch file details for route", e);
+                        lastDeepLinkRef.current = null;
                     }
                 };
                 fetchAndOpen();
@@ -188,52 +199,47 @@ export const Studio: React.FC<StudioProps> = ({
         }
         // 3. Handle Execution Details Modal
         else if (params.execId && selectedFunction) {
-            const exec = (executionsPagination.items as any[]).find(e => e.$id === params.execId);
-            if (exec) {
-                openCustomModal(
-                    "Execution Details", 
-                    <ExecutionDetails 
-                        execution={exec as any} 
-                        allExecutions={executionsPagination.items as any[]} 
-                        onNavigate={handleViewExecution}
-                    />, 
+            lastDeepLinkRef.current = deepLinkKey;
+            const renderExecution = (execution: any) => {
+                latestRef.current.openCustomModal(
+                    "Execution Details",
+                    <ExecutionDetails
+                        execution={execution}
+                        allExecutions={executionsPagination.items as any[]}
+                        onNavigate={(exec) => latestRef.current.handleViewExecution(exec)}
+                    />,
                     '3xl'
                 );
+            };
+            const exec = (executionsPagination.items as any[]).find(e => e.$id === params.execId);
+            if (exec) {
+                renderExecution(exec);
             } else {
                 const fetchAndOpen = async () => {
                     try {
-                        const sdk = (await import('../services/appwrite')).getSdkFunctions(activeProject);
+                        const sdk = getSdkFunctions(activeProject);
                         const res = await sdk.getExecution(selectedFunction.$id, params.execId);
-                        openCustomModal(
-                            "Execution Details", 
-                            <ExecutionDetails 
-                                execution={res as any} 
-                                allExecutions={executionsPagination.items as any[]} 
-                                onNavigate={handleViewExecution}
-                            />, 
-                            '3xl'
-                        );
+                        renderExecution(res);
                     } catch (e) {
                         console.error("Could not fetch execution details for route", e);
+                        lastDeepLinkRef.current = null;
                     }
                 };
                 fetchAndOpen();
             }
         }
     }, [
-        params.docId, 
-        params.fileId, 
-        params.execId, 
-        selectedCollection?.$id, 
-        selectedDb?.$id, 
-        selectedBucket?.$id, 
-        selectedFunction?.$id, 
-        activeProject, 
-        documentsPagination.items, 
-        filesPagination.items, 
+        params.docId,
+        params.fileId,
+        params.execId,
+        selectedCollection?.$id,
+        selectedDb?.$id,
+        selectedBucket?.$id,
+        selectedFunction?.$id,
+        activeProject,
+        documentsPagination.items,
+        filesPagination.items,
         executionsPagination.items,
-        openCustomModal,
-        studioActions
     ]);
 
     const handleStudioRefresh = async () => {
@@ -241,31 +247,13 @@ export const Studio: React.FC<StudioProps> = ({
         await refreshCurrentView();
     };
 
-    // Bulk delete users handler
-    const handleBulkDeleteUsers = useCallback((userIds: string[]) => {
-        studioModals.confirmAction("Delete Users", `Permanently delete ${userIds.length} users? This cannot be undone.`, async () => {
-            const sdk = (await import('../services/appwrite')).getSdkUsers(activeProject);
-            let deleted = 0;
-            await Promise.all(userIds.map(async id => {
-                try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
-            }));
-            toast.success(`Deleted ${deleted} users.`);
-            usersPagination.refresh();
-        });
-    }, [activeProject, studioModals, studioData, toast]);
+    // The active group is derived from the active section — the registry owns the mapping.
+    const activeGroup = groupOf(activeTab);
 
-    // Bulk delete teams handler
-    const handleBulkDeleteTeams = useCallback((teamIds: string[]) => {
-        studioModals.confirmAction("Delete Teams", `Delete ${teamIds.length} teams and all their memberships?`, async () => {
-            const sdk = (await import('../services/appwrite')).getSdkTeams(activeProject);
-            let deleted = 0;
-            await Promise.all(teamIds.map(async id => {
-                try { await sdk.delete(id); deleted++; } catch (e) { console.error(e); }
-            }));
-            toast.success(`Deleted ${deleted} teams.`);
-            teamsPagination.refresh();
-        });
-    }, [activeProject, studioModals, studioData, toast]);
+    // Switching group lands on that group's first section; switching section stays inside it.
+    const handleGroupChange = useCallback((group: StudioGroupId) => {
+        onTabChange(defaultSectionOf(group));
+    }, [onTabChange]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -273,8 +261,10 @@ export const Studio: React.FC<StudioProps> = ({
             // Don't trigger if typing in input/textarea/select
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable) return;
-            // Don't trigger if modal is open
-            if (modal?.isOpen) return;
+            // Don't trigger behind ANY open dialog — the dynamic modal, the
+            // confirmation dialog, or a tab's own modal. Escape belongs to the
+            // dialog on top, and must not also clear the selection underneath.
+            if (hasOpenDialog()) return;
 
             switch (e.key) {
                 case 'Escape':
@@ -286,8 +276,9 @@ export const Studio: React.FC<StudioProps> = ({
                     else if (selectedTeam) { setSelectedTeam(null); }
                     else if (selectedSite) { setSelectedSite(null); }
                     break;
-                case 'r':
-                    if (!e.ctrlKey && !e.metaKey) {
+                case 'R':
+                    // Shift+R — a bare letter key fires from anywhere on the page.
+                    if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
                         e.preventDefault();
                         handleStudioRefresh();
                     }
@@ -297,200 +288,172 @@ export const Studio: React.FC<StudioProps> = ({
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [modal, selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam, selectedSite]);
+    }, [selectedDb, selectedCollection, selectedBucket, selectedFunction, selectedTeam, selectedSite]);
+
+    // Every section's props, keyed exhaustively by StudioTab and typechecked
+    // against the panel registered for it in `components/studio/navigation.tsx`.
+    // Adding a section without wiring its props here is a compile error.
+    const sectionProps: StudioSectionProps = {
+        'overview': {
+            activeProject,
+            databases, buckets, functions,
+            sites: sitesPagination.items as unknown as AppwriteSite[],
+            users: usersPagination.items, teams: teamsPagination.items, onTabChange,
+            onCreateDatabase: studioActions.handleCreateDatabase,
+            onCreateBucket: studioActions.handleCreateBucket,
+            onCreateUser: studioActions.handleCreateUser,
+            sitesTotal: sitesPagination.total,
+            usersTotal: usersPagination.total,
+            teamsTotal: teamsPagination.total,
+        },
+        'database': {
+            activeProject,
+            projects,
+            databases, selectedDb, selectedCollection,
+            collections: collectionsPagination.items, documents: documentsPagination.items, attributes, indexes,
+            onCreateDatabase: studioActions.handleCreateDatabase, onDeleteDatabase: studioActions.handleDeleteDatabase, onSelectDb: setSelectedDb,
+            onCreateCollection: studioActions.handleCreateCollection, onDeleteCollection: studioActions.handleDeleteCollection, onSelectCollection: setSelectedCollection,
+            onCreateDocument: studioActions.handleCreateDocument, onUpdateDocument: studioActions.handleUpdateDocument, onDeleteDocument: studioActions.handleDeleteDocument,
+            onViewDocument: handleViewDocument,
+            onCreateAttribute: studioActions.handleCreateAttribute, onUpdateAttribute: studioActions.handleUpdateAttribute, onDeleteAttribute: studioActions.handleDeleteAttribute,
+            onCreateIndex: studioActions.handleCreateIndex,
+            onUpdateIndex: studioActions.handleUpdateIndex,
+            onDeleteIndex: studioActions.handleDeleteIndex,
+            onUpdateCollectionSettings: studioActions.handleUpdateCollectionSettings,
+            onCopySchema: studioActions.handleCopyDatabaseSchema,
+            handleBulkUpdateDocuments: studioActions.handleBulkUpdateDocuments,
+            handleBulkDeleteDocuments: studioActions.handleBulkDeleteDocuments,
+            onRenameDatabase: studioActions.handleRenameDatabase,
+            collectionsPagination,
+            documentsPagination,
+        },
+        'storage': {
+            activeProject,
+            buckets, selectedBucket, files: filesPagination.items,
+            onCreateBucket: studioActions.handleCreateBucket, onDeleteBucket: studioActions.handleDeleteBucket, onSelectBucket: setSelectedBucket,
+            onDeleteFile: studioActions.handleDeleteFile,
+            onConsolidateBuckets: () => setIsConsolidateModalOpen(true),
+            onBulkDeleteBuckets: studioActions.handleBulkDeleteBuckets,
+            onBulkDeleteFiles: studioActions.handleBulkDeleteFiles,
+            onUploadFile: studioActions.handleUploadFile,
+            onDownloadFile: studioActions.handleDownloadFile,
+            onPreviewFile: handlePreviewFile,
+            onUpdateBucket: studioActions.handleUpdateBucket,
+            filesPagination,
+        },
+        'erd': {
+            activeProject,
+            databases,
+        },
+        'functions': {
+            activeProject,
+            functions, selectedFunction,
+            deployments: deploymentsPagination.items, executions: executionsPagination.items, variables,
+            onCreateFunction, onDeleteFunction: studioActions.handleDeleteFunction, onSelectFunction: setSelectedFunction,
+            onActivateDeployment: studioActions.handleActivateDeployment,
+            onViewExecution: handleViewExecution,
+            onBulkDeleteDeployments: studioActions.handleBulkDeleteDeployments,
+            onEditCode,
+            onRefresh: handleStudioRefresh,
+            deploymentsPagination,
+            executionsPagination,
+            // Variables
+            onCreateVariable: studioActions.handleCreateVariable,
+            onUpdateVariable: studioActions.handleUpdateVariable,
+            onDeleteVariable: studioActions.handleDeleteVariable,
+            // Execute & Settings
+            onExecuteFunction: studioActions.handleExecuteFunction,
+            onUpdateFunction: studioActions.handleUpdateFunction,
+        },
+        'sites': {
+            activeProject,
+            sites: sitesPagination.items as unknown as AppwriteSite[],
+            selectedSite,
+            siteDeployments: siteDeploymentsPagination.items,
+            siteVariables,
+            siteLogs: siteLogsPagination.items,
+            onSelectSite: setSelectedSite,
+            onCreateSite: studioActions.handleCreateSite,
+            onDeleteSite: studioActions.handleDeleteSite,
+            onUpdateSite: studioActions.handleUpdateSite,
+            onActivateDeployment: studioActions.handleActivateSiteDeployment,
+            onCancelDeployment: studioActions.handleCancelSiteDeployment,
+            onDeleteDeployment: studioActions.handleDeleteSiteDeployment,
+            onBulkDeleteDeployments: studioActions.handleBulkDeleteSiteDeployments,
+            onCreateVariable: studioActions.handleCreateSiteVariable,
+            onUpdateVariable: studioActions.handleUpdateSiteVariable,
+            onDeleteVariable: studioActions.handleDeleteSiteVariable,
+            sitesPagination,
+            siteDeploymentsPagination,
+            siteLogsPagination,
+            onRefresh: handleStudioRefresh,
+        },
+        'users': {
+            activeProject,
+            users: usersPagination.items,
+            onCreateUser: studioActions.handleCreateUser,
+            onDeleteUser: studioActions.handleDeleteUser,
+            onUpdateStatus: studioActions.handleUpdateUserStatus,
+            onUpdateLabels: studioActions.handleUpdateUserLabels,
+            onUpdateName: studioActions.handleUpdateUserName,
+            onUpdateEmail: studioActions.handleUpdateUserEmail,
+            onVerifyEmail: studioActions.handleVerifyUserEmail,
+            onBulkDeleteUsers: studioActions.handleBulkDeleteUsers,
+            pagination: usersPagination,
+        },
+        'teams': {
+            activeProject,
+            teams: teamsPagination.items, selectedTeam, memberships: membershipsPagination.items,
+            onCreateTeam: studioActions.handleCreateTeam,
+            onDeleteTeam: studioActions.handleDeleteTeam,
+            onSelectTeam: setSelectedTeam,
+            onCreateMembership: studioActions.handleCreateMembership,
+            onDeleteMembership: studioActions.handleDeleteMembership,
+            onRenameTeam: studioActions.handleRenameTeam,
+            onBulkDeleteTeams: studioActions.handleBulkDeleteTeams,
+            pagination: teamsPagination,
+            membershipsPagination,
+        },
+        'messaging': { activeProject },
+        'webhooks': { activeProject },
+        'health': { activeProject },
+        'migrations': { activeProject, projects },
+        'backups': {
+            activeProject,
+            logCallback,
+            onDeleteBackup: studioActions.handleDeleteBackup,
+            onRestoreBackup: studioActions.handleRestoreBackup,
+            onRegisterRefresh: registerBackupsRefresh,
+        },
+        'project-settings': { activeProject },
+    };
+
+    // The registry decides which panel renders — "unknown section" is not expressible.
+    const ActivePanel = STUDIO_SECTION_UI[activeTab].Panel as React.ComponentType<any>;
 
     return (
         <div className="flex flex-col flex-1 h-full overflow-hidden bg-gray-950/20">
             {/* Nav Header */}
-            <div className="flex-shrink-0 z-20 py-3 w-full border-b border-white/5 bg-gray-950/20 backdrop-blur-md flex items-center justify-center relative">
-                 <StudioNavBar 
-                    activeTab={activeTab} 
-                    onTabChange={onTabChange} 
+            <div className="flex-shrink-0 z-20 py-3 w-full border-b border-white/5 bg-gray-950/20 backdrop-blur-md flex flex-col items-center justify-center gap-2 relative">
+                 <StudioNavBar
+                    activeGroup={activeGroup.id}
+                    onGroupChange={handleGroupChange}
                     onRefresh={handleStudioRefresh}
                     isLoading={dataLoading}
+                 />
+                 <StudioSubNav
+                    group={activeGroup}
+                    activeSection={activeTab}
+                    onSectionChange={onTabChange}
                  />
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
                 <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-10">
-                    {activeTab === 'overview' && (
-                        <OverviewTab 
-                            activeProject={activeProject}
-                            databases={databases} buckets={buckets} functions={functions} 
-                            sites={sitesPagination.items as unknown as AppwriteSite[]}
-                            users={usersPagination.items} teams={teamsPagination.items} onTabChange={onTabChange}
-                            onCreateDatabase={studioActions.handleCreateDatabase}
-                            onCreateBucket={studioActions.handleCreateBucket}
-                            onCreateUser={studioActions.handleCreateUser}
-                            sitesTotal={sitesPagination.total}
-                            usersTotal={usersPagination.total}
-                            teamsTotal={teamsPagination.total}
-                        />
-                    )}
-
-                    {activeTab === 'database' && (
-                        <DatabasesTab 
-                            activeProject={activeProject}
-                            projects={projects}
-                            databases={databases} selectedDb={selectedDb} selectedCollection={selectedCollection}
-                            collections={collectionsPagination.items} documents={documentsPagination.items} attributes={attributes} indexes={indexes}
-                            onCreateDatabase={studioActions.handleCreateDatabase} onDeleteDatabase={studioActions.handleDeleteDatabase} onSelectDb={setSelectedDb}
-                            onCreateCollection={studioActions.handleCreateCollection} onDeleteCollection={studioActions.handleDeleteCollection} onSelectCollection={setSelectedCollection}
-                            onCreateDocument={studioActions.handleCreateDocument} onUpdateDocument={studioActions.handleUpdateDocument} onDeleteDocument={studioActions.handleDeleteDocument}
-                            onViewDocument={handleViewDocument}
-                            onCreateAttribute={studioActions.handleCreateAttribute} onUpdateAttribute={studioActions.handleUpdateAttribute} onDeleteAttribute={studioActions.handleDeleteAttribute}
-                            onCreateIndex={studioActions.handleCreateIndex} 
-                            onUpdateIndex={studioActions.handleUpdateIndex}
-                            onDeleteIndex={studioActions.handleDeleteIndex}
-                            onUpdateCollectionSettings={studioActions.handleUpdateCollectionSettings}
-                            onCopySchema={studioActions.handleCopyDatabaseSchema}
-                            handleBulkUpdateDocuments={studioActions.handleBulkUpdateDocuments}
-                            handleBulkDeleteDocuments={studioActions.handleBulkDeleteDocuments}
-                            onRenameDatabase={studioActions.handleRenameDatabase}
-                            collectionsPagination={collectionsPagination}
-                            documentsPagination={documentsPagination}
-                        />
-                    )}
-
-                    {activeTab === 'storage' && (
-                        <StorageTab 
-                            activeProject={activeProject}
-                            buckets={buckets} selectedBucket={selectedBucket} files={filesPagination.items}
-                            onCreateBucket={studioActions.handleCreateBucket} onDeleteBucket={studioActions.handleDeleteBucket} onSelectBucket={setSelectedBucket}
-                            onDeleteFile={studioActions.handleDeleteFile}
-                            onConsolidateBuckets={() => setIsConsolidateModalOpen(true)}
-                            onBulkDeleteBuckets={studioActions.handleBulkDeleteBuckets}
-                            onBulkDeleteFiles={studioActions.handleBulkDeleteFiles}
-                            onUploadFile={studioActions.handleUploadFile}
-                            onDownloadFile={studioActions.handleDownloadFile}
-                            onPreviewFile={handlePreviewFile}
-                            onUpdateBucket={studioActions.handleUpdateBucket}
-                            filesPagination={filesPagination}
-                        />
-                    )}
-
-                    {activeTab === 'functions' && (
-                        <FunctionsTab 
-                            activeProject={activeProject}
-                            functions={functions} selectedFunction={selectedFunction} 
-                            deployments={deploymentsPagination.items} executions={executionsPagination.items} variables={variables}
-                            onCreateFunction={onCreateFunction} onDeleteFunction={studioActions.handleDeleteFunction} onSelectFunction={setSelectedFunction}
-                            onActivateDeployment={studioActions.handleActivateDeployment}
-                            onViewExecution={handleViewExecution}
-                            onBulkDeleteDeployments={studioActions.handleBulkDeleteDeployments}
-                            onEditCode={onEditCode}
-                            onRefresh={handleStudioRefresh}
-                            deploymentsPagination={deploymentsPagination}
-                            executionsPagination={executionsPagination}
-                            // Variables
-                            onCreateVariable={studioActions.handleCreateVariable}
-                            onUpdateVariable={studioActions.handleUpdateVariable}
-                            onDeleteVariable={studioActions.handleDeleteVariable}
-                            // Execute & Settings
-                            onExecuteFunction={studioActions.handleExecuteFunction}
-                            onUpdateFunction={studioActions.handleUpdateFunction}
-                        />
-                    )}
-
-                    {activeTab === 'sites' && (
-                        <SitesTab 
-                            activeProject={activeProject}
-                            sites={sitesPagination.items as unknown as AppwriteSite[]}
-                            selectedSite={selectedSite}
-                            siteDeployments={siteDeploymentsPagination.items}
-                            siteVariables={siteVariables}
-                            siteLogs={siteLogsPagination.items}
-                            onSelectSite={setSelectedSite}
-                            onCreateSite={studioActions.handleCreateSite}
-                            onDeleteSite={studioActions.handleDeleteSite}
-                            onUpdateSite={studioActions.handleUpdateSite}
-                            onActivateDeployment={studioActions.handleActivateSiteDeployment}
-                            onCancelDeployment={studioActions.handleCancelSiteDeployment}
-                            onDeleteDeployment={studioActions.handleDeleteSiteDeployment}
-                            onBulkDeleteDeployments={studioActions.handleBulkDeleteSiteDeployments}
-                            onCreateVariable={studioActions.handleCreateSiteVariable}
-                            onUpdateVariable={studioActions.handleUpdateSiteVariable}
-                            onDeleteVariable={studioActions.handleDeleteSiteVariable}
-                            sitesPagination={sitesPagination}
-                            siteDeploymentsPagination={siteDeploymentsPagination}
-                            siteLogsPagination={siteLogsPagination}
-                            onRefresh={handleStudioRefresh}
-                        />
-                    )}
-
-                    {activeTab === 'users' && (
-                        <UsersTab 
-                            activeProject={activeProject} 
-                            users={usersPagination.items} 
-                            onCreateUser={studioActions.handleCreateUser} 
-                            onDeleteUser={studioActions.handleDeleteUser}
-                            onUpdateStatus={studioActions.handleUpdateUserStatus}
-                            onUpdateLabels={studioActions.handleUpdateUserLabels}
-                            onUpdateName={studioActions.handleUpdateUserName}
-                            onUpdateEmail={studioActions.handleUpdateUserEmail}
-                            onVerifyEmail={studioActions.handleVerifyUserEmail}
-                            onBulkDeleteUsers={handleBulkDeleteUsers}
-                            pagination={usersPagination}
-                        />
-                    )}
-
-                    {activeTab === 'teams' && (
-                        <TeamsTab 
-                            activeProject={activeProject}
-                            teams={teamsPagination.items} selectedTeam={selectedTeam} memberships={membershipsPagination.items}
-                            onCreateTeam={studioActions.handleCreateTeam} 
-                            onDeleteTeam={studioActions.handleDeleteTeam} 
-                            onSelectTeam={setSelectedTeam}
-                            onCreateMembership={studioActions.handleCreateMembership} 
-                            onDeleteMembership={studioActions.handleDeleteMembership}
-                            onRenameTeam={studioActions.handleRenameTeam}
-                            onBulkDeleteTeams={handleBulkDeleteTeams}
-                            pagination={teamsPagination}
-                            membershipsPagination={membershipsPagination}
-                        />
-                    )}
-
-                    {activeTab === 'migrations' && (
-                        <MigrationsTab activeProject={activeProject} projects={projects} />
-                    )}
-
-                    {activeTab === 'backups' && (
-                        <BackupsTab 
-                            activeProject={activeProject} 
-                            logCallback={logCallback} 
-                            onDeleteBackup={studioActions.handleDeleteBackup}
-                            onRestoreBackup={studioActions.handleRestoreBackup}
-                        />
-                    )}
-
-                    {activeTab === 'messaging' && (
-                        <MessagingTab activeProject={activeProject} />
-                    )}
-
-                    {activeTab === 'health' && (
-                        <HealthTab activeProject={activeProject} />
-                    )}
-
-                    {activeTab === 'webhooks' && (
-                        <WebhooksTab activeProject={activeProject} />
-                    )}
-
-                    {activeTab === 'project-settings' && (
-                        <ProjectSettingsTab activeProject={activeProject} />
-                    )}
-
-                    {activeTab === 'erd' && (
-                        <ErdTab 
-                            activeProject={activeProject} 
-                            databases={databases} 
-                        />
-                    )}
+                    <ActivePanel {...sectionProps[activeTab]} />
                 </div>
             </div>
-
-            {/* Toast Notifications */}
-            <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
             {/* Dynamic Modal Interface */}
             {modal && modal.isOpen && (

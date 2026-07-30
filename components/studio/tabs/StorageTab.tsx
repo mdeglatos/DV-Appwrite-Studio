@@ -7,10 +7,11 @@ import { PaginationFooter } from '../ui/PaginationFooter';
 import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { CleanupModal } from '../ui/CleanupModal';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { FileIcon, RiShareForwardLine, ExternalLinkIcon, DeleteIcon, UploadIcon, DownloadIcon, EyeIcon, SettingsIcon, ImageIcon, CleanupIcon } from '../../Icons';
+import { FileIcon, RiShareForwardLine, ExternalLinkIcon, DeleteIcon, UploadIcon, DownloadIcon, EyeIcon, SettingsIcon, ImageIcon, CleanupIcon, StorageIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
 import { getFileCleanupConfig } from '../hooks/cleanupConfigs';
+import { TabShell } from '../ui/TabShell';
 
 interface StorageTabProps {
     activeProject: AppwriteProject;
@@ -108,8 +109,14 @@ export const StorageTab: React.FC<StorageTabProps> = ({
 
     if (!selectedBucket) {
         return (
-            <ResourceTable<Bucket> 
-                title="Storage Buckets" 
+            <TabShell
+                title="Storage"
+                subtitle="Manage storage buckets and the files they hold."
+                icon={<StorageIcon size={24} className="text-cyan-400" />}
+                consoleHref={consoleLinks.storage(activeProject)}
+            >
+            <ResourceTable<Bucket>
+                title="Storage Buckets"
                 data={buckets} 
                 onCreate={onCreateBucket} 
                 onDelete={onDeleteBucket} 
@@ -139,15 +146,7 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                                 <DeleteIcon size={14} /> Delete ({selectedBucketIds.length})
                             </button>
                         )}
-                        <a 
-                            href={consoleLinks.storage(activeProject)} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                        >
-                            <ExternalLinkIcon size={14} /> Open in Console
-                        </a>
-                        <button 
+                        <button
                             onClick={onConsolidateBuckets}
                             className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white text-xs font-bold rounded-lg transition-colors"
                         >
@@ -170,6 +169,7 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                     </div>
                 )}
             />
+            </TabShell>
         );
     }
 

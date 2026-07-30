@@ -1,14 +1,13 @@
-import { ID, Query } from '../../../services/appwrite';
+import { ID } from '../../../services/appwrite';
 import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, normalizeEndpoint, listAll } from '../../../services/appwrite';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
-import { deployCodeFromString, downloadAndUnpackDeployment } from '../../../tools/functionsTools';
 import React from 'react';
 import { DocumentEditor } from '../ui/DocumentEditor';
 import { DocumentCreateForm } from '../ui/DocumentCreateForm';
 import { BulkEditDocumentModal } from '../ui/BulkEditDocumentModal';
-import { CodeIcon, CheckIcon, CopyIcon, WarningIcon } from '../../Icons';
+import { CopyIcon } from '../../Icons';
 import { BACKUP_BUCKET_ID, BackupService } from '../../../services/backupService';
 import type { ToastActions } from '../../../hooks/useToast';
 
@@ -18,7 +17,9 @@ export function useStudioActions(
     modals: any, // Result of useStudioModals
     refreshData: () => void,
     logCallback: (msg: string) => void,
-    toast?: ToastActions
+    toast?: ToastActions,
+    /** Re-runs `BackupsTab`'s own snapshot listing — `refreshData()` does not cover it. */
+    onBackupsChanged?: () => void
 ) {
     const { 
         selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
@@ -27,7 +28,7 @@ export function useStudioActions(
         attributes,
         usersPagination, teamsPagination, collectionsPagination, documentsPagination,
         filesPagination, deploymentsPagination, executionsPagination, membershipsPagination,
-        siteDeploymentsPagination, siteLogsPagination,
+        siteDeploymentsPagination,
         fetchCollectionMeta, fetchVariables, fetchSiteVariables,
     } = data;
 
@@ -47,11 +48,8 @@ export function useStudioActions(
         if (selectedFunction) fetchVariables(selectedFunction.$id);
     };
     const fetchMemberships = (_teamId?: string) => membershipsPagination.refresh();
-    
-    // Current items from pagination (for code that reads the current page)
-    const executions = executionsPagination.items;
 
-    const { confirmAction, openForm, setModalLoading, setModal, openCustomModal, closeModal } = modals;
+    const { confirmAction, openForm, setModalLoading, openCustomModal, closeModal } = modals;
 
     // Helper to show feedback
     const notify = {
@@ -1006,7 +1004,8 @@ export function useStudioActions(
             { name: 'name', label: 'Name' }
         ], async (d: any) => {
             const roles = d.roles.split(',').map((r: string) => r.trim()).filter(Boolean);
-            await getSdkTeams(activeProject).createMembership(selectedTeam.$id, roles, 'http://localhost', d.email, undefined, undefined,  d.name || undefined);
+            // The invitation lands back on this deploy, not on a developer's machine.
+            await getSdkTeams(activeProject).createMembership(selectedTeam.$id, roles, window.location.origin, d.email, undefined, undefined,  d.name || undefined);
             fetchMemberships(selectedTeam.$id);
             notify.success(`Membership invitation sent to ${d.email}.`);
         });
@@ -1018,6 +1017,46 @@ export function useStudioActions(
             await getSdkTeams(activeProject).deleteMembership(selectedTeam.$id, membership.$id);
             fetchMemberships(selectedTeam.$id);
             notify.success(`Member removed.`);
+        });
+    };
+
+    const handleBulkDeleteUsers = (userIds: string[]) => {
+        confirmAction("Delete Users", `Permanently delete ${userIds.length} users? This cannot be undone.`, async () => {
+            const sdk = getSdkUsers(activeProject);
+            let deleted = 0;
+            let failed = 0;
+            await Promise.all(userIds.map(async id => {
+                try {
+                    await sdk.delete(id);
+                    deleted++;
+                } catch (e: any) {
+                    failed++;
+                    notify.error(`Could not delete user ${id}: ${e?.message || String(e)}`);
+                }
+            }));
+            if (deleted > 0) notify.success(`Deleted ${deleted} users.`);
+            if (failed > 0) notify.warning(`${failed} of ${userIds.length} users could not be deleted.`);
+            fetchUsers();
+        });
+    };
+
+    const handleBulkDeleteTeams = (teamIds: string[]) => {
+        confirmAction("Delete Teams", `Delete ${teamIds.length} teams and all their memberships?`, async () => {
+            const sdk = getSdkTeams(activeProject);
+            let deleted = 0;
+            let failed = 0;
+            await Promise.all(teamIds.map(async id => {
+                try {
+                    await sdk.delete(id);
+                    deleted++;
+                } catch (e: any) {
+                    failed++;
+                    notify.error(`Could not delete team ${id}: ${e?.message || String(e)}`);
+                }
+            }));
+            if (deleted > 0) notify.success(`Deleted ${deleted} teams.`);
+            if (failed > 0) notify.warning(`${failed} of ${teamIds.length} teams could not be deleted.`);
+            fetchTeams();
         });
     };
 
@@ -1205,6 +1244,7 @@ export function useStudioActions(
             const storage = getSdkStorage(activeProject);
             await storage.deleteFile(BACKUP_BUCKET_ID, file.$id);
             refreshData();
+            onBackupsChanged?.();
             notify.success(`Snapshot deleted.`);
         });
     };
@@ -1214,6 +1254,7 @@ export function useStudioActions(
             const service = new BackupService(activeProject, logCallback);
             await service.runRestore(file.$id);
             refreshData();
+            onBackupsChanged?.();
             notify.success(`Restore complete.`);
         });
     };
@@ -1235,9 +1276,9 @@ export function useStudioActions(
         handleCreateVariable, handleUpdateVariable, handleDeleteVariable, handleExecuteFunction, handleUpdateFunction,
         // Users
         handleCreateUser, handleDeleteUser, handleUpdateUserStatus, handleUpdateUserLabels, 
-        handleUpdateUserName, handleUpdateUserEmail, handleVerifyUserEmail,
+        handleUpdateUserName, handleUpdateUserEmail, handleVerifyUserEmail, handleBulkDeleteUsers,
         // Teams
-        handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership, handleRenameTeam,
+        handleCreateTeam, handleDeleteTeam, handleCreateMembership, handleDeleteMembership, handleRenameTeam, handleBulkDeleteTeams,
         // Sites
         handleCreateSite, handleDeleteSite, handleUpdateSite,
         handleActivateSiteDeployment, handleCancelSiteDeployment, handleDeleteSiteDeployment, handleBulkDeleteSiteDeployments,

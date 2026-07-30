@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { AppwriteProject, Database, Collection } from '../../../types';
 import { parseCollectionsToErd, ErdNode, ErdEdge } from '../../../services/databaseToolsService';
+import { getSdkDatabases } from '../../../services/appwrite';
 import { ErdIcon, DatabaseIcon, InfoIcon, VerifiedIcon, LoadingSpinnerIcon } from '../../Icons';
 import { useToast } from '../../../hooks/useToast';
+import { TabShell } from '../ui/TabShell';
 
 interface ErdTabProps {
     activeProject: AppwriteProject;
@@ -30,7 +32,7 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
         const fetchCollections = async () => {
             setCollectionsLoading(true);
             try {
-                const sdk = (await import('../../../services/appwrite')).getSdkDatabases(activeProject);
+                const sdk = getSdkDatabases(activeProject);
                 const res = await sdk.listCollections(selectedDbId);
                 setCollections(res.collections as any[] || []);
             } catch (e: any) {
@@ -66,18 +68,12 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
     }, [edges, hoveredNodeId]);
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/5 pb-4 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-2">
-                        <ErdIcon size={24} className="text-cyan-400" />
-                        Entity-Relationship Visualizer (ERD)
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Interactive schema map analyzing data attributes and structural collection relationships.</p>
-                </div>
-                
-                {/* Database Selector */}
+        <TabShell
+            title="Entity-Relationship Visualizer (ERD)"
+            subtitle="Interactive schema map analyzing data attributes and structural collection relationships."
+            icon={<ErdIcon size={24} className="text-cyan-400" />}
+            actions={
+                /* Database Selector */
                 <div className="flex items-center gap-3 bg-gray-900/60 p-1.5 rounded-xl border border-white/5">
                     <DatabaseIcon size={14} className="text-cyan-400 ml-2" />
                     <select
@@ -99,8 +95,8 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
                         )}
                     </select>
                 </div>
-            </div>
-
+            }
+        >
             {databases.length === 0 ? (
                 <div className="text-center py-20 bg-gray-900/20 border border-white/5 rounded-2xl">
                     <ErdIcon size={40} className="text-gray-600 mx-auto mb-2" />
@@ -263,6 +259,6 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
                     </div>
                 </div>
             )}
-        </div>
+        </TabShell>
     );
 };

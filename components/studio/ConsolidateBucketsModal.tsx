@@ -5,6 +5,7 @@ import { LoadingSpinnerIcon, RefreshIcon, StorageIcon, RiRocketLine, RiShareForw
 import type { AppwriteProject, Bucket } from '../../types';
 import { getSdkStorage, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
+import { useToast } from '../../hooks/useToast';
 
 interface ConsolidateBucketsModalProps {
     isOpen: boolean;
@@ -18,6 +19,7 @@ interface ConsolidateBucketsModalProps {
 export const ConsolidateBucketsModal: React.FC<ConsolidateBucketsModalProps> = ({ 
     isOpen, onClose, buckets, activeProject, projects, onSuccess 
 }) => {
+    const toast = useToast();
     const [sourceBucketIds, setSourceBucketIds] = useState<string[]>([]);
     
     // Destination Configuration
@@ -232,7 +234,7 @@ export const ConsolidateBucketsModal: React.FC<ConsolidateBucketsModalProps> = (
 
     const executeConsolidation = async () => {
         if (sourceBucketIds.length === 0) {
-            alert("Please select at least one source bucket.");
+            toast.warning("Please select at least one source bucket.");
             return;
         }
         
@@ -240,16 +242,16 @@ export const ConsolidateBucketsModal: React.FC<ConsolidateBucketsModalProps> = (
         
         if (destType === 'internal') {
             if (!destBucketId) {
-                alert("Please select a destination bucket.");
+                toast.warning("Please select a destination bucket.");
                 return;
             }
             if (sourceBucketIds.includes(destBucketId)) {
-                alert("Destination bucket cannot be one of the source buckets.");
+                toast.error("Destination bucket cannot be one of the source buckets.");
                 return;
             }
         } else {
             if (!extEndpoint || !extProjectId || !extApiKey || !extBucketId) {
-                alert("Please fill in all External Project details.");
+                toast.warning("Please fill in all External Project details.");
                 return;
             }
             finalDestBucketId = extBucketId;

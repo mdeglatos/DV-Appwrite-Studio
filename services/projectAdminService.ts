@@ -199,20 +199,6 @@ export async function updateAuthMethod(
     }, { [key]: enabled });
 }
 
-export async function updateAuthProvider(
-    project: AppwriteProject,
-    provider: string,
-    appId: string,
-    secret: string,
-    enabled: boolean
-): Promise<void> {
-    const client = createProjectAdminClient(project);
-    // Appwrite Console updates OAuth provider settings by calling PATCH /project/providers/{provider}
-    await (client as any).call('PATCH', getUrl(client, `/project/providers/${provider}`), {
-        'content-type': 'application/json'
-    }, { appId, secret, enabled });
-}
-
 // 6. Live Project Usage Metrics
 export interface ProjectUsage {
     bandwidth: number;
@@ -222,7 +208,15 @@ export interface ProjectUsage {
     functions: number;
 }
 
-export async function getProjectUsage(project: AppwriteProject): Promise<ProjectUsage> {
+/**
+ * Live project usage, or `null` when the endpoint is unavailable — typically
+ * because the API key lacks the required scopes or the server version does not
+ * expose `/project/usage`.
+ *
+ * Returning `null` is deliberate: invented numbers rendered as live metrics are
+ * worse than no metrics, so the caller must render an explicit unavailable state.
+ */
+export async function getProjectUsage(project: AppwriteProject): Promise<ProjectUsage | null> {
     const client = createProjectAdminClient(project);
     // In Appwrite, we can get project usage metrics by calling GET /project/usage
     try {
@@ -237,13 +231,6 @@ export async function getProjectUsage(project: AppwriteProject): Promise<Project
             functions: response.functions || 0
         };
     } catch (e) {
-        // Fallback placeholder values if keys.read or billing scopes are not available on this server version
-        return {
-            bandwidth: Math.floor(Math.random() * 2000000000),
-            storage: Math.floor(Math.random() * 500000000),
-            users: 142,
-            databases: 3,
-            functions: 5
-        };
+        return null;
     }
 }

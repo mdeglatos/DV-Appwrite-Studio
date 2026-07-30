@@ -14,6 +14,8 @@ import { TransferDocumentsModal } from '../TransferDocumentsModal';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
 import { Modal } from '../../Modal';
 import { useToast } from '../../../hooks/useToast';
+import { TabShell } from '../ui/TabShell';
+import { seedCollection } from '../../../services/databaseToolsService';
 
 type CollectionTab = 'documents' | 'attributes' | 'indexes' | 'settings';
 
@@ -94,7 +96,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
         if (!selectedDb || !selectedCollection) return;
         setIsSeeding(true);
         try {
-            const { seedCollection } = await import('../../../services/databaseToolsService');
+            
             const successes = await seedCollection(
                 activeProject,
                 selectedDb.$id,
@@ -130,9 +132,14 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
 
     if (!selectedDb) {
         return (
-            <>
-                <ResourceTable<Database> 
-                    title="Databases" 
+            <TabShell
+                title="Databases"
+                subtitle="Browse databases, collections, attributes, indexes and documents."
+                icon={<DatabaseIcon size={24} className="text-cyan-400" />}
+                consoleHref={consoleLinks.databases(activeProject)}
+            >
+                <ResourceTable<Database>
+                    title="Databases"
                     data={databases} 
                     onCreate={onCreateDatabase} 
                     onDelete={onDeleteDatabase} 
@@ -147,14 +154,6 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                             >
                                 <RiShareForwardLine size={14} /> Transfer Documents
                             </button>
-                            <a 
-                                href={consoleLinks.databases(activeProject)} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                            >
-                                <ExternalLinkIcon size={14} /> Open in Console
-                            </a>
                         </div>
                     }
                     renderExtraActions={(db) => (
@@ -196,7 +195,7 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                         }
                     }}
                 />
-            </>
+            </TabShell>
         );
     }
 
@@ -274,7 +273,8 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     projects={projects}
                     databases={databases}
                     onSuccess={() => {
-                         // Logic already handled in modal usually
+                        // Documents moved in or out of this database's collections.
+                        collectionsPagination.refresh();
                     }}
                 />
             </>
@@ -548,9 +548,9 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                 projects={projects}
                 databases={databases}
                 onSuccess={() => {
-                    if (selectedCollection) {
-                         // logic to refresh current view
-                    }
+                    // The open collection's document list is now stale.
+                    documentsPagination.refresh();
+                    collectionsPagination.refresh();
                 }}
             />
 

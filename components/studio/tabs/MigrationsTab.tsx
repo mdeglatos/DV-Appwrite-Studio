@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import type { AppwriteProject } from '../../../types';
 import { MigrationService, type MigrationOptions, type MigrationPlan, type MigrationResource } from '../../../services/migrationService';
 import { MigrationIcon, LoadingSpinnerIcon, WarningIcon, CheckIcon, ChevronDownIcon, ArrowLeftIcon, DatabaseIcon, StorageIcon, FunctionIcon, TeamIcon, UserIcon, DeleteIcon, RefreshIcon, RiRocketLine } from '../../Icons';
+import { useToast } from '../../../hooks/useToast';
+import { TabShell } from '../ui/TabShell';
 
 interface MigrationsTabProps {
     activeProject: AppwriteProject;
@@ -48,6 +50,8 @@ const ResourceRow = ({ label, id, name, enabled, onIdChange, onNameChange, onTog
 );
 
 export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, projects }) => {
+    const toast = useToast();
+
     // Destination Config
     const [destEndpoint, setDestEndpoint] = useState('');
     const [destProjectId, setDestProjectId] = useState('');
@@ -111,31 +115,51 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
         }
     };
 
-    // Step 1 -> 2: Scan
-    const handleScan = async (resume: boolean = false) => {
+    const buildDestProject = (): AppwriteProject => ({
+        $id: 'dest',
+        name: 'Destination',
+        projectId: destProjectId,
+        endpoint: destEndpoint,
+        apiKey: destApiKey,
+    });
+
+    /** Builds the migration plan, or returns `null` if the config is incomplete or the scan fails. */
+    const scanPlan = async (): Promise<MigrationPlan | null> => {
         if (!destEndpoint || !destProjectId || !destApiKey) {
-            alert('Please provide all destination project details.');
-            return;
+            toast.warning('Please provide all destination project details.');
+            return null;
         }
 
         setIsLoading(true);
         try {
-            const destProject: AppwriteProject = {
-                $id: 'dest',
-                name: 'Destination',
-                projectId: destProjectId,
-                endpoint: destEndpoint,
-                apiKey: destApiKey,
-            };
-            const service = new MigrationService(activeProject, destProject, () => {});
-            const generatedPlan = await service.getMigrationPlan(options);
-            setPlan(generatedPlan);
-            setStep('preview');
+            const service = new MigrationService(activeProject, buildDestProject(), () => {});
+            return await service.getMigrationPlan(options);
         } catch (e) {
-            alert(`Scan Failed: ${e instanceof Error ? e.message : String(e)}`);
+            toast.error(`Scan Failed: ${e instanceof Error ? e.message : String(e)}`);
+            return null;
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Step 1 -> 2: Scan
+    const handleScan = async () => {
+        const generatedPlan = await scanPlan();
+        if (!generatedPlan) return;
+        setPlan(generatedPlan);
+        setStep('preview');
+    };
+
+    /**
+     * Step 1 -> 3: resume straight from a checkpoint.
+     * The checkpoint records migration *progress*, not the plan, so the plan has
+     * to be rebuilt before execution can pick up where it left off.
+     */
+    const handleResumeFromConfig = async () => {
+        const generatedPlan = await scanPlan();
+        if (!generatedPlan) return;
+        setPlan(generatedPlan);
+        await handleExecute(true, generatedPlan);
     };
 
     // Step 2: Edit Plan Helpers
@@ -172,26 +196,19 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
     };
 
     // Step 2 -> 3: Execute
-    const handleExecute = async (resume: boolean = false) => {
-        if (!plan) return;
+    const handleExecute = async (resume: boolean = false, planOverride?: MigrationPlan) => {
+        const activePlan = planOverride ?? plan;
+        if (!activePlan) return;
         setStep('executing');
         setExecutionStatus('running');
         setLogs([]);
         handleLog(`Initializing migration from "${activeProject.name}" to "${destProjectId}"...`);
 
-        const destProject: AppwriteProject = {
-            $id: 'dest',
-            name: 'Destination',
-            projectId: destProjectId,
-            endpoint: destEndpoint,
-            apiKey: destApiKey,
-        };
-
-        const service = new MigrationService(activeProject, destProject, handleLog);
+        const service = new MigrationService(activeProject, buildDestProject(), handleLog);
         serviceRef.current = service;
 
         try {
-            await service.startMigration(plan, resume);
+            await service.startMigration(activePlan, resume);
             handleLog('✅ Migration process finished.');
             setExecutionStatus('completed');
             setHasCheckpoint(false);
@@ -212,23 +229,22 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
     const availableProjects = projects.filter(p => p.$id !== activeProject.$id);
 
     return (
-        <div className="max-w-5xl mx-auto h-[calc(100vh-140px)] flex flex-col">
-            <header className="mb-6 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                     {step !== 'config' && (
-                        <button onClick={() => setStep('config')} className="p-1 text-gray-400 hover:text-white bg-gray-800 rounded-full transition-colors"><ArrowLeftIcon /></button>
-                     )}
-                     <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-3">
-                        <MigrationIcon className="text-cyan-400" /> 
-                        {step === 'config' ? 'Migration Setup' : step === 'preview' ? 'Preview & Edit Plan' : 'Migration Execution'}
-                    </h1>
-                </div>
-                {step === 'config' && (
-                     <p className="text-gray-400 mt-2 text-sm">
-                        Select a destination project and choose which resources to migrate. You will be able to review and modify target IDs/Names before starting.
-                    </p>
-                )}
-            </header>
+        <TabShell
+            title={step === 'config' ? 'Migration Setup' : step === 'preview' ? 'Preview & Edit Plan' : 'Migration Execution'}
+            subtitle={step === 'config'
+                ? 'Select a destination project and choose which resources to migrate. You will be able to review and modify target IDs/Names before starting.'
+                : undefined}
+            icon={<MigrationIcon size={24} className="text-cyan-400" />}
+            actions={step !== 'config' ? (
+                <button
+                    onClick={() => setStep('config')}
+                    title="Back to Migration Setup"
+                    className="p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-full transition-colors"
+                >
+                    <ArrowLeftIcon />
+                </button>
+            ) : undefined}
+        >
 
             {/* STEP 1: CONFIG */}
             {step === 'config' && (
@@ -323,7 +339,7 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
                         
                         <div className="space-y-3">
                             <button 
-                                onClick={() => handleScan(false)} 
+                                onClick={handleScan}
                                 disabled={isLoading}
                                 className={`w-full py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all ${isLoading ? 'bg-gray-700 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500'}`}
                             >
@@ -334,8 +350,8 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
                             {hasCheckpoint && (
                                 <div className="p-3 bg-yellow-900/20 border border-yellow-700/50 rounded-xl text-center">
                                     <p className="text-xs text-yellow-300 mb-2">Previous migration checkpoint detected.</p>
-                                    <button 
-                                        onClick={() => handleScan(true)}
+                                    <button
+                                        onClick={handleResumeFromConfig}
                                         disabled={isLoading}
                                         className="w-full py-2 bg-yellow-800 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
                                     >
@@ -519,6 +535,6 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
                     </div>
                 </div>
             )}
-        </div>
+        </TabShell>
     );
 };

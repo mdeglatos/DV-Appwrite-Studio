@@ -1,5 +1,6 @@
 
 import { getSdkDatabases, ID, Query } from '../services/appwrite';
+import { seedCollection } from '../services/databaseToolsService';
 import type { AIContext } from '../types';
 import { Type, type FunctionDeclaration } from '@google/genai';
 
@@ -508,7 +509,6 @@ async function seedCollectionWithMockData(
     try {
         const databases = getSdkDatabases(context.project);
         const collection = await databases.getCollection(finalDbId, finalCollectionId);
-        const { seedCollection } = await import('../services/databaseToolsService');
         const successes = await seedCollection(context.project, finalDbId, finalCollectionId, collection.attributes, count);
         return { success: `Successfully seeded ${successes} documents into collection "${finalCollectionId}".` };
     } catch (e: any) {

@@ -8,6 +8,7 @@ import {
     matchesEvent,
 } from '../services/realtimeService';
 import { useSmartPolling } from './useRealtime';
+import { routes } from '../services/router';
 
 const CONTEXT_POLL_INTERVAL_MS = 10_000; // 10 seconds
 
@@ -16,6 +17,13 @@ export function useAppContext(
     logCallback: (log: string) => void,
     routerParams: Record<string, string>,
     navigate: (path: string) => void,
+    /**
+     * Whether the Agent view is active. The `dbId` route param is shared with the
+     * Studio's drill-downs, so off the Agent route this hook must not resolve a
+     * selected database or fetch its collections — `useStudioData` owns that
+     * there, and doing both fetched every collection twice.
+     */
+    isAgentRoute: boolean = true,
     onRealtimeEvent?: (event: RealtimeEvent) => void,
 ) {
     const [databases, setDatabases] = useState<Database[]>([]);
@@ -25,44 +33,44 @@ export function useAppContext(
     const [isContextLoading, setIsContextLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const selectedDatabase = databases.find(d => d.$id === routerParams.dbId) || null;
-    const selectedCollection = collections.find(c => c.$id === routerParams.collId) || null;
-    const selectedBucket = buckets.find(b => b.$id === routerParams.bucketId) || null;
+    const selectedDatabase = isAgentRoute ? (databases.find(d => d.$id === routerParams.dbId) || null) : null;
+    const selectedCollection = isAgentRoute ? (collections.find(c => c.$id === routerParams.collId) || null) : null;
+    const selectedBucket = isAgentRoute ? (buckets.find(b => b.$id === routerParams.bucketId) || null) : null;
     const selectedFunction = functions.find(f => f.$id === routerParams.fnId) || null;
 
     const setSelectedDatabase = useCallback((db: Database | null) => {
         if (!activeProject) return;
         if (db) {
-            navigate(`/project/${activeProject.$id}/agent/database/${db.$id}`);
+            navigate(routes.agentDatabase(activeProject.$id, db.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/agent`);
+            navigate(routes.agent(activeProject.$id));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedCollection = useCallback((coll: Collection | null) => {
         if (!activeProject) return;
         if (coll && selectedDatabase) {
-            navigate(`/project/${activeProject.$id}/agent/database/${selectedDatabase.$id}/collection/${coll.$id}`);
+            navigate(routes.agentCollection(activeProject.$id, selectedDatabase.$id, coll.$id));
         } else if (selectedDatabase) {
-            navigate(`/project/${activeProject.$id}/agent/database/${selectedDatabase.$id}`);
+            navigate(routes.agentDatabase(activeProject.$id, selectedDatabase.$id));
         }
     }, [activeProject?.$id, selectedDatabase?.$id, navigate]);
 
     const setSelectedBucket = useCallback((b: Bucket | null) => {
         if (!activeProject) return;
         if (b) {
-            navigate(`/project/${activeProject.$id}/agent/storage/${b.$id}`);
+            navigate(routes.agentStorage(activeProject.$id, b.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/agent`);
+            navigate(routes.agent(activeProject.$id));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedFunction = useCallback((f: AppwriteFunction | null) => {
         if (!activeProject) return;
         if (f) {
-            navigate(`/project/${activeProject.$id}/agent/function/${f.$id}`);
+            navigate(routes.agentFunction(activeProject.$id, f.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/agent`);
+            navigate(routes.agent(activeProject.$id));
         }
     }, [activeProject?.$id, navigate]);
 
@@ -164,7 +172,7 @@ export function useAppContext(
     }, [activeProject?.$id, refreshContextData]);
 
     useEffect(() => {
-        if (!selectedDatabase || !activeProject || activeProject.$id !== currentProjectIdRef.current) {
+        if (!isAgentRoute || !selectedDatabase || !activeProject || activeProject.$id !== currentProjectIdRef.current) {
             setCollections([]);
             return;
         }
@@ -198,7 +206,7 @@ export function useAppContext(
         };
 
         fetchCollections();
-    }, [selectedDatabase?.$id, activeProject?.$id, logCallback]);
+    }, [isAgentRoute, selectedDatabase?.$id, activeProject?.$id, logCallback]);
 
     // ====================================================================
     // SMART POLLING — Periodically refresh context data in the background

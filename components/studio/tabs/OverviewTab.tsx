@@ -3,9 +3,18 @@ import React, { useState, useEffect } from 'react';
 import type { Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab, AppwriteProject } from '../../../types';
 import type { Models } from 'node-appwrite';
 import { StatCard } from '../ui/StatCard';
-import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon, SitesIcon, LoadingSpinnerIcon } from '../../Icons';
+import { DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, ExternalLinkIcon, AddIcon, InfoIcon, SitesIcon, LoadingSpinnerIcon, DashboardIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
+import { TabShell } from '../ui/TabShell';
+import { getProjectUsage, type ProjectUsage } from '../../../services/projectAdminService';
+
+const UsageStat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+    <div className="space-y-1">
+        <div className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">{label}</div>
+        <div className="text-sm font-bold text-gray-200">{value}</div>
+    </div>
+);
 
 interface OverviewTabProps {
     activeProject: AppwriteProject;
@@ -29,18 +38,19 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     onCreateDatabase, onCreateBucket, onCreateUser,
     sitesTotal, usersTotal, teamsTotal
 }) => {
-    const [usage, setUsage] = useState<any>(null);
+    const [usage, setUsage] = useState<ProjectUsage | null>(null);
     const [usageLoading, setUsageLoading] = useState(true);
 
     useEffect(() => {
         const fetchUsage = async () => {
             setUsageLoading(true);
             try {
-                const { getProjectUsage } = await import('../../../services/projectAdminService');
+                
                 const data = await getProjectUsage(activeProject);
                 setUsage(data);
             } catch (e) {
                 console.error(e);
+                setUsage(null);
             } finally {
                 setUsageLoading(false);
             }
@@ -57,18 +67,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     const finalTeamsCount = teamsTotal !== undefined ? teamsTotal : teams.length;
 
     return (
-        <>
-            <header className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-100">Project Overview</h1>
-                <a 
-                    href={consoleLinks.overview(activeProject)} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-all"
-                >
-                    <ExternalLinkIcon size={14} /> Open Native Console
-                </a>
-            </header>
+        <TabShell
+            title="Project Overview"
+            subtitle={`Resource totals, usage and quick actions for "${activeProject.name}".`}
+            icon={<DashboardIcon size={24} className="text-cyan-400" />}
+            consoleHref={consoleLinks.overview(activeProject)}
+        >
 
             {/* Project Info Card */}
             <div className="mb-6 bg-gray-900/40 border border-gray-800/50 rounded-xl p-5">
@@ -165,39 +169,25 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                         <LoadingSpinnerIcon size={16} className="text-cyan-400 animate-spin" />
                     </div>
                 ) : usage ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Bandwidth Gauge */}
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-xs font-semibold">
-                                <span className="text-gray-400">Monthly Bandwidth</span>
-                                <span className="text-gray-200">{(usage.bandwidth / (1024 * 1024)).toFixed(1)} MB</span>
-                            </div>
-                            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-white/5">
-                                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min(100, (usage.bandwidth / (1024 * 1024 * 1000)) * 100)}%` }} />
-                            </div>
-                            <div className="flex justify-between text-[10px] text-gray-500">
-                                <span>0 MB</span>
-                                <span>1 GB Limit</span>
-                            </div>
-                        </div>
-
-                        {/* Storage Gauge */}
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-xs font-semibold">
-                                <span className="text-gray-400">Project Cloud Storage</span>
-                                <span className="text-gray-200">{(usage.storage / (1024 * 1024)).toFixed(1)} MB</span>
-                            </div>
-                            <div className="w-full bg-gray-950 rounded-full h-2.5 overflow-hidden border border-white/5">
-                                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min(100, (usage.storage / (1024 * 1024 * 500)) * 100)}%` }} />
-                            </div>
-                            <div className="flex justify-between text-[10px] text-gray-500">
-                                <span>0 MB</span>
-                                <span>500 MB Limit</span>
-                            </div>
-                        </div>
+                    /* Raw reported values only — this server exposes no quota, so no gauge is drawn. */
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <UsageStat label="Monthly Bandwidth" value={`${(usage.bandwidth / (1024 * 1024)).toFixed(1)} MB`} />
+                        <UsageStat label="Cloud Storage" value={`${(usage.storage / (1024 * 1024)).toFixed(1)} MB`} />
+                        <UsageStat label="Users" value={String(usage.users)} />
+                        <UsageStat label="Databases" value={String(usage.databases)} />
+                        <UsageStat label="Functions" value={String(usage.functions)} />
                     </div>
                 ) : (
-                    <div className="text-xs text-gray-500 italic py-2">Could not load usage statistics.</div>
+                    <div className="flex items-start gap-3 py-2">
+                        <InfoIcon size={14} className="text-gray-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-xs font-semibold text-gray-400">Usage statistics unavailable for this API key</p>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                                This project's server did not return usage metrics. Add the required scopes to the API key,
+                                or check the figures in the Appwrite Console.
+                            </p>
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -247,6 +237,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                     </a>
                 </div>
             </div>
-        </>
+        </TabShell>
     );
 };

@@ -10,6 +10,7 @@ import { ExternalLinkIcon, DeleteIcon, EditIcon, TeamIcon, CleanupIcon } from '.
 import { consoleLinks } from '../../../services/appwrite';
 import type { AppwriteProject } from '../../../types';
 import { getTeamCleanupConfig } from '../hooks/cleanupConfigs';
+import { TabShell } from '../ui/TabShell';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
 
 interface TeamsTabProps {
@@ -41,7 +42,12 @@ export const TeamsTab: React.FC<TeamsTabProps> = ({
 
     if (!selectedTeam) {
         return (
-            <div className="space-y-3">
+            <TabShell
+                title="Teams"
+                subtitle="Group users into teams and manage their memberships and roles."
+                icon={<TeamIcon size={24} className="text-cyan-400" />}
+                consoleHref={consoleLinks.teams(activeProject)}
+            >
                 <ResourceSearchBar
                     value={pagination.searchQuery}
                     onChange={pagination.setSearch}
@@ -135,7 +141,7 @@ export const TeamsTab: React.FC<TeamsTabProps> = ({
                     config={cleanupConfig}
                     onComplete={() => pagination.refresh()}
                 />
-            </div>
+            </TabShell>
         );
     }
 

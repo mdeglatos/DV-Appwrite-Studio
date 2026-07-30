@@ -3,6 +3,7 @@ import type { AppwriteProject, HealthStatus } from '../../../types';
 import { getSdkHealth } from '../../../services/appwrite';
 import { HealthIcon, LoadingSpinnerIcon, WarningIcon, VerifiedIcon, ExternalLinkIcon } from '../../Icons';
 import { useToast } from '../../../hooks/useToast';
+import { TabShell } from '../ui/TabShell';
 
 interface HealthTabProps {
     activeProject: AppwriteProject;
@@ -117,17 +118,23 @@ export const HealthTab: React.FC<HealthTabProps> = ({ activeProject }) => {
 
     if (scopeError) {
         return (
-            <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-8 backdrop-blur-md text-center max-w-xl mx-auto py-12 flex flex-col items-center gap-4">
-                <WarningIcon size={40} className="text-cyan-400" />
-                <h2 className="text-base font-bold text-gray-200 uppercase tracking-widest">Scope Permission Required</h2>
-                <p className="text-xs text-gray-400 leading-relaxed">{scopeError}</p>
-                <button
-                    onClick={runDiagnostics}
-                    className="mt-2 px-5 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-300 transition-all active:scale-95"
-                >
-                    Retry Diagnostics
-                </button>
-            </div>
+            <TabShell
+                title="Infrastructure Diagnostics"
+                subtitle="Audit real-time server latencies, memory cache pools, storage checkouts, and queues backlogs."
+                icon={<HealthIcon size={24} className="text-cyan-400" />}
+            >
+                <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-8 backdrop-blur-md text-center py-12 flex flex-col items-center gap-4">
+                    <WarningIcon size={40} className="text-cyan-400" />
+                    <h2 className="text-base font-bold text-gray-200 uppercase tracking-widest">Scope Permission Required</h2>
+                    <p className="text-xs text-gray-400 leading-relaxed">{scopeError}</p>
+                    <button
+                        onClick={runDiagnostics}
+                        className="mt-2 px-5 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-xs font-bold text-gray-300 transition-all active:scale-95"
+                    >
+                        Retry Diagnostics
+                    </button>
+                </div>
+            </TabShell>
         );
     }
 
@@ -136,23 +143,19 @@ export const HealthTab: React.FC<HealthTabProps> = ({ activeProject }) => {
         : false;
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100 flex items-center gap-2">
-                        <HealthIcon size={24} className="text-cyan-400 animate-pulse" />
-                        Infrastructure Diagnostics
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-1">Audit real-time server latencies, memory cache pools, storage checkouts, and queues backlogs.</p>
-                </div>
-                <button 
+        <TabShell
+            title="Infrastructure Diagnostics"
+            subtitle="Audit real-time server latencies, memory cache pools, storage checkouts, and queues backlogs."
+            icon={<HealthIcon size={24} className="text-cyan-400 animate-pulse" />}
+            actions={
+                <button
                     onClick={runDiagnostics}
                     className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 font-semibold rounded-xl text-xs text-white transition-all shadow-inner"
                 >
                     Refresh Audit
                 </button>
-            </div>
+            }
+        >
 
             {/* Overall status card */}
             <div className={`p-6 rounded-2xl border flex items-center gap-4 backdrop-blur-md ${
@@ -289,6 +292,6 @@ export const HealthTab: React.FC<HealthTabProps> = ({ activeProject }) => {
                     </div>
                 </div>
             </div>
-        </div>
+        </TabShell>
     );
 };

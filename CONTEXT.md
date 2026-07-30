@@ -46,7 +46,7 @@ Users register/login via Appwrite auth on the studio's own backend. Each user ca
 |:-------------------------|:---------------------------------------------------------------|
 | Redux / Zustand / Jotai  | State is managed via hooks — no external state managers        |
 | CSS Modules / Styled Comp | Tailwind CDN is the styling system                             |
-| `alert()` / `confirm()`  | Use in-app modals (`ConfirmationModal.tsx`)                    |
+| `alert()` / `confirm()` / `prompt()` | Messages → `useToast()`; confirmations → `useConfirm()`. **Enforced by `test/no-native-dialogs.test.ts`** |
 | Raw `process.env.*`       | Use `import.meta.env.VITE_*` via `config.ts`                  |
 | Raw SDK calls in UI       | All Appwrite calls go through `services/` or `tools/`          |
 | Server-side rendering     | This is a client-only SPA                                      |
@@ -78,9 +78,14 @@ DV Backend Studio/
 │   ├── Code (CodeViewer, CodeViewerSidebar)
 │   ├── Icons.tsx      # Centralized icon wrappers
 │   └── studio/        # Manual dashboard view
+│       ├── navigation.tsx  # Section → icon + panel binding (the presentation registry)
 │       ├── tabs/      # Tab panels (DatabasesTab, StorageTab, FunctionsTab, SitesTab, etc.)
-│       ├── ui/        # Reusable Studio sub-components (ResourceTable, StatCard, etc.)
-│       ├── hooks/     # Studio-specific hooks (useStudioActions, useStudioData, useStudioModals)
+│       ├── ui/        # Reusable Studio sub-components
+│       │   ├── StudioNavBar.tsx  # Group chips + Settings gear + Sync
+│       │   ├── StudioSubNav.tsx  # The active group's section row
+│       │   ├── TabShell.tsx      # The shared page frame (title/subtitle/console link)
+│       │   └── ResourceTable, StatCard, Toast, PaginationFooter, …
+│       ├── hooks/     # Studio-specific hooks (useStudioActions, useStudioData, useStudioModals, usePaginatedQuery)
 │       ├── types.ts   # Studio-specific types
 │       ├── CollectionSettings.tsx
 │       ├── ConsolidateBucketsModal.tsx
@@ -94,27 +99,49 @@ DV Backend Studio/
 │   ├── useChatSession.ts       # Gemini chat session lifecycle
 │   ├── useSettings.ts          # User preferences (API key, model, tool toggles)
 │   ├── useCodeMode.ts          # Code editor state
-│   └── useDragAndDrop.ts       # File drag & drop handling
+│   ├── useDragAndDrop.ts       # File drag & drop handling
+│   ├── useToast.tsx            # ToastProvider + useToast() — the ONE toast surface
+│   └── useConfirm.tsx          # ConfirmProvider + useConfirm() — the ONE confirmation dialog
 │
 ├── services/          # Backend service layer
 │   ├── appwrite.ts             # Appwrite client init, SDK factories, console URL helpers
+│   ├── router.tsx              # History router: ROUTE_PATTERNS, routes.*, rewriteLegacyPath, resolveStudioSection
+│   ├── studioNav.ts            # Studio group/section structure, labels, order, URL segments
 │   ├── realtimeService.ts      # Realtime WebSocket manager for managed projects (client SDK)
 │   ├── authService.ts          # Login, logout, account, preferences
 │   ├── projectService.ts       # CRUD for user's registered projects
+│   ├── projectAdminService.ts  # Project-level admin API (keys, platforms, webhooks, auth, usage)
+│   ├── databaseToolsService.ts # Mock-data seeding + ERD parsing
 │   ├── geminiService.ts        # AI chat session creation & run loop
 │   ├── auditLogService.ts      # IndexedDB audit logging
 │   ├── backupService.ts        # Export/import Appwrite project configs
 │   └── migrationService.ts     # Full project migration engine
 │
-└── tools/             # AI tool definitions (Gemini function calling)
-    ├── index.ts                # Combines all tool groups
-    ├── databaseTools.ts        # DB/collection/attribute/index/document tools
-    ├── storagTools.ts          # Bucket/file management tools
-    ├── functionsTools.ts       # Function/deployment/variable tools
-    ├── usersTools.ts           # User management tools
-    ├── teamsTools.ts           # Team management tools
-    └── sitesTools.ts           # Site/deployment/variable management tools
+├── tools/             # AI tool definitions (Gemini function calling)
+│   ├── index.ts                # Combines all tool groups
+│   ├── databaseTools.ts        # DB/collection/attribute/index/document tools
+│   ├── storageTools.ts         # Bucket/file management tools
+│   ├── functionsTools.ts       # Function/deployment/variable tools
+│   ├── usersTools.ts           # User management tools
+│   ├── teamsTools.ts           # Team management tools
+│   ├── sitesTools.ts           # Site/deployment/variable management tools
+│   ├── projectAdminTools.ts    # Keys, platforms, variables, auth settings
+│   ├── messagingTools.ts       # Providers, topics, subscribers, campaigns
+│   ├── healthTools.ts          # Server diagnostics
+│   └── webhookTools.ts         # Webhook registration
+│
+├── workers/           # Function source bundles deployed on demand
+│   ├── backup-worker/
+│   ├── migration-worker/
+│   └── restore-worker/
+│
+└── test/              # Vitest setup + cross-cutting guards
+    ├── setup.ts                # jest-dom matchers + afterEach(cleanup)
+    └── no-native-dialogs.test.ts  # Enforces the alert/confirm/prompt ban
 ```
+
+> Unit tests live **next to** the file under test as `<name>.test.ts(x)`; only setup and
+> cross-cutting guards live under `test/`.
 
 ### 🔗 Layer Responsibilities
 
@@ -126,6 +153,10 @@ DV Backend Studio/
 | **Tools**    | `tools/`           | AI function-calling definitions + executors        |
 | **Config**   | `config.ts`        | Environment variable abstraction                   |
 | **Types**    | `types.ts`         | Shared interfaces and type aliases                 |
+
+> `services/studioNav.ts` is pure data + pure functions — **no React, no JSX, no import from
+> `components/`** — precisely so `services/router.tsx` can import it. Icons and panel
+> components live in `components/studio/navigation.tsx`.
 
 ### Key Architectural Decisions
 1. **Dual Appwrite SDK usage**: The `appwrite` (client) SDK handles the studio's own auth & project storage. The `node-appwrite` (server) SDK is used client-side for admin operations against the user's managed projects (via API key auth).
@@ -205,12 +236,20 @@ db.listDocuments(import.meta.env.VITE_APPWRITE_DATABASE_ID, ...);
 3. Export both from the tool module
 4. The tool auto-registers via `tools/index.ts`
 
-### Adding a New Studio Tab
-1. Create `components/studio/tabs/NewTab.tsx`
-2. Add the tab type to `StudioTab` union in `types.ts`
-3. Add routing logic in `Studio.tsx`
-4. Add the tab button in `StudioNavBar.tsx`
-5. Add data fetching logic in `components/studio/hooks/useStudioData.ts` if needed
+### Adding a New Studio Section
+1. Create `components/studio/tabs/NewTab.tsx` (wrap its content in `<TabShell>`)
+2. Add the id to the `StudioTab` union in `types.ts`
+3. Register it in **two** places, and that's all:
+   - `services/studioNav.ts` — put the id in a group's `sections`, and give it a `SECTION_LABELS` entry
+   - `components/studio/navigation.tsx` — give it an icon and its panel component in `STUDIO_SECTION_UI`
+
+Both maps are typed against `StudioTab`, so **forgetting either step is a compile error, not a
+blank screen.** The nav bar, the sub-nav, the sidebar tree, the URL (`routes.studioSection`), the
+legacy-path rewrite and `Studio.tsx`'s panel dispatch all read from those two modules — none of
+them needs editing.
+
+4. Add its props to the `sectionProps` map in `Studio.tsx` (also typed exhaustively)
+5. Add data fetching in `components/studio/hooks/useStudioData.ts` if needed
 
 ### Adding a New Service
 1. Create `services/newService.ts`
@@ -246,7 +285,8 @@ db.listDocuments(import.meta.env.VITE_APPWRITE_DATABASE_ID, ...);
 - **`UserPrefs`** — Extends Appwrite `Models.Preferences` with app-specific keys
 - **`Database`**, **`Collection`**, **`Bucket`**, **`AppwriteFunction`** — Appwrite resource types
 - **`BackupOptions`** — Toggles for backup scope
-- **`StudioTab`** — Union literal: `'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups' | 'messaging' | 'health' | 'webhooks' | 'project-settings' | 'erd'`
+- **`StudioTab`** — Union literal: `'overview' | 'database' | 'storage' | 'functions' | 'sites' | 'users' | 'teams' | 'migrations' | 'backups' | 'messaging' | 'health' | 'webhooks' | 'project-settings' | 'erd'`. The union says *what exists*; `services/studioNav.ts` owns grouping/labels/URLs and `components/studio/navigation.tsx` owns icons/panels.
+- **`StudioGroupId`** (`services/studioNav.ts`) — `'overview' | 'data' | 'compute' | 'auth' | 'integrations' | 'operations' | 'settings'`
 
 ---
 
@@ -264,14 +304,21 @@ db.listDocuments(import.meta.env.VITE_APPWRITE_DATABASE_ID, ...);
 - `gemini-3-pro` — more capable
 
 ### Tool Categories
-| Group       | File                    | Tools Count | Examples                                   |
-|:------------|:------------------------|:------------|:-------------------------------------------|
-| Database    | `databaseTools.ts`      | ~15         | createDatabase, createCollection, listDocs  |
-| Storage     | `storageTools.ts`       | ~8          | createBucket, writeFile, deleteFile         |
-| Functions   | `functionsTools.ts`     | ~10         | createFunction, deployNewCode, getVariables |
-| Users       | `usersTools.ts`         | ~5          | listUsers, createUser, deleteUser           |
-| Teams       | `teamsTools.ts`         | ~4          | listTeams, createTeam, listMemberships      |
-| Search      | (built-in)              | 1           | googleSearch (grounding)                    |
+`tools/index.ts` registers **10** groups (plus the built-in search grounding):
+
+| Group          | File                    | Examples                                    |
+|:---------------|:------------------------|:--------------------------------------------|
+| `database`     | `databaseTools.ts`      | createDatabase, createCollection, listDocs   |
+| `storage`      | `storageTools.ts`       | createBucket, writeFile, deleteFile          |
+| `functions`    | `functionsTools.ts`     | createFunction, deployNewCode, getVariables  |
+| `users`        | `usersTools.ts`         | listUsers, createUser, deleteUser            |
+| `teams`        | `teamsTools.ts`         | listTeams, createTeam, listMemberships       |
+| `sites`        | `sitesTools.ts`         | createSite, deploySite, listSiteLogs         |
+| `projectAdmin` | `projectAdminTools.ts`  | createApiKey, createPlatform, authSettings   |
+| `messaging`    | `messagingTools.ts`     | createTopic, addSubscriber, sendBroadcast    |
+| `health`       | `healthTools.ts`        | getHealthStatus, getQueueSizes               |
+| `webhook`      | `webhookTools.ts`       | listWebhooks, createWebhook, deleteWebhook   |
+| Search         | (built-in)              | googleSearch (grounding)                     |
 
 ---
 
@@ -282,7 +329,10 @@ npm run dev        # Start dev server (port 3000)
 npm run build      # Production build
 npm run preview    # Preview production build
 npm run typecheck  # TypeScript type check (no emit)
+npm test           # Vitest (jsdom) — the full suite, single run
 ```
+
+The gate before calling work done is `npm run typecheck && npm test && npm run build`.
 
 ---
 
@@ -303,26 +353,50 @@ The studio uses a custom client-side History Router that synchronizes workspace 
 * `/project/:projectId/agent/database/:dbId` — Selected Database
 * `/project/:projectId/agent/database/:dbId/collection/:collId` — Selected Collection
 * `/project/:projectId/agent/storage/:bucketId` — Selected Bucket
-* `/project/:projectId/agent/function/:fnId` — Selected Function
-* `/project/:projectId/agent/function/:fnId/code` — Function selected with Code Editor sidebar open
+* `/project/:projectId/agent/functions/:fnId` — Selected Function
+* `/project/:projectId/agent/functions/:fnId/code` — Function selected with Code Editor sidebar open
 
-### 4. Studio View Tabs & Selections
-* `/project/:projectId/studio/:tabName` — Studio tab (where `:tabName` is one of `database`, `storage`, `functions`, `users`, `teams`, `sites`, `migrations`, `backups`, `messaging`, `health`, `webhooks`, `project-settings`, `erd`)
-* **Database Tab**:
-  * `/project/:projectId/studio/database/:dbId` — Database selected
-  * `/project/:projectId/studio/database/:dbId/collection/:collId` — Collection selected
-  * `/project/:projectId/studio/database/:dbId/collection/:collId/document/:docId` — Collection selected with Document Preview modal open
-* **Storage Tab**:
-  * `/project/:projectId/studio/storage/:bucketId` — Bucket selected
-  * `/project/:projectId/studio/storage/:bucketId/file/:fileId` — Bucket selected with File Preview modal open
-* **Functions Tab**:
-  * `/project/:projectId/studio/functions/:fnId` — Function selected
-  * `/project/:projectId/studio/functions/:fnId/execution/:execId` — Function selected with Execution Log Details modal open
-  * `/project/:projectId/studio/functions/:fnId/code` — Function selected with Function Code Editor open
-* **Teams Tab**:
-  * `/project/:projectId/studio/teams/:teamId` — Team selected
-* **Sites Tab**:
-  * `/project/:projectId/studio/sites/:siteId` — Site selected
+### 4. Studio View — grouped sections
+
+Studio paths carry the **group** id, then the **section** id. A group with a single
+section (`overview`, `settings`) collapses to just the group segment.
+
+* `/project/:projectId/studio/:group/:section` — a Studio section
+* `/project/:projectId/studio/:group` — a group, resolved to its first section
+
+| Group | Sections | Paths |
+|:---|:---|:---|
+| `overview` | Overview | `/studio/overview` *(collapsed)* |
+| `data` | Databases · Storage · Schema (ERD) | `/studio/data/database` · `/studio/data/storage` · `/studio/data/erd` |
+| `compute` | Functions · Sites | `/studio/compute/functions` · `/studio/compute/sites` |
+| `auth` | Users · Teams | `/studio/auth/users` · `/studio/auth/teams` |
+| `integrations` | Messaging · Webhooks | `/studio/integrations/messaging` · `/studio/integrations/webhooks` |
+| `operations` | Health · Migrations · Backups | `/studio/operations/health` · `/studio/operations/migrations` · `/studio/operations/backups` |
+| `settings` | Settings | `/studio/settings` *(collapsed, trailing gear)* |
+
+**Drill-downs**
+* `/project/:projectId/studio/data/database/:dbId` — Database selected
+* `/project/:projectId/studio/data/database/:dbId/collection/:collId` — Collection selected
+* `/project/:projectId/studio/data/database/:dbId/collection/:collId/document/:docId` — with Document Preview modal open
+* `/project/:projectId/studio/data/storage/:bucketId` — Bucket selected
+* `/project/:projectId/studio/data/storage/:bucketId/file/:fileId` — with File Preview modal open
+* `/project/:projectId/studio/compute/functions/:fnId` — Function selected
+* `/project/:projectId/studio/compute/functions/:fnId/execution/:execId` — with Execution Details modal open
+* `/project/:projectId/studio/compute/functions/:fnId/code` — with the Function Code Editor open
+* `/project/:projectId/studio/compute/sites/:siteId` — Site selected
+* `/project/:projectId/studio/auth/teams/:teamId` — Team selected
+
+### 5. Building and rewriting URLs
+
+**Never hand-build a path.** `services/router.tsx` exports typed `routes.*` builders
+(`routes.studioSection(projectId, section)`, `routes.studioCollection(…)`, …); they are
+the only sanctioned source of URLs, and they derive the group segment from
+`services/studioNav.ts`.
+
+Pre-grouping bookmarks keep working: `rewriteLegacyPath` normalises any
+`/studio/<section>/…` path to its canonical grouped form (and the Agent view's old
+singular `function` segment to `functions`) before matching, `replaceState`-ing the
+result. It is derived from the registry, so it covers every section by construction.
 
 ---
 

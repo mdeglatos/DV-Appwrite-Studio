@@ -1,63 +1,70 @@
 
 import React from 'react';
-import type { StudioTab } from '../../../types';
-import { DashboardIcon, DatabaseIcon, StorageIcon, FunctionIcon, UserIcon, TeamIcon, MigrationIcon, BackupIcon, RefreshIcon, LoadingSpinnerIcon, SitesIcon, MessageIcon, HealthIcon, WebhookIcon, ErdIcon, SettingsIcon } from '../../Icons';
+import { STUDIO_GROUPS, type StudioGroupId } from '../../../services/studioNav';
+import { STUDIO_GROUP_ICONS } from '../navigation';
+import { RefreshIcon, LoadingSpinnerIcon } from '../../Icons';
 
 interface StudioNavBarProps {
-    activeTab: StudioTab;
-    onTabChange: (t: StudioTab) => void;
+    activeGroup: StudioGroupId;
+    onGroupChange: (group: StudioGroupId) => void;
     onRefresh: () => void;
     isLoading: boolean;
 }
 
-export const StudioNavBar: React.FC<StudioNavBarProps> = ({ activeTab, onTabChange, onRefresh, isLoading }) => {
-    const tabs: { id: StudioTab, label: string, icon: React.ReactNode }[] = [
-        { id: 'overview', label: 'Overview', icon: <DashboardIcon size={16} /> },
-        { id: 'database', label: 'Databases', icon: <DatabaseIcon size={16} /> },
-        { id: 'erd', label: 'ERD Schema', icon: <ErdIcon size={16} /> },
-        { id: 'storage', label: 'Storage', icon: <StorageIcon size={16} /> },
-        { id: 'functions', label: 'Functions', icon: <FunctionIcon size={16} /> },
-        { id: 'sites', label: 'Sites', icon: <SitesIcon size={16} /> },
-        { id: 'users', label: 'Users', icon: <UserIcon size={16} /> },
-        { id: 'teams', label: 'Teams', icon: <TeamIcon size={16} /> },
-        { id: 'messaging', label: 'Messaging', icon: <MessageIcon size={16} /> },
-        { id: 'webhooks', label: 'Webhooks', icon: <WebhookIcon size={16} /> },
-        { id: 'health', label: 'Health', icon: <HealthIcon size={16} /> },
-        { id: 'migrations', label: 'Migrations', icon: <MigrationIcon size={16} /> },
-        { id: 'backups', label: 'Backups', icon: <BackupIcon size={16} /> },
-        { id: 'project-settings', label: 'Settings', icon: <SettingsIcon size={16} /> },
-    ];
+const Divider = () => <div className="h-6 w-px bg-gray-800 mx-1.5 opacity-50" aria-hidden="true" />;
+
+export const StudioNavBar: React.FC<StudioNavBarProps> = ({ activeGroup, onGroupChange, onRefresh, isLoading }) => {
+    const primaryGroups = STUDIO_GROUPS.filter(g => g.placement !== 'trailing');
+    const trailingGroups = STUDIO_GROUPS.filter(g => g.placement === 'trailing');
+
+    const chipClass = (isActive: boolean) => `
+        flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 whitespace-nowrap
+        ${isActive
+            ? 'bg-gray-800 text-cyan-400 shadow-inner border border-white/5'
+            : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
+    `;
 
     return (
         <div className="flex justify-center w-full px-4">
             <div className="flex items-center gap-1 p-1 bg-gray-900/60 rounded-2xl border border-white/5 overflow-x-auto max-w-full custom-scrollbar backdrop-blur-md shadow-2xl">
-                {tabs.map(tab => (
+                {primaryGroups.map(group => (
                     <button
-                        key={tab.id}
-                        onClick={() => onTabChange(tab.id)}
-                        className={`
-                            flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 whitespace-nowrap
-                            ${activeTab === tab.id 
-                                ? 'bg-gray-800 text-cyan-400 shadow-inner border border-white/5' 
-                                : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
-                        `}
+                        key={group.id}
+                        onClick={() => onGroupChange(group.id)}
+                        aria-current={activeGroup === group.id ? 'page' : undefined}
+                        className={chipClass(activeGroup === group.id)}
                     >
-                        {tab.icon}
-                        <span>{tab.label}</span>
+                        {STUDIO_GROUP_ICONS[group.id]}
+                        <span>{group.label}</span>
+                    </button>
+                ))}
+
+                <Divider />
+
+                {trailingGroups.map(group => (
+                    <button
+                        key={group.id}
+                        onClick={() => onGroupChange(group.id)}
+                        title={group.label}
+                        aria-label={group.label}
+                        aria-current={activeGroup === group.id ? 'page' : undefined}
+                        className={chipClass(activeGroup === group.id)}
+                    >
+                        {STUDIO_GROUP_ICONS[group.id]}
                     </button>
                 ))}
 
                 {/* Integrated Refresh Action */}
-                <div className="h-6 w-px bg-gray-800 mx-1.5 opacity-50" aria-hidden="true" />
-                
+                <Divider />
+
                 <button
                     onClick={(e) => { e.stopPropagation(); onRefresh(); }}
                     disabled={isLoading}
-                    title="Sync Current View with Backend"
+                    title="Sync Current View with Backend (Shift+R)"
                     className={`
                         flex items-center gap-2 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all duration-300
-                        ${isLoading 
-                            ? 'bg-cyan-500/10 text-cyan-500 cursor-wait' 
+                        ${isLoading
+                            ? 'bg-cyan-500/10 text-cyan-500 cursor-wait'
                             : 'text-gray-500 hover:bg-cyan-500/10 hover:text-cyan-400 active:scale-95'}
                     `}
                 >

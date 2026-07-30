@@ -242,18 +242,6 @@ export function matchesEvent(event: RealtimeEvent, pattern: string): boolean {
 }
 
 /**
- * Check if the event is a create, update, or delete operation.
- */
-export function getEventAction(event: RealtimeEvent): 'create' | 'update' | 'delete' | null {
-    for (const e of event.events) {
-        if (e.endsWith('.create')) return 'create';
-        if (e.endsWith('.update')) return 'update';
-        if (e.endsWith('.delete')) return 'delete';
-    }
-    return null;
-}
-
-/**
  * Extract a database ID from an event, if present.
  */
 export function extractDatabaseId(event: RealtimeEvent): string | null {

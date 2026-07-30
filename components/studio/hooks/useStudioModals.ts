@@ -1,29 +1,46 @@
 import React, { useState, useCallback } from 'react';
 import type { ModalState, FormField } from '../types';
+import { useConfirm } from '../../../hooks/useConfirm';
+import { useToast } from '../../../hooks/useToast';
 
-export function useStudioModals() {
+/**
+ * @param onAfterClose invoked once `closeModal` has cleared the modal state —
+ *        `Studio.tsx` uses it to keep the URL in step with the closed modal.
+ *        Replaces the previous post-hoc reassignment of `closeModal`.
+ */
+export function useStudioModals(onAfterClose?: () => void) {
     const [modal, setModal] = useState<ModalState | null>(null);
     const [modalLoading, setModalLoading] = useState(false);
     const [formValues, setFormValues] = useState<any>({});
+
+    const confirm = useConfirm();
+    const toast = useToast();
 
     const closeModal = useCallback(() => {
         setModal(null);
         setFormValues({});
         setModalLoading(false);
-    }, []);
+        onAfterClose?.();
+    }, [onAfterClose]);
 
-    // Fix: Update onConfirm type to allow returning boolean or void to match ModalState
+    // A thin wrapper over the app-wide confirmation owner: the call signature is
+    // unchanged, so every existing `confirmAction(...)` call site is untouched.
     const confirmAction = useCallback((title: string, message: string, onConfirm: () => Promise<boolean | void> | boolean | void) => {
-        setModal({
-            isOpen: true,
-            type: 'confirm',
-            title,
-            message,
-            confirmLabel: 'Confirm',
-            confirmClass: 'bg-red-600 hover:bg-red-700',
-            onConfirm
-        });
-    }, []);
+        void (async () => {
+            const confirmed = await confirm({
+                title,
+                message,
+                confirmText: 'Confirm',
+                confirmButtonClass: 'bg-red-600 hover:bg-red-700',
+            });
+            if (!confirmed) return;
+            try {
+                await onConfirm();
+            } catch (err: any) {
+                toast.error(`Action Failed: ${err?.message || String(err)}`);
+            }
+        })();
+    }, [confirm, toast]);
 
     // Fix: Update onConfirm type to allow returning boolean or void to match ModalState
     const openForm = useCallback((

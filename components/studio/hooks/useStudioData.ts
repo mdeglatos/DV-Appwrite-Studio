@@ -12,7 +12,8 @@ import {
 } from '../../../services/realtimeService';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../../../types';
 import type { Models } from 'node-appwrite';
-import { usePaginatedQuery, type PaginatedFetchFn, type PaginatedState } from './usePaginatedQuery';
+import { usePaginatedQuery, parseQueryArray, type PaginatedFetchFn, type PaginatedState } from './usePaginatedQuery';
+import { routes } from '../../../services/router';
 
 // ============================================================================
 // Constants
@@ -27,61 +28,27 @@ const EXECUTION_POLL_INTERVAL_MS = 5_000; // 5 seconds
 // Helper: Build Appwrite Query array from usePaginatedQuery's raw query strings
 // ============================================================================
 
-function buildQueries(rawQueries: string[], searchFields?: string[]): string[] {
-    const appwriteQueries: string[] = [];
-    let searchTerm = '';
-
-    for (const q of rawQueries) {
-        if (q.startsWith('__search__:')) {
-            searchTerm = q.slice('__search__:'.length);
-        } else if (q.startsWith('limit(')) {
-            const n = parseInt(q.match(/\d+/)?.[0] || '25');
-            appwriteQueries.push(Query.limit(n));
-        } else if (q.startsWith('offset(')) {
-            const n = parseInt(q.match(/\d+/)?.[0] || '0');
-            appwriteQueries.push(Query.offset(n));
-        } else if (q.startsWith('orderDesc(')) {
-            const field = q.match(/"([^"]+)"/)?.[1] || '$createdAt';
-            appwriteQueries.push(Query.orderDesc(field));
-        } else if (q.startsWith('orderAsc(')) {
-            const field = q.match(/"([^"]+)"/)?.[1] || '$createdAt';
-            appwriteQueries.push(Query.orderAsc(field));
-        }
-    }
-
-    // Add search — use the first search field for Query.search (requires fulltext index)
-    // For resources without fulltext indexes, we use Query.contains or Query.startsWith
-    if (searchTerm && searchFields && searchFields.length > 0) {
-        // Try search on first field; if that field doesn't have an index it will be caught by the caller
-        appwriteQueries.push(Query.search(searchFields[0], searchTerm));
-    }
-
-    return appwriteQueries;
-}
-
 /**
- * Same as buildQueries but returns search term separately for client-side filtering.
- * Used when Appwrite doesn't support server-side search for a resource (e.g., users, teams).
+ * The single translation from `usePaginatedQuery`'s raw pagination strings
+ * (`limit(25)`, `orderDesc("$createdAt")`, `__search__:term`) into SDK `Query.*`
+ * values plus the search term.
+ *
+ * `parseQueryArray` (in `usePaginatedQuery`) owns splitting the search marker off;
+ * this owns the `Query.*` mapping. Nothing else parses these strings.
  */
-function buildQueriesWithClientSearch(rawQueries: string[]): { queries: string[]; searchTerm: string } {
+function toAppwriteQueries(rawQueries: string[]): { queries: string[]; searchTerm: string } {
+    const { appwriteQueries, searchTerm } = parseQueryArray(rawQueries);
     const queries: string[] = [];
-    let searchTerm = '';
 
-    for (const q of rawQueries) {
-        if (q.startsWith('__search__:')) {
-            searchTerm = q.slice('__search__:'.length);
-        } else if (q.startsWith('limit(')) {
-            const n = parseInt(q.match(/\d+/)?.[0] || '25');
-            queries.push(Query.limit(n));
+    for (const q of appwriteQueries) {
+        if (q.startsWith('limit(')) {
+            queries.push(Query.limit(parseInt(q.match(/\d+/)?.[0] || '25')));
         } else if (q.startsWith('offset(')) {
-            const n = parseInt(q.match(/\d+/)?.[0] || '0');
-            queries.push(Query.offset(n));
+            queries.push(Query.offset(parseInt(q.match(/\d+/)?.[0] || '0')));
         } else if (q.startsWith('orderDesc(')) {
-            const field = q.match(/"([^"]+)"/)?.[1] || '$createdAt';
-            queries.push(Query.orderDesc(field));
+            queries.push(Query.orderDesc(q.match(/"([^"]+)"/)?.[1] || '$createdAt'));
         } else if (q.startsWith('orderAsc(')) {
-            const field = q.match(/"([^"]+)"/)?.[1] || '$createdAt';
-            queries.push(Query.orderAsc(field));
+            queries.push(Query.orderAsc(q.match(/"([^"]+)"/)?.[1] || '$createdAt'));
         }
     }
 
@@ -114,49 +81,49 @@ export function useStudioData(
 
     const setSelectedDb = useCallback((db: Database | null) => {
         if (db) {
-            navigate(`/project/${activeProject.$id}/studio/database/${db.$id}`);
+            navigate(routes.studioDatabase(activeProject.$id, db.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/studio/database`);
+            navigate(routes.studioSection(activeProject.$id, 'database'));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedCollection = useCallback((coll: Models.Collection | null) => {
         if (coll && selectedDb) {
-            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}/collection/${coll.$id}`);
+            navigate(routes.studioCollection(activeProject.$id, selectedDb.$id, coll.$id));
         } else if (selectedDb) {
-            navigate(`/project/${activeProject.$id}/studio/database/${selectedDb.$id}`);
+            navigate(routes.studioDatabase(activeProject.$id, selectedDb.$id));
         }
     }, [activeProject?.$id, selectedDb?.$id, navigate]);
 
     const setSelectedBucket = useCallback((b: Bucket | null) => {
         if (b) {
-            navigate(`/project/${activeProject.$id}/studio/storage/${b.$id}`);
+            navigate(routes.studioStorage(activeProject.$id, b.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/studio/storage`);
+            navigate(routes.studioSection(activeProject.$id, 'storage'));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedFunction = useCallback((f: AppwriteFunction | null) => {
         if (f) {
-            navigate(`/project/${activeProject.$id}/studio/functions/${f.$id}`);
+            navigate(routes.studioFunction(activeProject.$id, f.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/studio/functions`);
+            navigate(routes.studioSection(activeProject.$id, 'functions'));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedTeam = useCallback((t: Models.Team<any> | null) => {
         if (t) {
-            navigate(`/project/${activeProject.$id}/studio/teams/${t.$id}`);
+            navigate(routes.studioTeam(activeProject.$id, t.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/studio/teams`);
+            navigate(routes.studioSection(activeProject.$id, 'teams'));
         }
     }, [activeProject?.$id, navigate]);
 
     const setSelectedSite = useCallback((s: AppwriteSite | null) => {
         if (s) {
-            navigate(`/project/${activeProject.$id}/studio/sites/${s.$id}`);
+            navigate(routes.studioSite(activeProject.$id, s.$id));
         } else {
-            navigate(`/project/${activeProject.$id}/studio/sites`);
+            navigate(routes.studioSection(activeProject.$id, 'sites'));
         }
     }, [activeProject?.$id, navigate]);
 
@@ -178,7 +145,7 @@ export function useStudioData(
     const usersFetchFn = useMemo<PaginatedFetchFn<Models.User<any>> | null>(() => {
         if (!activeProject || (activeTab !== 'users' && activeTab !== 'overview')) return null;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkUsers(activeProject);
             // Users API: search is done server-side via Query.search on 'name' or 'email'
             if (searchTerm) {
@@ -193,7 +160,7 @@ export function useStudioData(
     const teamsFetchFn = useMemo<PaginatedFetchFn<Models.Team<any>> | null>(() => {
         if (!activeProject || (activeTab !== 'teams' && activeTab !== 'overview')) return null;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkTeams(activeProject);
             if (searchTerm) {
                 queries.push(Query.search('name', searchTerm));
@@ -207,7 +174,7 @@ export function useStudioData(
         if (!activeProject || !selectedDb || activeTab !== 'database') return null;
         const dbId = selectedDb.$id;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkDatabases(activeProject);
             if (searchTerm) {
                 queries.push(Query.search('name', searchTerm));
@@ -222,7 +189,7 @@ export function useStudioData(
         const dbId = selectedDb.$id;
         const collId = selectedCollection.$id;
         return async (rawQueries) => {
-            const queries = buildQueries(rawQueries);
+            const { queries } = toAppwriteQueries(rawQueries);
             const sdk = getSdkDatabases(activeProject);
             const res = await sdk.listDocuments(dbId, collId, queries);
             return { items: res.documents, total: res.total };
@@ -233,7 +200,7 @@ export function useStudioData(
         if (!activeProject || !selectedBucket || activeTab !== 'storage') return null;
         const bucketId = selectedBucket.$id;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkStorage(activeProject);
             if (searchTerm) {
                 queries.push(Query.search('name', searchTerm));
@@ -247,7 +214,7 @@ export function useStudioData(
         if (!activeProject || !selectedFunction || activeTab !== 'functions') return null;
         const funcId = selectedFunction.$id;
         return async (rawQueries) => {
-            const queries = buildQueries(rawQueries);
+            const { queries } = toAppwriteQueries(rawQueries);
             const sdk = getSdkFunctions(activeProject);
             const res = await sdk.listDeployments(funcId, queries);
             return { items: res.deployments, total: res.total };
@@ -258,7 +225,7 @@ export function useStudioData(
         if (!activeProject || !selectedFunction || activeTab !== 'functions') return null;
         const funcId = selectedFunction.$id;
         return async (rawQueries) => {
-            const queries = buildQueries(rawQueries);
+            const { queries } = toAppwriteQueries(rawQueries);
             const sdk = getSdkFunctions(activeProject);
             const res = await sdk.listExecutions(funcId, queries);
             return { items: res.executions, total: res.total };
@@ -269,7 +236,7 @@ export function useStudioData(
         if (!activeProject || !selectedTeam || activeTab !== 'teams') return null;
         const teamId = selectedTeam.$id;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkTeams(activeProject);
             if (searchTerm) {
                 queries.push(Query.search('userName', searchTerm));
@@ -283,7 +250,7 @@ export function useStudioData(
     const sitesFetchFn = useMemo<PaginatedFetchFn<AppwriteSite> | null>(() => {
         if (!activeProject || (activeTab !== 'sites' && activeTab !== 'overview')) return null;
         return async (rawQueries) => {
-            const { queries, searchTerm } = buildQueriesWithClientSearch(rawQueries);
+            const { queries, searchTerm } = toAppwriteQueries(rawQueries);
             const sdk = getSdkSites(activeProject);
             const res = await sdk.list(queries, searchTerm || undefined);
             return { items: res.sites as unknown as AppwriteSite[], total: res.total };
@@ -294,7 +261,7 @@ export function useStudioData(
         if (!activeProject || !selectedSite || activeTab !== 'sites') return null;
         const siteId = selectedSite.$id;
         return async (rawQueries) => {
-            const queries = buildQueries(rawQueries);
+            const { queries } = toAppwriteQueries(rawQueries);
             const sdk = getSdkSites(activeProject);
             const res = await sdk.listDeployments(siteId, queries);
             return { items: res.deployments, total: res.total };
@@ -305,7 +272,7 @@ export function useStudioData(
         if (!activeProject || !selectedSite || activeTab !== 'sites') return null;
         const siteId = selectedSite.$id;
         return async (rawQueries) => {
-            const queries = buildQueries(rawQueries);
+            const { queries } = toAppwriteQueries(rawQueries);
             const sdk = getSdkSites(activeProject);
             const res = await sdk.listLogs(siteId, queries);
             return { items: (res as any).logs ?? (res as any).executions ?? [], total: res.total };

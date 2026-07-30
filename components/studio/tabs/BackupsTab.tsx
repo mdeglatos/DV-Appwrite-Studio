@@ -7,6 +7,8 @@ import { getSdkStorage, Query, ID } from '../../../services/appwrite';
 import { ResourceTable } from '../ui/ResourceTable';
 import { BackupIcon, LoadingSpinnerIcon, RiShareForwardLine, CheckIcon, DownloadCloudIcon, UploadCloudIcon, WarningIcon, DeleteIcon, DatabaseIcon, FunctionIcon, UserIcon, TeamIcon, StorageIcon, CloseIcon, CodeIcon } from '../../Icons';
 import { Modal } from '../../Modal';
+import { useToast } from '../../../hooks/useToast';
+import { TabShell } from '../ui/TabShell';
 
 interface BackupsTabProps {
     activeProject: AppwriteProject;
@@ -14,9 +16,15 @@ interface BackupsTabProps {
     // New handlers passed from Studio
     onDeleteBackup?: (file: Models.File) => void;
     onRestoreBackup?: (file: Models.File) => void;
+    /**
+     * Hands this tab's snapshot re-fetch up to `Studio`, so the delete/restore
+     * actions in `useStudioActions` can refresh a list they do not own.
+     */
+    onRegisterRefresh?: (refresh: (() => void) | null) => void;
 }
 
-export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback, onDeleteBackup, onRestoreBackup }) => {
+export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback, onDeleteBackup, onRestoreBackup, onRegisterRefresh }) => {
+    const toast = useToast();
     const [backups, setBackups] = useState<Models.File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -54,6 +62,12 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
     useEffect(() => {
         fetchBackups();
     }, [fetchBackups]);
+
+    // Publish the refresh while this tab is mounted, and withdraw it on unmount.
+    useEffect(() => {
+        onRegisterRefresh?.(fetchBackups);
+        return () => onRegisterRefresh?.(null);
+    }, [onRegisterRefresh, fetchBackups]);
 
     const handleToggleAll = (val: boolean) => {
         setOptions({
@@ -101,7 +115,7 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
         if (!file) return;
 
         if (!file.name.endsWith('.json')) {
-            alert("Please select a valid .json snapshot file.");
+            toast.error("Please select a valid .json snapshot file.");
             return;
         }
 
@@ -165,41 +179,38 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
     const isAllSelected = Object.values(options).every(v => v === true);
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-20">
-            <header className="flex flex-col md:flex-row justify-between items-start gap-4">
-                <div className="space-y-2">
-                    <h1 className="text-3xl font-bold text-gray-100 flex items-center gap-3">
-                        <BackupIcon size={32} className="text-cyan-400" />
-                        Project Snapshots
-                    </h1>
-                    <p className="text-gray-400 font-medium">Capture and restore exact replicas of your project infrastructure.</p>
-                </div>
-                <div className="flex gap-3">
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleLocalFileUpload} 
-                        className="hidden" 
-                        accept=".json" 
+        <TabShell
+            title="Project Snapshots"
+            subtitle="Capture and restore exact replicas of your project infrastructure."
+            icon={<BackupIcon size={24} className="text-cyan-400" />}
+            actions={
+                <>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleLocalFileUpload}
+                        className="hidden"
+                        accept=".json"
                     />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()} 
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
                         disabled={isExecuting || isUploading}
-                        className="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-purple-400 border border-purple-500/30 font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-purple-400 border border-purple-500/30 text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
                     >
-                        {isUploading ? <LoadingSpinnerIcon size={18}/> : <UploadCloudIcon size={18}/>}
+                        {isUploading ? <LoadingSpinnerIcon size={14}/> : <UploadCloudIcon size={14}/>}
                         Upload Snapshot
                     </button>
-                    <button 
-                        onClick={() => setIsConfigModalOpen(true)} 
+                    <button
+                        onClick={() => setIsConfigModalOpen(true)}
                         disabled={isExecuting || isUploading}
-                        className="px-8 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 whitespace-nowrap"
                     >
-                        {isExecuting ? <LoadingSpinnerIcon size={18}/> : <DownloadCloudIcon size={18}/>}
+                        {isExecuting ? <LoadingSpinnerIcon size={14}/> : <DownloadCloudIcon size={14}/>}
                         New Snapshot
                     </button>
-                </div>
-            </header>
+                </>
+            }
+        >
 
             {showExecutionLogs && (
                 <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl animate-fade-in relative overflow-hidden">
@@ -337,6 +348,6 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                     </div>
                 </div>
             </Modal>
-        </div>
+        </TabShell>
     );
 };

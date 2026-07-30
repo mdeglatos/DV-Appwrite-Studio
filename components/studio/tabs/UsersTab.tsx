@@ -10,6 +10,7 @@ import { consoleLinks } from '../../../services/appwrite';
 import type { AppwriteProject } from '../../../types';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';
 import { getUserCleanupConfig } from '../hooks/cleanupConfigs';
+import { TabShell } from '../ui/TabShell';
 
 interface UsersTabProps {
     activeProject: AppwriteProject;
@@ -35,7 +36,12 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     const cleanupConfig = useMemo(() => getUserCleanupConfig(activeProject), [activeProject]);
 
     return (
-        <div className="space-y-3">
+        <TabShell
+            title="Users"
+            subtitle="Browse, search and manage the accounts registered against this project."
+            icon={<KeyIcon size={24} className="text-cyan-400" />}
+            consoleHref={consoleLinks.users(activeProject)}
+        >
             {/* Search Bar */}
             <ResourceSearchBar
                 value={pagination.searchQuery}
@@ -170,6 +176,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                 config={cleanupConfig}
                 onComplete={() => pagination.refresh()}
             />
-        </div>
+        </TabShell>
     );
 };

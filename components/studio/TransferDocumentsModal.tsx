@@ -5,6 +5,7 @@ import { LoadingSpinnerIcon, DatabaseIcon, RiRocketLine, RiShareForwardLine, Che
 import type { AppwriteProject, Database } from '../../types';
 import { getSdkDatabases, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
+import { useToast } from '../../hooks/useToast';
 
 interface MappingRow {
     id: string;
@@ -33,6 +34,7 @@ interface TransferDocumentsModalProps {
 export const TransferDocumentsModal: React.FC<TransferDocumentsModalProps> = ({ 
     isOpen, onClose, activeProject, projects, databases, onSuccess 
 }) => {
+    const toast = useToast();
     const [mappings, setMappings] = useState<MappingRow[]>([]);
     const [sourceCollections, setSourceCollections] = useState<{[dbId: string]: any[]}>({});
     
@@ -140,7 +142,7 @@ export const TransferDocumentsModal: React.FC<TransferDocumentsModalProps> = ({
 
     const executeTransfer = async () => {
         if (mappings.length === 0 || mappings.some(m => !m.sourceCollId || !m.destCollId)) {
-            alert("Please complete all mappings.");
+            toast.warning("Please complete all mappings.");
             return;
         }
 

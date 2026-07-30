@@ -25,8 +25,8 @@ export interface UseRealtimeReturn {
     lastEvent: RealtimeEvent | null;
     /** Total events received in this session */
     eventCount: number;
-    /** Register a listener for specific event patterns */
-    useEventListener: (callback: RealtimeCallback) => void;
+    /** Registers a listener and returns the function that unsubscribes it. */
+    addEventListener: (callback: RealtimeCallback) => () => void;
 }
 
 // ============================================================================
@@ -100,10 +100,13 @@ export function useRealtime(activeProject: AppwriteProject | null): UseRealtimeR
     }, []);
 
     /**
-     * Register an event listener. Should be called within a useEffect in the consuming component.
+     * Registers an event listener and returns its unsubscribe function — call it
+     * from a `useEffect` and return the result as the effect's destructor.
      * The callback is stored by reference — use useCallback for stability.
+     *
+     * Not a hook, despite where it is used: it is a plain subscription function.
      */
-    const useEventListener = useCallback((callback: RealtimeCallback) => {
+    const addEventListener = useCallback((callback: RealtimeCallback): (() => void) => {
         callbacksRef.current.add(callback);
         return () => {
             callbacksRef.current.delete(callback);
@@ -115,7 +118,7 @@ export function useRealtime(activeProject: AppwriteProject | null): UseRealtimeR
         isConnected: status === 'connected',
         lastEvent,
         eventCount,
-        useEventListener,
+        addEventListener,
     };
 }
 

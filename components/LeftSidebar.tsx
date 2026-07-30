@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, StudioTab } from '../types';
 import type { NewAppwriteProject } from '../services/projectService';
-import { 
-    AddIcon, DeleteIcon, CloseIcon, ToolsIcon, ProjectsIcon, ChevronDownIcon, 
-    KeyIcon, SettingsIcon, DashboardIcon, DatabaseIcon, StorageIcon, 
-    FunctionIcon, TeamIcon, EditIcon, WarningIcon, BackupIcon,
-    RiShareForwardLine
+import {
+    AddIcon, DeleteIcon, CloseIcon, ToolsIcon, ProjectsIcon, ChevronDownIcon,
+    KeyIcon, SettingsIcon, DashboardIcon, EditIcon, WarningIcon
 } from './Icons';
 import { ToolConfiguration } from './studio/ui/ToolConfiguration';
 import { Modal } from './Modal';
+import { STUDIO_GROUPS, SECTION_LABELS } from '../services/studioNav';
+import { STUDIO_SECTION_UI } from './studio/navigation';
 
 // Sub-component for a single tool toggle switch (kept for local form inputs if needed, but primary tools use shared component)
 const ToolToggle: React.FC<{
@@ -90,8 +90,8 @@ interface LeftSidebarProps {
   onResizeStart: (e: React.MouseEvent) => void;
   
   viewMode: 'agent' | 'studio';
-  activeStudioTab: StudioTab;
-  onStudioTabChange: (tab: StudioTab) => void;
+  activeStudioSection: StudioTab;
+  onStudioSectionChange: (section: StudioTab) => void;
 }
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -114,8 +114,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   isResizing,
   onResizeStart,
   viewMode,
-  activeStudioTab,
-  onStudioTabChange
+  activeStudioSection,
+  onStudioSectionChange
 }) => {
   const [name, setName] = useState('');
   const [endpoint, setEndpoint] = useState('');
@@ -184,17 +184,6 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     setModelInput(geminiModel || '');
     setThinkingInput(geminiThinkingEnabled);
   };
-
-  const studioTabs: { id: StudioTab, label: string, icon: React.ReactNode }[] = [
-    { id: 'overview', label: 'Overview', icon: <DashboardIcon /> },
-    { id: 'database', label: 'Databases', icon: <DatabaseIcon /> },
-    { id: 'storage', label: 'Storage', icon: <StorageIcon /> },
-    { id: 'functions', label: 'Functions', icon: <FunctionIcon /> },
-    { id: 'users', label: 'Auth & Users', icon: <TeamIcon /> },
-    { id: 'teams', label: 'Teams', icon: <TeamIcon /> },
-    { id: 'migrations', label: 'Migrations', icon: <RiShareForwardLine /> },
-    { id: 'backups', label: 'Backups', icon: <BackupIcon /> },
-  ];
 
   const closeEditingModal = useCallback(() => {
     setEditingProject(null);
@@ -290,20 +279,30 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                     isExpanded={expandedSections.studioNav}
                     onToggle={() => toggleSection('studioNav')}
                 >
-                     <nav className="space-y-1">
-                        {studioTabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => onStudioTabChange(tab.id)}
-                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
-                                    activeStudioTab === tab.id 
-                                    ? 'bg-purple-900/30 text-purple-300 border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.1)]' 
-                                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border border-transparent'
-                                }`}
-                            >
-                                <span className={activeStudioTab === tab.id ? 'text-purple-400' : 'text-gray-500'}>{tab.icon}</span>
-                                <span>{tab.label}</span>
-                            </button>
+                     <nav className="space-y-3">
+                        {STUDIO_GROUPS.map(group => (
+                            <div key={group.id} className="space-y-1">
+                                <h4 className="px-3 pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-600">
+                                    {group.label}
+                                </h4>
+                                {group.sections.map(section => (
+                                    <button
+                                        key={section}
+                                        onClick={() => onStudioSectionChange(section)}
+                                        aria-current={activeStudioSection === section ? 'page' : undefined}
+                                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-all ${
+                                            activeStudioSection === section
+                                            ? 'bg-purple-900/30 text-purple-300 border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.1)]'
+                                            : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 border border-transparent'
+                                        }`}
+                                    >
+                                        <span className={activeStudioSection === section ? 'text-purple-400' : 'text-gray-500'}>
+                                            {STUDIO_SECTION_UI[section].icon}
+                                        </span>
+                                        <span>{SECTION_LABELS[section]}</span>
+                                    </button>
+                                ))}
+                            </div>
                         ))}
                     </nav>
                 </CollapsibleSection>
@@ -350,7 +349,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                             </div>
                             </div>
 
-                            {modelInput === 'gemini-2.5-flash' && (
+                            {modelInput.endsWith('-flash') && (
                                 <div className="bg-gray-900/50 p-1.5 rounded-lg border border-gray-800">
                                     <ToolToggle
                                         label="Deep Thinking"
