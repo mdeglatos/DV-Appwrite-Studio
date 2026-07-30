@@ -1,6 +1,7 @@
 import * as adminService from '../services/projectAdminService';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in webhook tool:', error);
@@ -44,7 +45,7 @@ export const webhookFunctions = {
     deleteWebhook,
 };
 
-export const webhookToolDefinitions: FunctionDeclaration[] = [
+export const webhookToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'listWebhooks',
         description: 'Get a list of registered webhook endpoints configured for event notifications.',

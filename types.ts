@@ -1,6 +1,16 @@
 
 import type { Models } from 'appwrite';
-import type { FunctionCall, Part } from '@google/genai';
+import type { FunctionCall, FunctionDeclaration, Part } from '@google/genai';
+
+/**
+ * A Gemini tool declaration that is guaranteed to be named.
+ *
+ * `FunctionDeclaration.name` is optional upstream, but every declaration in `tools/` supplies one —
+ * the name *is* the key the runtime routes on (`availableTools[name]`) and the key user settings
+ * store tool toggles under. Stating the guarantee once, on the registry, is what lets consumers
+ * index by `tool.name` without asserting it themselves.
+ */
+export type NamedFunctionDeclaration = FunctionDeclaration & { name: string };
 
 // A unique ID is added to each message to allow for updates (e.g., tool call status).
 export type Message = UserMessage | ModelMessage | ActionMessage;

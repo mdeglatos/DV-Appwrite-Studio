@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { ActionMessage } from '../types';
-import { LoadingSpinnerIcon, ToolsIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from './Icons';
+import { LoadingSpinnerIcon, ToolsIcon, ChevronDownIcon, CheckIcon } from './Icons';
 
 const JsonViewer = ({ data, error = false }: { data: any, error?: boolean }) => {
     let content;
@@ -44,7 +44,7 @@ export const ActionMessageComponent: React.FC<{ message: ActionMessage }> = ({ m
                     <div className="px-4 pb-4 space-y-3 border-t border-gray-800/50 pt-3 bg-black/20">
                         {toolCalls.map((call, index) => {
                             const result = !isLoading && toolResults ? toolResults[index]?.functionResponse?.response : null;
-                            const hasError = result && typeof result === 'object' && result !== null && 'error' in result;
+                            const hasError = !!(result && typeof result === 'object' && result !== null && 'error' in result);
                             const isSuccess = !isLoading && !hasError;
 
                             return (

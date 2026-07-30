@@ -1,4 +1,4 @@
-import { ID } from '../../../services/appwrite';
+import { attributeDefault, ID } from '../../../services/appwrite';
 import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, listAll } from '../../../services/appwrite';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { Models } from 'node-appwrite';
@@ -23,8 +23,8 @@ export function useStudioActions(
     onBackupsChanged?: () => void
 ) {
     const { 
-        selectedDb, setSelectedDb, selectedCollection, setSelectedCollection,
-        selectedBucket, setSelectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
+        selectedDb, selectedCollection, setSelectedCollection,
+        selectedBucket, selectedFunction, setSelectedFunction, selectedTeam,
         selectedSite, setSelectedSite,
         attributes,
         usersPagination, teamsPagination, collectionsPagination, documentsPagination,
@@ -334,7 +334,7 @@ export function useStudioActions(
             { name: 'array', label: 'Array', type: 'checkbox', defaultValue: false },
         ];
         const onFinish = () => { fetchCollectionDetails(dbId, collId); notify.success(`Attribute created.`); };
-        const getSafeDefault = (d: any) => d.required ? null : (d.default || null);
+        const getSafeDefault = (d: any) => attributeDefault(d.required ? null : (d.default || null));
 
         switch (type) {
             case 'string':
@@ -346,7 +346,7 @@ export function useStudioActions(
             case 'integer':
                 openForm("Create Integer Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
                     const def = d.default !== "" ? Number(d.default) : undefined;
-                    const safeDef = d.required ? null : def;
+                    const safeDef = attributeDefault(d.required ? null : def);
                     await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, safeDef, d.array);
                     onFinish();
                 });
@@ -361,7 +361,7 @@ export function useStudioActions(
             case 'float':
                 openForm("Create Float Attribute", [...baseFields, { name: 'min', label: 'Min', type: 'number' }, { name: 'max', label: 'Max', type: 'number' }, { name: 'default', label: 'Default', type: 'number' }], async (d: any) => {
                     const def = d.default !== "" ? Number(d.default) : undefined;
-                    const safeDef = d.required ? null : def;
+                    const safeDef = attributeDefault(d.required ? null : def);
                     await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, safeDef, d.array);
                     onFinish();
                 });
@@ -447,7 +447,7 @@ export function useStudioActions(
 
         openForm(`Edit Attribute: ${oldKey}`, fields, async (d: any) => {
             const needsRecreate = d.key !== oldKey || (type === 'string' && Number(d.size) !== attr.size) || !!d.array !== !!attr.array;
-            const getSafeDefault = (val: any) => d.required ? null : (val || null);
+            const getSafeDefault = (val: any) => attributeDefault(d.required ? null : (val || null));
 
             const performUpdate = async () => {
                 if (needsRecreate) {
@@ -460,15 +460,15 @@ export function useStudioActions(
                         case 'string': await sdk.createStringAttribute(dbId, collId, d.key, Number(d.size), d.required, getSafeDefault(d.default), d.array); break;
                         case 'integer': {
                             const intDef = d.default !== "" ? Number(d.default) : undefined;
-                            await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : intDef, d.array); 
+                            await sdk.createIntegerAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, attributeDefault(d.required ? null : intDef), d.array); 
                             break;
                         }
                         case 'float': {
                             const floatDef = d.default !== "" ? Number(d.default) : undefined;
-                            await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : floatDef, d.array); 
+                            await sdk.createFloatAttribute(dbId, collId, d.key, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, attributeDefault(d.required ? null : floatDef), d.array); 
                             break;
                         }
-                        case 'boolean': await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, d.required ? null : !!d.default, d.array); break;
+                        case 'boolean': await sdk.createBooleanAttribute(dbId, collId, d.key, d.required, attributeDefault(d.required ? null : !!d.default), d.array); break;
                         case 'email': await sdk.createEmailAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
                         case 'url': await sdk.createUrlAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
                         case 'ip': await sdk.createIpAttribute(dbId, collId, d.key, d.required, getSafeDefault(d.default), d.array); break;
@@ -484,15 +484,15 @@ export function useStudioActions(
                         case 'string': await sdk.updateStringAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
                         case 'integer': {
                             const intDef = d.default !== "" ? Number(d.default) : undefined;
-                            await sdk.updateIntegerAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : intDef); 
+                            await sdk.updateIntegerAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, attributeDefault(d.required ? null : intDef)); 
                             break;
                         }
                         case 'float': {
                             const floatDef = d.default !== "" ? Number(d.default) : undefined;
-                            await sdk.updateFloatAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, d.required ? null : floatDef); 
+                            await sdk.updateFloatAttribute(dbId, collId, oldKey, d.required, d.min ? Number(d.min) : undefined, d.max ? Number(d.max) : undefined, attributeDefault(d.required ? null : floatDef)); 
                             break;
                         }
-                        case 'boolean': await sdk.updateBooleanAttribute(dbId, collId, oldKey, d.required, d.required ? null : !!d.default); break;
+                        case 'boolean': await sdk.updateBooleanAttribute(dbId, collId, oldKey, d.required, attributeDefault(d.required ? null : !!d.default)); break;
                         case 'email': await sdk.updateEmailAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
                         case 'url': await sdk.updateUrlAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;
                         case 'ip': await sdk.updateIpAttribute(dbId, collId, oldKey, d.required, getSafeDefault(d.default)); break;

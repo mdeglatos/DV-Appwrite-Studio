@@ -1,4 +1,4 @@
-import type { FunctionDeclaration } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 import { databaseFunctions, databaseToolDefinitions } from './databaseTools';
 import { storageFunctions, storageToolDefinitions } from './storageTools';
 import { functionsFunctions, functionsToolDefinitions } from './functionsTools';
@@ -25,7 +25,7 @@ export const availableTools = {
 };
 
 // Group tool definitions by category for dynamic loading.
-export const toolDefinitionGroups: { [key: string]: FunctionDeclaration[] } = {
+export const toolDefinitionGroups: { [key: string]: NamedFunctionDeclaration[] } = {
   database: databaseToolDefinitions,
   storage: storageToolDefinitions,
   functions: functionsToolDefinitions,

@@ -15,6 +15,14 @@ import { TabShell } from '../ui/TabShell';
 
 type SiteDetailSubTab = 'deployments' | 'variables' | 'logs';
 
+/**
+ * Appwrite reported deployment metrics as `size` / `buildTime` before 1.6 and renamed them
+ * (`sourceSize` / `buildSize` / `totalSize` / `buildDuration`) afterwards; the `node-appwrite` v17
+ * model declares only the new names. The deployment list below still reads the legacy pair, so they
+ * are declared here as optional rather than left implicitly `any`.
+ */
+type DeploymentWithLegacyMetrics = Models.Deployment & { size?: number; buildTime?: number };
+
 interface SitesTabProps {
     activeProject: AppwriteProject;
     sites: AppwriteSite[];
@@ -361,7 +369,7 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                             onRetry={siteDeploymentsPagination.refresh}
                         />
                     ) : (
-                        siteDeployments.map(dep => {
+                        siteDeployments.map((dep: DeploymentWithLegacyMetrics) => {
                             const isActive = dep.$id === selectedSite.deploymentId;
                             return (
                                 <div key={dep.$id} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${isActive ? 'bg-emerald-900/10 border-emerald-800/30' : 'bg-gray-900/40 border-gray-800/50 hover:border-gray-700'}`}>
@@ -383,8 +391,8 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                                         </div>
                                         <div className="flex items-center gap-3 text-[11px] text-gray-500">
                                             <span>{formatDate(dep.$createdAt)}</span>
-                                            {dep.size > 0 && <span>{formatSize(dep.size)}</span>}
-                                            {dep.buildTime > 0 && <span>Build: {dep.buildTime}s</span>}
+                                            {(dep.size ?? 0) > 0 && <span>{formatSize(dep.size ?? 0)}</span>}
+                                            {(dep.buildTime ?? 0) > 0 && <span>Build: {dep.buildTime}s</span>}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1 flex-shrink-0">

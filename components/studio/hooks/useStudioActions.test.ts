@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AppwriteProject } from '../../../types';
+import type {
+    AppwriteProject, AppwriteFunction, AppwriteSite, Collection, Database,
+} from '../../../types';
+import type { Toast } from '../../../hooks/useToast';
 
 const createMembership = vi.fn(async () => ({}));
 const deleteTeam = vi.fn(async () => ({}));
@@ -12,7 +15,8 @@ const deleteFile = vi.fn(async () => ({}));
 
 vi.mock('../../../services/appwrite', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../services/appwrite')>();
-    const empty = { total: 0, documents: [], users: [], teams: [] };
+    const empty: { total: number; documents: unknown[]; users: unknown[]; teams: unknown[] } =
+        { total: 0, documents: [], users: [], teams: [] };
     const stub = new Proxy({}, { get: () => vi.fn(async () => empty) });
     return {
         ...actual,
@@ -38,15 +42,15 @@ const project: AppwriteProject = {
 
 /** Minimal stand-ins for the two hooks `useStudioActions` consumes. */
 function makeHarness(selectedTeam: any = { $id: 'team-1', name: 'Ops' }, selectedBucket: any = null) {
-    const pagination = () => ({ items: [], total: 0, refresh: vi.fn() });
+    const pagination = () => ({ items: [] as unknown[], total: 0, refresh: vi.fn() });
     const data = {
-        selectedDb: null, setSelectedDb: vi.fn(),
-        selectedCollection: null, setSelectedCollection: vi.fn(),
+        selectedDb: null as Database | null, setSelectedDb: vi.fn(),
+        selectedCollection: null as Collection | null, setSelectedCollection: vi.fn(),
         selectedBucket, setSelectedBucket: vi.fn(),
-        selectedFunction: null, setSelectedFunction: vi.fn(),
+        selectedFunction: null as AppwriteFunction | null, setSelectedFunction: vi.fn(),
         selectedTeam,
-        selectedSite: null, setSelectedSite: vi.fn(),
-        attributes: [],
+        selectedSite: null as AppwriteSite | null, setSelectedSite: vi.fn(),
+        attributes: [] as unknown[],
         usersPagination: pagination(), teamsPagination: pagination(),
         collectionsPagination: pagination(), documentsPagination: pagination(),
         filesPagination: pagination(), deploymentsPagination: pagination(),
@@ -70,7 +74,7 @@ function makeHarness(selectedTeam: any = { $id: 'team-1', name: 'Ops' }, selecte
         setModalLoading: vi.fn(), setModal: vi.fn(), openCustomModal: vi.fn(), closeModal: vi.fn(),
     };
 
-    const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), toasts: [], addToast: vi.fn(), removeToast: vi.fn() };
+    const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), toasts: [] as Toast[], addToast: vi.fn(), removeToast: vi.fn() };
 
     const actions = useStudioActions(project, data, modals, vi.fn(), vi.fn(), toast);
     const flush = () => Promise.all(pending);
@@ -171,7 +175,8 @@ describe('file transfers go through the SDK', () => {
     const bucket = { $id: 'bucket-1', name: 'Assets' };
 
     function fileList(...files: File[]): FileList {
-        return { length: files.length, item: (i: number) => files[i], ...files } as unknown as FileList;
+        // The spread supplies the numeric indices; `length` follows it so it is not shadowed.
+        return { ...files, length: files.length, item: (i: number) => files[i] } as unknown as FileList;
     }
 
     it('uploads with storage.createFile and never calls global fetch', async () => {

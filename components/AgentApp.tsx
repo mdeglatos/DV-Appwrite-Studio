@@ -78,7 +78,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     }, []);
 
     const {
-        projects, activeProject, handleSaveProject, handleUpdateProject, handleDeleteProject, handleSelectProject,
+        projects, activeProject, handleSaveProject, handleUpdateProject, handleDeleteProject,
         error: projectError, isLoading: isProjectsLoading
     } = useProjects(currentUser, refreshUser, logCallback, params.projectId);
 

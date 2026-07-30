@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { Models } from 'node-appwrite';
 import { CopyButton } from './CopyButton';
 import { ArrowLeftIcon, ArrowRightIcon, CopyIcon, CheckIcon } from '../../Icons';

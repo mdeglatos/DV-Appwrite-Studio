@@ -23,9 +23,9 @@ export const CreateFunctionModal: React.FC<CreateFunctionModalProps> = ({ isOpen
     
     // Advanced Config
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const [execute, setExecute] = useState<string[]>([]); // Default empty (admins only) usually, or 'any'
+    const [_execute, setExecute] = useState<string[]>([]); // Default empty (admins only) usually, or 'any'
     const [executeInput, setExecuteInput] = useState('');
-    const [events, setEvents] = useState<string[]>([]);
+    const [_events, setEvents] = useState<string[]>([]);
     const [eventsInput, setEventsInput] = useState('');
     const [schedule, setSchedule] = useState('');
     const [timeout, setTimeout] = useState(15);

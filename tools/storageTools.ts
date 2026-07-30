@@ -1,6 +1,7 @@
 import { getSdkStorage, ID, Query } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in storage tool:', error);
@@ -243,7 +244,7 @@ export const storageFunctions = {
     createFileToken,
 };
 
-export const storageToolDefinitions: FunctionDeclaration[] = [
+export const storageToolDefinitions: NamedFunctionDeclaration[] = [
     // Bucket Tools
     {
         name: 'listBuckets',

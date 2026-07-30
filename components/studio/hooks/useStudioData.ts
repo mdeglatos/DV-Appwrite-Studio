@@ -8,11 +8,10 @@ import {
     extractCollectionId,
     extractBucketId,
     type RealtimeEvent,
-    type RealtimeCallback,
 } from '../../../services/realtimeService';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite, StudioTab } from '../../../types';
 import type { Models } from 'node-appwrite';
-import { usePaginatedQuery, parseQueryArray, type PaginatedFetchFn, type PaginatedState } from './usePaginatedQuery';
+import { usePaginatedQuery, parseQueryArray, type PaginatedFetchFn } from './usePaginatedQuery';
 import { routes } from '../../../services/router';
 
 // ============================================================================

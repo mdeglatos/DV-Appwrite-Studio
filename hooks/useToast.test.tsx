@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ToastProvider, useToast } from './useToast';
 
-function Emitter({ onReady }: { onReady: (toast: ReturnType<typeof useToast>) => void }) {
+function Emitter({ onReady }: { onReady: (toast: ReturnType<typeof useToast>) => void }): null {
     const toast = useToast();
     React.useEffect(() => { onReady(toast); }, [onReady, toast]);
     return null;

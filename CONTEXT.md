@@ -27,7 +27,7 @@ Users register/login via Appwrite auth on the studio's own backend. Each user ca
 | Category       | Technology               | Notes                                                   |
 |:---------------|:-------------------------|:--------------------------------------------------------|
 | Framework      | React 19                 | Functional components, hooks only                       |
-| Language       | TypeScript               | Strict types, no `any` unless unavoidable               |
+| Language       | TypeScript               | `strict` + `noUnusedLocals`/`noUnusedParameters`, all on in `tsconfig.json`. Caveat: **107 `as any` casts remain (98 outside tests) and `strict` does not flag them** — a cast silences exactly the errors these flags raise, so a green typecheck is not proof the code is honestly typed |
 | Build Tool     | Vite 6                   | Dev server on port 3000                                 |
 | CSS            | Tailwind CSS (CDN)       | Loaded via `<script>` tag in `index.html`, not installed |
 | Fonts          | Inter + JetBrains Mono   | Google Fonts, loaded in `index.html`                    |
@@ -50,6 +50,7 @@ Users register/login via Appwrite auth on the studio's own backend. Each user ca
 | Raw `process.env.*`       | Use `import.meta.env.VITE_*` via `config.ts`                  |
 | Raw SDK calls in UI       | All Appwrite calls go through `services/` or `tools/`          |
 | Hand-built Appwrite REST `fetch` in browser code | Use the `getSdk*` factories — they own the endpoint, the headers and chunked upload. `node-appwrite`'s `createFile` / `getFileDownload` / `createDeployment` **are** browser-safe. **Enforced by `test/no-raw-appwrite-fetch.test.ts`** (the three deployed Function worker templates are exempt) |
+| `@ts-ignore` / `@ts-expect-error` / `@ts-nocheck` | The codebase has **zero** of them and there is no allowlist. Give the value an honest type, or `unknown` plus a narrowing check. **Enforced by `test/no-ts-suppressions.test.ts`**, which also pins the three `tsconfig.json` flags above |
 | Server-side rendering     | This is a client-only SPA                                      |
 
 ---
@@ -67,7 +68,6 @@ DV Backend Studio/
 ├── types.ts           # Global type definitions
 ├── vite.config.ts     # Vite config with env var injection
 ├── vite-env.d.ts      # Vite env type declarations
-├── react-icons.d.ts   # react-icons type augmentation
 ├── .env.local         # Local environment variables (gitignored)
 ├── .env.example       # Placeholder env template (committed)
 │
@@ -143,7 +143,8 @@ DV Backend Studio/
 └── test/              # Vitest setup + cross-cutting guards
     ├── setup.ts                # jest-dom matchers + afterEach(cleanup)
     ├── no-native-dialogs.test.ts     # Enforces the alert/confirm/prompt ban
-    └── no-raw-appwrite-fetch.test.ts # Enforces "no hand-built Appwrite REST in browser code"
+    ├── no-raw-appwrite-fetch.test.ts # Enforces "no hand-built Appwrite REST in browser code"
+    └── no-ts-suppressions.test.ts    # Enforces `strict` stays on and no suppression comments appear
 ```
 
 > Unit tests live **next to** the file under test as `<name>.test.ts(x)`; only setup and

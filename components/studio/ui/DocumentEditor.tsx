@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import type { Models } from 'node-appwrite';
-import { CopyButton } from './CopyButton';
 import { DatabaseIcon, KeyIcon, TeamIcon, RefreshIcon, CheckIcon, LoadingSpinnerIcon } from '../../Icons';
 
 interface DocumentEditorProps {

@@ -1,6 +1,7 @@
 import * as adminService from '../services/projectAdminService';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in project admin tool:', error);
@@ -67,7 +68,6 @@ async function deletePlatform(context: AIContext, { platformId }: { platformId: 
 
 async function addStudioCorsFixer(context: AIContext) {
     try {
-        const origin = window.location.origin;
         const hostname = window.location.hostname;
         const name = `DV Studio (Auto-Registered)`;
         
@@ -156,7 +156,7 @@ export const projectAdminFunctions = {
     toggleAuthMethod,
 };
 
-export const projectAdminToolDefinitions: FunctionDeclaration[] = [
+export const projectAdminToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'listApiKeys',
         description: 'Get a list of all administrative API keys created in the project.',

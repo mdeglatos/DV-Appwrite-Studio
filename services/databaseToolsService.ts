@@ -1,5 +1,5 @@
 import { getSdkDatabases, ID } from './appwrite';
-import type { AppwriteProject, Database, Collection } from '../types';
+import type { AppwriteProject, Collection } from '../types';
 
 /**
  * Generates schema-aware mock data based on Appwrite collection attributes.

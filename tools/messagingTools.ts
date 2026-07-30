@@ -1,6 +1,7 @@
 import { getSdkMessaging, ID, Query } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in messaging tool:', error);
@@ -133,7 +134,7 @@ export const messagingFunctions = {
     sendBroadcastMessage,
 };
 
-export const messagingToolDefinitions: FunctionDeclaration[] = [
+export const messagingToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'listMessagingProviders',
         description: 'Get a list of registered notification providers (email SMTP, SMS Twilio, push FCM/APNs) configured in the project.',

@@ -1,7 +1,8 @@
 
 import { getSdkFunctions, ID, Query } from '../services/appwrite';
 import type { AIContext, AppwriteProject } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 import Tar from 'tar-js';
 import pako from 'pako';
 
@@ -12,22 +13,6 @@ async function handleApiError(error: unknown) {
         return { error: `Appwrite API Error: ${error.message}` };
     }
     return { error: 'An unknown error occurred while communicating with the Appwrite API.' };
-}
-
-// Helper to create a .tar.gz blob from an array of File objects
-async function createTarGzFromFiles(files: File[]): Promise<Blob> {
-    const tar = new Tar();
-    const filePromises = files.map(async (file) => {
-        const contentBuffer = await file.arrayBuffer();
-        const content = new Uint8Array(contentBuffer);
-        tar.append(file.name, content);
-    });
-
-    await Promise.all(filePromises);
-
-    const tarUint8Array = tar.out;
-    const gzippedData = pako.gzip(tarUint8Array);
-    return new Blob([gzippedData], { type: 'application/gzip' });
 }
 
 // Helper to create a .tar.gz blob from in-memory file content
@@ -528,7 +513,7 @@ export const functionsFunctions = {
     deleteVariable,
 };
 
-export const functionsToolDefinitions: FunctionDeclaration[] = [
+export const functionsToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'createFunction',
         description: 'Create a new function.',

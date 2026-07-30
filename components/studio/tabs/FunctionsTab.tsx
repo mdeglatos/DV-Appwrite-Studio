@@ -6,7 +6,7 @@ import { ResourceTable } from '../ui/ResourceTable';
 import { PaginationFooter } from '../ui/PaginationFooter';
 import { CleanupModal } from '../ui/CleanupModal';
 import { Breadcrumb } from '../ui/Breadcrumb';
-import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, RiRocketLine, PlayIcon, EditIcon, AddIcon, CleanupIcon, FunctionIcon } from '../../Icons';
+import { CodeIcon, TerminalIcon, EyeIcon, DeleteIcon, RefreshIcon, CheckIcon, SettingsIcon, KeyIcon, ExternalLinkIcon, RiGlobalLine, PlayIcon, EditIcon, CleanupIcon, FunctionIcon } from '../../Icons';
 import { CopyButton } from '../ui/CopyButton';
 import { consoleLinks } from '../../../services/appwrite';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';

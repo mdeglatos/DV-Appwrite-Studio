@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Modal } from '../Modal';
-import { LoadingSpinnerIcon, RefreshIcon, StorageIcon, RiRocketLine, RiShareForwardLine, ChevronDownIcon, CheckIcon } from '../Icons';
+import { LoadingSpinnerIcon, StorageIcon, RiRocketLine, RiShareForwardLine, ChevronDownIcon, CheckIcon } from '../Icons';
 import type { AppwriteProject, Bucket } from '../../types';
 import { getSdkStorage, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
@@ -38,7 +38,7 @@ export const ConsolidateBucketsModal: React.FC<ConsolidateBucketsModalProps> = (
     const [deleteOriginals, setDeleteOriginals] = useState(true); // Move vs Copy
     const [status, setStatus] = useState<'idle' | 'executing' | 'completed'>('idle');
     const [logs, setLogs] = useState<string[]>([]);
-    const [progress, setProgress] = useState({ current: 0, total: 0 });
+    const [_progress, setProgress] = useState({ current: 0, total: 0 });
 
     const handleSourceToggle = (id: string) => {
         if (sourceBucketIds.includes(id)) {

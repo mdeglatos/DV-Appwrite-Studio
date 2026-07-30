@@ -1,5 +1,5 @@
 
-import { Client, Databases, Storage, Functions, Users, Teams, ID, Query } from 'node-appwrite';
+import { Client, Storage, Functions } from 'node-appwrite';
 import type { AppwriteProject, BackupOptions } from '../types';
 import { deployCodeFromString } from '../tools/functionsTools';
 import { configureClient } from './appwrite';

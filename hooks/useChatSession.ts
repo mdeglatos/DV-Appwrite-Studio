@@ -55,7 +55,9 @@ export function useChatSession({
                 bucket: selectedBucket, fn: selectedFunction,
             };
             
-            let initialHistory = isHardReset ? undefined : chat?.history;
+            // `Chat#history` is private; `getHistory()` is the public accessor for the same
+            // comprehensive history (it returns a structured clone of it).
+            let initialHistory = isHardReset ? undefined : chat?.getHistory();
             if (isHardReset) setMessages([]);
 
             const contextDescription = [

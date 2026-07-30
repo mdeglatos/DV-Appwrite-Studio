@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, type Chat, type GenerateContentResponse, type Part, type FunctionCall, type Content } from '@google/genai';
+import { GoogleGenAI, type Chat, type GenerateContentResponse, type Part, type Content } from '@google/genai';
 import { availableTools, toolDefinitionGroups } from '../tools';
 import type { AIContext, Message, ActionMessage, ModelMessage, GroundingChunk } from '../types';
 import { logAuditAction } from './auditLogService';
@@ -254,7 +254,7 @@ export const runAI = async (
                 logCallback(`Error: Unknown tool referenced by the model: ${toolCall.name}`);
                 logAuditAction({
                     projectId: context.project.projectId,
-                    toolName: toolCall.name,
+                    toolName: toolName,
                     args: JSON.stringify(toolCall.args),
                     status: 'error',
                     result: 'Unknown tool',

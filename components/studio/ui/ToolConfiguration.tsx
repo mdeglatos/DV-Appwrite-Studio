@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ChevronDownIcon, SettingsIcon, CheckIcon } from '../../Icons';
+import { ChevronDownIcon } from '../../Icons';
 import { toolDefinitionGroups } from '../../../tools';
 import { useToast } from '../../../hooks/useToast';
 

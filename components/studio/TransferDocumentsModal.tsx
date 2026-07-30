@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from '../Modal';
-import { LoadingSpinnerIcon, DatabaseIcon, RiRocketLine, RiShareForwardLine, ChevronDownIcon, CheckIcon, AddIcon, DeleteIcon, WarningIcon, DownloadCloudIcon, CloseIcon } from '../Icons';
+import { LoadingSpinnerIcon, RiRocketLine, CheckIcon, AddIcon, DeleteIcon, DownloadCloudIcon, CloseIcon } from '../Icons';
 import type { AppwriteProject, Database } from '../../types';
 import { getSdkDatabases, getSdkFunctions, Query, ID, listAll } from '../../services/appwrite';
 import { deployCodeFromString } from '../../tools/functionsTools';
@@ -32,25 +32,23 @@ interface TransferDocumentsModalProps {
 }
 
 export const TransferDocumentsModal: React.FC<TransferDocumentsModalProps> = ({ 
-    isOpen, onClose, activeProject, projects, databases, onSuccess 
+    isOpen, onClose, activeProject, databases, onSuccess 
 }) => {
     const toast = useToast();
     const [mappings, setMappings] = useState<MappingRow[]>([]);
     const [sourceCollections, setSourceCollections] = useState<{[dbId: string]: any[]}>({});
     
     const [destType, setDestType] = useState<'internal' | 'external'>('internal');
-    const [selectedDestProjId, setSelectedDestProjId] = useState<string>('manual');
-    const [extEndpoint, setExtEndpoint] = useState('https://cloud.appwrite.io/v1');
-    const [extProjectId, setExtProjectId] = useState('');
-    const [extApiKey, setExtApiKey] = useState('');
-    const [extDatabases, setExtDatabases] = useState<Database[]>([]);
+    const [extEndpoint] = useState('https://cloud.appwrite.io/v1');
+    const [extProjectId] = useState('');
+    const [extApiKey] = useState('');
+    const [extDatabases] = useState<Database[]>([]);
     const [extCollections, setExtCollections] = useState<{[dbId: string]: any[]}>({});
     
     const [deleteOriginals, setDeleteOriginals] = useState(false);
     const [status, setStatus] = useState<'idle' | 'executing' | 'completed'>('idle');
     const [logs, setLogs] = useState<string[]>([]);
     const [results, setResults] = useState<TransferResult[]>([]);
-    const [totalEstimated, setTotalEstimated] = useState(0);
 
     // Stats Calculation
     const stats = useMemo(() => {

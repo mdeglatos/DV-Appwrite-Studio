@@ -1,6 +1,7 @@
 import { getSdkHealth } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function getSystemHealth(context: AIContext) {
     try {
@@ -45,7 +46,7 @@ export const healthFunctions = {
     getSystemHealth,
 };
 
-export const healthToolDefinitions: FunctionDeclaration[] = [
+export const healthToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'getSystemHealth',
         description: 'Check the overall infrastructure health status of the Appwrite server (Database latency, Cache, Storage systems, NTP Clock sync, Antivirus status, and Queue backlogs).',

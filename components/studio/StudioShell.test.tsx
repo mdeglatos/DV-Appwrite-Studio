@@ -21,7 +21,7 @@ const execution = {
     trigger: 'http',
     requestMethod: 'GET',
     requestPath: '/',
-    requestHeaders: [],
+    requestHeaders: [] as unknown[],
     logs: 'ok',
     errors: '',
 };

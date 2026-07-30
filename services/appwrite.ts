@@ -312,5 +312,23 @@ export async function listAll<T>(
     return allItems;
 }
 
+/**
+ * The one place that reconciles Appwrite's *explicit* `"default": null` with `node-appwrite`'s
+ * parameter types.
+ *
+ * An attribute with no default is created by sending `"default": null`; omitting the key entirely
+ * is a different request. The SDK builds its payload with
+ * `if (typeof xdefault !== 'undefined') payload['default'] = xdefault`, so `null` and `undefined`
+ * are **not** interchangeable — yet every generated signature types the parameter as `T | undefined`
+ * and cannot express the null. Every attribute call in this repo passes that null deliberately
+ * (`required ? null : value`).
+ *
+ * Wrapping the value here states the discrepancy once, in the module that owns the SDK contract,
+ * instead of leaving ~30 call sites to each assert it. It is identity at runtime.
+ */
+export function attributeDefault<T>(value: T | null | undefined): T | undefined {
+    return value as T | undefined;
+}
+
 export { ID, Query, Permission, Role, AppwriteException };
 

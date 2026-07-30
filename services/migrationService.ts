@@ -1,4 +1,5 @@
 import { Client, Databases, Storage, Functions, Users, Teams, ID, Query } from 'node-appwrite';
+import type { Models } from 'node-appwrite';
 import type { AppwriteProject } from '../types';
 import { deployCodeFromString, downloadAndUnpackDeployment } from '../tools/functionsTools';
 import { listAll, configureClient } from './appwrite';
@@ -621,7 +622,9 @@ export class MigrationService {
             if (deploymentId) {
                 try {
                     // Get Metadata to reuse entrypoint/commands if specific to deployment
-                    let sourceDeployment;
+                    // Appwrite < 1.7 carried `commands` on the deployment; the v17 model declares it
+                    // on the function only, which is what the `|| func.commands` fallback reads.
+                    let sourceDeployment: (Models.Deployment & { commands?: string }) | undefined;
                     try { sourceDeployment = await this.sourceFunctions.getDeployment(res.sourceId, deploymentId); } catch (e) {}
                     const entrypointToUse = sourceDeployment?.entrypoint || func.entrypoint;
                     const commandsToUse = sourceDeployment?.commands || func.commands;

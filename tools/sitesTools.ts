@@ -1,6 +1,7 @@
 import { getSdkSites, ID, Query } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in sites tool:', error);
@@ -253,7 +254,7 @@ export const sitesFunctions = {
     listSiteLogs,
 };
 
-export const sitesToolDefinitions: FunctionDeclaration[] = [
+export const sitesToolDefinitions: NamedFunctionDeclaration[] = [
     // -- Site CRUD --
     {
         name: 'listSites',

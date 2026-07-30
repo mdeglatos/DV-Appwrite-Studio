@@ -59,7 +59,7 @@ type Phase = 'configure' | 'preview' | 'confirm' | 'executing' | 'done';
 export function CleanupModal<T>({ isOpen, onClose, config, onComplete }: CleanupModalProps<T>) {
     const [phase, setPhase] = useState<Phase>('configure');
     const [filterValues, setFilterValues] = useState<Record<string, any>>({});
-    const [allItems, setAllItems] = useState<T[]>([]);
+    const [_allItems, setAllItems] = useState<T[]>([]);
     const [matchedItems, setMatchedItems] = useState<T[]>([]);
     const [isFetching, setIsFetching] = useState(false);
     const [selectedActionId, setSelectedActionId] = useState<string>(config.actions[0]?.id || '');

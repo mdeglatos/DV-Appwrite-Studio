@@ -2,7 +2,7 @@
 import React from 'react';
 import { IoSend, IoAttach } from 'react-icons/io5';
 import { CgSpinner } from 'react-icons/cg';
-import { FaUser, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaUser } from 'react-icons/fa';
 import { RiRobot2Line, RiSettings3Line, RiAddCircleLine, RiDeleteBinLine, RiCheckLine, RiCloseLine, RiTerminalBoxLine, RiMenuLine, RiToolsLine, RiLogoutBoxRLine, RiArrowDownSLine, RiArrowUpSLine, RiStackLine, RiFileUploadFill, RiFile3Line, RiKey2Line, RiRefreshLine, RiFileCopyLine, RiCodeSSlashLine, RiCompass3Line, RiErrorWarningLine, RiFolderLine, RiFileAddLine, RiFolderAddLine, RiPencilLine, RiLayoutMasonryLine as _RiLayoutMasonryLine, RiDashboardLine, RiDatabase2Line, RiHardDrive2Line, RiGroupLine, RiFlashlightLine, RiArrowLeftSLine, RiEyeLine, RiShareForwardLine as _RiShareForwardLine, RiRocketLine as _RiRocketLine, RiGlobalLine as _RiGlobalLine, RiHistoryLine, RiDownloadCloud2Line, RiUploadCloud2Line, RiExternalLinkLine, RiLinksLine, RiArrowRightSLine, RiPlayLine, RiSearchLine, RiDownloadLine, RiUploadLine, RiImageLine, RiShieldCheckLine, RiMailCheckLine, RiPhoneLine, RiLockLine, RiLockUnlockLine, RiInformationLine, RiFilter3Line, RiDeleteBin2Line, RiMessage3Line, RiHeartPulseLine, RiWebhookLine, RiGitForkLine } from 'react-icons/ri';
 
 interface IconProps {

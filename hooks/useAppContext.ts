@@ -1,10 +1,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { AppwriteProject, Database, Collection, Bucket, AppwriteFunction } from '../types';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, Query, handleFetchError, listAll } from '../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, handleFetchError, listAll } from '../services/appwrite';
 import {
     type RealtimeEvent,
-    type RealtimeConnectionStatus,
     matchesEvent,
 } from '../services/realtimeService';
 import { useSmartPolling } from './useRealtime';

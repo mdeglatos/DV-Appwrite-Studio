@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, Message, AppwriteFunction } from '../types';
 import type { RealtimeConnectionStatus } from '../hooks/useRealtime';
-import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, ExternalLinkIcon, SettingsIcon, KeyIcon, LinksIcon, BotIcon } from './Icons';
+import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, SettingsIcon, KeyIcon, LinksIcon, BotIcon } from './Icons';
 
 import { AuditLogModal } from './AuditLogModal';
 import { consoleLinks } from '../services/appwrite';

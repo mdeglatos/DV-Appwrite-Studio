@@ -9,7 +9,7 @@ import {
 } from './useSectionRefresh';
 
 /** A self-loading panel: registers its own re-fetch for as long as it is mounted. */
-function Panel({ refresh }: { refresh: () => void }) {
+function Panel({ refresh }: { refresh: () => void }): null {
     useRegisterSectionRefresh(React.useCallback(refresh, [refresh]));
     return null;
 }
@@ -23,7 +23,7 @@ describe('SectionRefreshProvider', () => {
         const refresh = vi.fn();
         const store = { current: null as null | (() => Promise<void>) };
 
-        function Runner() {
+        function Runner(): null {
             store.current = useSectionRefreshRunner();
             return null;
         }
@@ -44,7 +44,7 @@ describe('SectionRefreshProvider', () => {
         const refresh = vi.fn();
         const store = { current: null as null | (() => Promise<void>) };
 
-        function Runner() {
+        function Runner(): null {
             store.current = useSectionRefreshRunner();
             return null;
         }
@@ -72,7 +72,7 @@ describe('SectionRefreshProvider', () => {
         const boom = vi.fn(() => Promise.reject(new Error('nope')));
         const store = { current: null as null | (() => Promise<void>) };
 
-        function Runner() {
+        function Runner(): null {
             store.current = useSectionRefreshRunner();
             return null;
         }

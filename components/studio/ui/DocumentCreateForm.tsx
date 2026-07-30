@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { DatabaseIcon, KeyIcon, TeamIcon, CheckIcon, LoadingSpinnerIcon, CloseIcon } from '../../Icons';
+import { DatabaseIcon, KeyIcon, TeamIcon, CheckIcon, LoadingSpinnerIcon } from '../../Icons';
 
 interface Attribute {
     key: string;

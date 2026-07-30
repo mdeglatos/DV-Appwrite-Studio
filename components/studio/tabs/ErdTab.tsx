@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { AppwriteProject, Database, Collection } from '../../../types';
-import { parseCollectionsToErd, ErdNode, ErdEdge } from '../../../services/databaseToolsService';
+import { parseCollectionsToErd } from '../../../services/databaseToolsService';
 import { getSdkDatabases } from '../../../services/appwrite';
-import { ErdIcon, DatabaseIcon, InfoIcon, VerifiedIcon, LoadingSpinnerIcon } from '../../Icons';
-import { useToast } from '../../../hooks/useToast';
+import { ErdIcon, DatabaseIcon, InfoIcon } from '../../Icons';
 import { TabShell } from '../ui/TabShell';
 import { ListState } from '../ui/ListState';
 import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
@@ -14,7 +13,6 @@ interface ErdTabProps {
 }
 
 export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
-    const toast = useToast();
     const [selectedDbId, setSelectedDbId] = useState<string>('');
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);

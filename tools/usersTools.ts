@@ -1,6 +1,7 @@
 import { getSdkUsers, ID, Query } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in user tool:', error);
@@ -90,7 +91,7 @@ export const usersFunctions = {
     deleteUserSession,
 };
 
-export const usersToolDefinitions: FunctionDeclaration[] = [
+export const usersToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'listUsers',
         description: 'Get a list of all the project\'s users.',

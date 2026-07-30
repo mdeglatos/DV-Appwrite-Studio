@@ -1,8 +1,9 @@
 
-import { getSdkDatabases, ID, Query } from '../services/appwrite';
+import { attributeDefault, getSdkDatabases, ID, Query } from '../services/appwrite';
 import { seedCollection } from '../services/databaseToolsService';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in database tool:', error);
@@ -258,55 +259,55 @@ async function deleteAttribute(context: AIContext, { databaseId, collectionId, k
 
 async function createStringAttribute(context: AIContext, { databaseId, collectionId, key, size, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, size: number, required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createStringAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createStringAttribute(dbId, collId, key, size, required, finalDefault, array));
 }
 
 async function createIntegerAttribute(context: AIContext, { databaseId, collectionId, key, required, min, max, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, min?: number, max?: number, 'default'?: number, array?: boolean }) {
     console.log(`Executing createIntegerAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createIntegerAttribute(dbId, collId, key, required, min, max, finalDefault, array));
 }
 
 async function createFloatAttribute(context: AIContext, { databaseId, collectionId, key, required, min, max, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, min?: number, max?: number, 'default'?: number, array?: boolean }) {
     console.log(`Executing createFloatAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createFloatAttribute(dbId, collId, key, required, min, max, finalDefault, array));
 }
 
 async function createBooleanAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: boolean, array?: boolean }) {
     console.log(`Executing createBooleanAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createBooleanAttribute(dbId, collId, key, required, finalDefault, array));
 }
 
 async function createDatetimeAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createDatetimeAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createDatetimeAttribute(dbId, collId, key, required, finalDefault, array));
 }
 
 async function createEmailAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createEmailAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createEmailAttribute(dbId, collId, key, required, finalDefault, array));
 }
 
 async function createIpAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createIpAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createIpAttribute(dbId, collId, key, required, finalDefault, array));
 }
 
 async function createUrlAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createUrlAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createUrlAttribute(dbId, collId, key, required, finalDefault, array));
 }
 
 async function createEnumAttribute(context: AIContext, { databaseId, collectionId, key, elements, required, 'default': defaultValue, array }: { databaseId?: string, collectionId?: string, key: string, elements: string[], required: boolean, 'default'?: string, array?: boolean }) {
     console.log(`Executing createEnumAttribute for key '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.createEnumAttribute(dbId, collId, key, elements, required, finalDefault, array));
 }
 
@@ -319,55 +320,55 @@ async function createRelationshipAttribute(context: AIContext, { databaseId, col
 // Update Attribute tools
 async function updateStringAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string | null }) {
     console.log(`Updating string attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateStringAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateIntegerAttribute(context: AIContext, { databaseId, collectionId, key, required, min, max, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, min?: number, max?: number, 'default'?: number | null }) {
     console.log(`Updating integer attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateIntegerAttribute(dbId, collId, key, required, min, max, finalDefault));
 }
 
 async function updateFloatAttribute(context: AIContext, { databaseId, collectionId, key, required, min, max, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, min?: number, max?: number, 'default'?: number | null }) {
     console.log(`Updating float attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateFloatAttribute(dbId, collId, key, required, min, max, finalDefault));
 }
 
 async function updateBooleanAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: boolean | null }) {
     console.log(`Updating boolean attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateBooleanAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateDatetimeAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string | null }) {
     console.log(`Updating datetime attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateDatetimeAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateEmailAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string | null }) {
     console.log(`Updating email attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateEmailAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateIpAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string | null }) {
     console.log(`Updating IP attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateIpAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateUrlAttribute(context: AIContext, { databaseId, collectionId, key, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, required: boolean, 'default'?: string | null }) {
     console.log(`Updating URL attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateUrlAttribute(dbId, collId, key, required, finalDefault));
 }
 
 async function updateEnumAttribute(context: AIContext, { databaseId, collectionId, key, elements, required, 'default': defaultValue }: { databaseId?: string, collectionId?: string, key: string, elements: string[], required: boolean, 'default'?: string | null }) {
     console.log(`Updating enum attribute '${key}'`);
-    const finalDefault = required ? null : defaultValue;
+    const finalDefault = attributeDefault(required ? null : defaultValue);
     return createAttribute(context, { databaseId, collectionId }, (db, dbId, collId) => db.updateEnumAttribute(dbId, collId, key, elements, required, finalDefault));
 }
 
@@ -568,7 +569,7 @@ export const databaseFunctions = {
   updateIndex,
 };
 
-export const databaseToolDefinitions: FunctionDeclaration[] = [
+export const databaseToolDefinitions: NamedFunctionDeclaration[] = [
   // Document Tools
   {
     name: 'listDocuments',

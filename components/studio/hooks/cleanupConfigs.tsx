@@ -1,7 +1,6 @@
 
-import React from 'react';
 import type { Models } from 'node-appwrite';
-import type { AppwriteProject, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
+import type { AppwriteProject, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { CleanupConfig } from '../ui/CleanupModal';
 import { getSdkUsers, getSdkTeams, getSdkStorage, getSdkDatabases, getSdkFunctions, getSdkSites, Query, listAll } from '../../../services/appwrite';
 

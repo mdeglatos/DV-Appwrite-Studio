@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { UnpackedFile } from '../tools/functionsTools';
-import { CloseIcon, CopyIcon, FileIcon, CheckIcon, CodeIcon, LoadingSpinnerIcon, FolderIcon, FileAddIcon, FolderAddIcon, EditIcon, DeleteIcon, ChevronDownIcon, ChevronUpIcon } from './Icons';
+import { CloseIcon, CopyIcon, FileIcon, CheckIcon, CodeIcon, LoadingSpinnerIcon, FolderIcon, FileAddIcon, FolderAddIcon, EditIcon, DeleteIcon, ChevronDownIcon } from './Icons';
 
 interface TreeNode {
     name: string;
@@ -203,7 +203,6 @@ export const CodeViewerSidebar: React.FC<CodeViewerSidebarProps> = ({
         }
     }, [originalFiles, functionName]);
 
-    const fileTree = useMemo(() => buildFileTree(files), [files]);
     const activeFile = useMemo(() => files.find(f => f.name === activeFilePath), [files, activeFilePath]);
     const rootNode = buildFileTree(files);
 

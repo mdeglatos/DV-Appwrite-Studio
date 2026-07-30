@@ -5,7 +5,7 @@ import { ResourceTable } from '../ui/ResourceTable';
 import { PaginationFooter } from '../ui/PaginationFooter';
 import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { CleanupModal } from '../ui/CleanupModal';
-import { ExternalLinkIcon, DeleteIcon, EditIcon, VerifiedIcon, EmailVerifiedIcon, LockIcon, UnlockIcon, KeyIcon, CleanupIcon } from '../../Icons';
+import { ExternalLinkIcon, DeleteIcon, EditIcon, EmailVerifiedIcon, LockIcon, UnlockIcon, KeyIcon, CleanupIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import type { AppwriteProject } from '../../../types';
 import type { PaginatedState } from '../hooks/usePaginatedQuery';

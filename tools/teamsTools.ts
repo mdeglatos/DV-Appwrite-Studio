@@ -1,6 +1,7 @@
 import { getSdkTeams, ID, Query } from '../services/appwrite';
 import type { AIContext } from '../types';
-import { Type, type FunctionDeclaration } from '@google/genai';
+import { Type } from '@google/genai';
+import type { NamedFunctionDeclaration } from '../types';
 
 async function handleApiError(error: unknown) {
     console.error('Appwrite API error in team tool:', error);
@@ -101,7 +102,7 @@ export const teamsFunctions = {
     deleteTeamMembership,
 };
 
-export const teamsToolDefinitions: FunctionDeclaration[] = [
+export const teamsToolDefinitions: NamedFunctionDeclaration[] = [
     {
         name: 'listTeams',
         description: 'Get a list of all the project\'s teams.',
