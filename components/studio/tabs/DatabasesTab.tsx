@@ -243,8 +243,11 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                     onCreate={onCreateCollection} 
                     onDelete={onDeleteCollection} 
                     onSelect={onSelectCollection} 
-                    createLabel="New Collection" 
+                    createLabel="New Collection"
                     headers={['Actions', 'Collection ID', 'Name', 'Status']}
+                    isLoading={collectionsPagination.isLoading}
+                    error={collectionsPagination.error}
+                    onRetry={collectionsPagination.refresh}
                     renderExtra={(c) => (
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${c.enabled ? 'bg-green-900/20 text-green-400' : 'bg-red-900/20 text-red-400'}`}>
                             {c.enabled ? 'Active' : 'Disabled'}
@@ -365,6 +368,9 @@ export const DatabasesTab: React.FC<DatabasesTabProps> = ({
                             createLabel="Add Document" 
                             allowWrap={allowWrap}
                             headers={['Actions', 'Document ID', 'Data Payload', 'Created At']}
+                            isLoading={documentsPagination.isLoading}
+                            error={documentsPagination.error}
+                            onRetry={documentsPagination.refresh}
                             extraActions={
                                 <div className="flex items-center gap-2 mr-2">
                                     <button 

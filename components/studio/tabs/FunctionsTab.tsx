@@ -222,6 +222,9 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
                     selection={{ selectedIds: selectedDeploymentIds, onSelectionChange: setSelectedDeploymentIds }}
                     headers={['Status & ID', 'Build Settings', 'Metadata', 'Action']}
                     autoHeight
+                    isLoading={deploymentsPagination.isLoading}
+                    error={deploymentsPagination.error}
+                    onRetry={deploymentsPagination.refresh}
                     isRowActive={(d) => d.$id === selectedFunction.deploymentId}
                     extraActions={
                         <div className="flex items-center gap-2">
@@ -316,9 +319,12 @@ export const FunctionsTab: React.FC<FunctionsTabProps> = ({
 
             {activeSubTab === 'executions' && (
                 <ResourceTable<Models.Execution> 
-                    title="Executions (Logs)" 
-                    data={executions} 
+                    title="Executions (Logs)"
+                    data={executions}
                     autoHeight
+                    isLoading={executionsPagination.isLoading}
+                    error={executionsPagination.error}
+                    onRetry={executionsPagination.refresh}
                     extraActions={
                         <div className="flex items-center gap-2">
                             <button

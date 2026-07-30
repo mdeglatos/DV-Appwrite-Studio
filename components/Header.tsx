@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import type { Models } from 'appwrite';
 import type { UserPrefs, AppwriteProject, Message, AppwriteFunction } from '../types';
 import type { RealtimeConnectionStatus } from '../hooks/useRealtime';
-import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, ExternalLinkIcon, SettingsIcon, KeyIcon, LinksIcon } from './Icons';
-import { RiRobot2Line } from 'react-icons/ri';
+import { MenuIcon, DeleteIcon, CodeIcon, TerminalIcon, UserIcon, LogoutIcon, StudioIcon, WarningIcon, ExternalLinkIcon, SettingsIcon, KeyIcon, LinksIcon, BotIcon } from './Icons';
+
 import { AuditLogModal } from './AuditLogModal';
 import { consoleLinks } from '../services/appwrite';
 
@@ -55,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <div className="relative group">
                                 <div className="absolute -inset-2 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
                                 <div className="relative bg-gray-950 rounded-full p-1.5 text-cyan-400 border border-gray-800">
-                                     <RiRobot2Line size={18} />
+                                     <BotIcon size={18} />
                                 </div>
                             </div>
                             <span className="hidden sm:block font-bold text-sm tracking-tight text-gray-200">
@@ -127,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
                                     : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}
                             `}
                         >
-                            <RiRobot2Line size={14} /> 
+                            <BotIcon size={14} /> 
                             <span className="hidden sm:inline">Agent</span>
                         </button>
                         <button

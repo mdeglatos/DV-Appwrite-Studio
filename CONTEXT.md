@@ -49,6 +49,7 @@ Users register/login via Appwrite auth on the studio's own backend. Each user ca
 | `alert()` / `confirm()` / `prompt()` | Messages → `useToast()`; confirmations → `useConfirm()`. **Enforced by `test/no-native-dialogs.test.ts`** |
 | Raw `process.env.*`       | Use `import.meta.env.VITE_*` via `config.ts`                  |
 | Raw SDK calls in UI       | All Appwrite calls go through `services/` or `tools/`          |
+| Hand-built Appwrite REST `fetch` in browser code | Use the `getSdk*` factories — they own the endpoint, the headers and chunked upload. `node-appwrite`'s `createFile` / `getFileDownload` / `createDeployment` **are** browser-safe. **Enforced by `test/no-raw-appwrite-fetch.test.ts`** (the three deployed Function worker templates are exempt) |
 | Server-side rendering     | This is a client-only SPA                                      |
 
 ---
@@ -77,6 +78,7 @@ DV Backend Studio/
 │   ├── Modals (Modal, ConfirmationModal, CreateFunctionModal, AuditLogModal)
 │   ├── Code (CodeViewer, CodeViewerSidebar)
 │   ├── Icons.tsx      # Centralized icon wrappers
+│   ├── ErrorBanner.tsx # The app shell's connection/project error banner (both views)
 │   └── studio/        # Manual dashboard view
 │       ├── navigation.tsx  # Section → icon + panel binding (the presentation registry)
 │       ├── tabs/      # Tab panels (DatabasesTab, StorageTab, FunctionsTab, SitesTab, etc.)
@@ -84,8 +86,11 @@ DV Backend Studio/
 │       │   ├── StudioNavBar.tsx  # Group chips + Settings gear + Sync
 │       │   ├── StudioSubNav.tsx  # The active group's section row
 │       │   ├── TabShell.tsx      # The shared page frame (title/subtitle/console link)
+│       │   ├── ListState.tsx     # The ONE loading / failed+retry / empty substitute for a list
+│       │   ├── FilePreview.tsx   # Authenticated file preview (SDK bytes → object URL)
 │       │   └── ResourceTable, StatCard, Toast, PaginationFooter, …
 │       ├── hooks/     # Studio-specific hooks (useStudioActions, useStudioData, useStudioModals, usePaginatedQuery)
+│       │   └── useSectionRefresh.tsx  # The ONE "refresh the current section" registry
 │       ├── types.ts   # Studio-specific types
 │       ├── CollectionSettings.tsx
 │       ├── ConsolidateBucketsModal.tsx
@@ -137,7 +142,8 @@ DV Backend Studio/
 │
 └── test/              # Vitest setup + cross-cutting guards
     ├── setup.ts                # jest-dom matchers + afterEach(cleanup)
-    └── no-native-dialogs.test.ts  # Enforces the alert/confirm/prompt ban
+    ├── no-native-dialogs.test.ts     # Enforces the alert/confirm/prompt ban
+    └── no-raw-appwrite-fetch.test.ts # Enforces "no hand-built Appwrite REST in browser code"
 ```
 
 > Unit tests live **next to** the file under test as `<name>.test.ts(x)`; only setup and
@@ -250,6 +256,10 @@ them needs editing.
 
 4. Add its props to the `sectionProps` map in `Studio.tsx` (also typed exhaustively)
 5. Add data fetching in `components/studio/hooks/useStudioData.ts` if needed
+6. **If the section loads its own data** (rather than through `useStudioData`), it must
+   call `useRegisterSectionRefresh(itsRefetch)` so the Sync button and `Shift+R` reach it,
+   and render `<ListState>` for its loading / failed / empty states — **never** replace
+   `<TabShell>` with a full-page spinner, and never let a failed fetch read as an empty list.
 
 ### Adding a New Service
 1. Create `services/newService.ts`

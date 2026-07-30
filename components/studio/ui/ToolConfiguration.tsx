@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, SettingsIcon, CheckIcon } from '../../Icons';
 import { toolDefinitionGroups } from '../../../tools';
+import { useToast } from '../../../hooks/useToast';
 
 interface ToolConfigurationProps {
     activeTools: { [key: string]: boolean };
@@ -17,7 +18,7 @@ const ToolToggle: React.FC<{
     onChange: (isChecked: boolean) => void;
     compact?: boolean;
 }> = ({ label, isChecked, onChange, compact }) => {
-    const id = `toggle-${label}-${Math.random().toString(36).substr(2, 5)}`;
+    const id = `toggle-${label}-${React.useId()}`;
     return (
         <label htmlFor={id} className={`flex items-center justify-between cursor-pointer rounded-md hover:bg-white/5 transition-colors group ${compact ? 'px-2 py-1' : 'px-3 py-2'}`}>
             <span className={`text-gray-400 capitalize group-hover:text-gray-200 transition-colors ${compact ? 'text-[11px] font-mono' : 'text-xs'}`}>
@@ -38,9 +39,26 @@ export const ToolConfiguration: React.FC<ToolConfigurationProps> = ({
     className = "",
     compact = false
 }) => {
+    const toast = useToast();
     const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
         database: true
     });
+
+    /**
+     * `useSettings.handleToolsChange` rethrows on a failed save. Every call site
+     * goes through here, so a failure reaches the user instead of becoming an
+     * unhandled rejection with the toggle silently reverted.
+     */
+    const applyTools = (tools: { [key: string]: boolean }) => {
+        try {
+            const result = onToolsChange(tools) as unknown;
+            if (result instanceof Promise) {
+                result.catch((err: any) => toast.error(`Could not save tool settings: ${err?.message || String(err)}`));
+            }
+        } catch (err: any) {
+            toast.error(`Could not save tool settings: ${err?.message || String(err)}`);
+        }
+    };
 
     const toggleCategory = (category: string) => {
         setExpandedCategories(prev => ({ ...prev, [category]: !prev[category] }));
@@ -51,7 +69,7 @@ export const ToolConfiguration: React.FC<ToolConfigurationProps> = ({
         Object.values(toolDefinitionGroups).flat().forEach(tool => {
             newTools[tool.name] = true;
         });
-        onToolsChange(newTools);
+        applyTools(newTools);
     };
 
     const handleDisableAll = () => {
@@ -59,14 +77,14 @@ export const ToolConfiguration: React.FC<ToolConfigurationProps> = ({
         Object.values(toolDefinitionGroups).flat().forEach(tool => {
             newTools[tool.name] = false;
         });
-        onToolsChange(newTools);
+        applyTools(newTools);
     };
 
     const handleCategoryToggle = (category: string, enabled: boolean) => {
         const tools = toolDefinitionGroups[category];
         const newTools = { ...activeTools };
         tools.forEach(t => newTools[t.name] = enabled);
-        onToolsChange(newTools);
+        applyTools(newTools);
     };
 
     const getIndicatorInfo = (checked: number, total: number) => {
@@ -100,7 +118,7 @@ export const ToolConfiguration: React.FC<ToolConfigurationProps> = ({
                         <ToolToggle
                             label="Web Search"
                             isChecked={activeTools['search'] ?? false}
-                            onChange={(isChecked) => onToolsChange({ ...activeTools, search: isChecked })}
+                            onChange={(isChecked) => applyTools({ ...activeTools, search: isChecked })}
                             compact={compact}
                         />
                     </div>
@@ -150,7 +168,7 @@ export const ToolConfiguration: React.FC<ToolConfigurationProps> = ({
                                             key={tool.name}
                                             label={tool.name}
                                             isChecked={activeTools[tool.name] ?? false}
-                                            onChange={(isChecked) => onToolsChange({ ...activeTools, [tool.name]: isChecked })}
+                                            onChange={(isChecked) => applyTools({ ...activeTools, [tool.name]: isChecked })}
                                             compact={compact}
                                         />
                                     ))}

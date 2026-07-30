@@ -155,35 +155,9 @@ async function writeFile(context: AIContext, { bucketId, fileId, fileToUpload, p
     }
     
     try {
-        // The Node.js SDK's file upload isn't browser-compatible.
-        // We must use a manual fetch call with FormData to upload from the client
-        // while still using the project's API key for authentication.
         const fileIdToUse = (fileId || 'unique()').toLowerCase() === 'unique()' ? ID.unique() : fileId!;
-
-        const formData = new FormData();
-        formData.append('fileId', fileIdToUse);
-        formData.append('file', fileToUpload);
-        if (permissions) {
-            permissions.forEach((p, i) => formData.append(`permissions[${i}]`, p));
-        }
-
-        const response = await fetch(`${context.project.endpoint}/storage/buckets/${finalBucketId}/files`, {
-            method: 'POST',
-            headers: {
-                'X-Appwrite-Project': context.project.projectId,
-                'X-Appwrite-Key': context.project.apiKey,
-            },
-            body: formData,
-        });
-
-        const jsonResponse = await response.json();
-
-        if (!response.ok) {
-            // Appwrite error responses have a 'message' field.
-            throw new Error(jsonResponse.message || `File upload failed with status ${response.status}`);
-        }
-
-        return jsonResponse;
+        const storage = getSdkStorage(context.project);
+        return await storage.createFile(finalBucketId, fileIdToUse, fileToUpload, permissions);
     } catch (error) {
         return handleApiError(error);
     }

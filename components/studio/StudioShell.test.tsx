@@ -26,8 +26,16 @@ const execution = {
     errors: '',
 };
 
-const sdkStub = new Proxy({}, {
-    get: (_target, prop: string) => vi.fn(async () => (prop === 'getExecution' ? execution : emptyList)),
+// One stable mock per method, so call counts survive across renders — the Sync
+// case below counts re-fetches.
+const sdkMethods = new Map<string, ReturnType<typeof vi.fn>>();
+const sdkStub = new Proxy({} as Record<string, unknown>, {
+    get: (_target, prop: string) => {
+        if (!sdkMethods.has(prop)) {
+            sdkMethods.set(prop, vi.fn(async () => (prop === 'getExecution' ? execution : emptyList)));
+        }
+        return sdkMethods.get(prop);
+    },
 });
 
 vi.mock('../../services/appwrite', async (importOriginal) => {
@@ -75,12 +83,15 @@ const SECTION_MARKERS: Record<StudioTab, string> = {
     'sites': 'Host web applications on Appwrite with automatic SSL, CDN and custom domains.',
     'users': 'Browse, search and manage the accounts registered against this project.',
     'teams': 'Group users into teams and manage their memberships and roles.',
-    'messaging': 'Loading Messaging interface...',
-    'webhooks': 'Loading Webhook configurations...',
-    'health': 'Executing system diagnostic audit...',
+    // These four used to be the tabs' loading strings, because each replaced its
+    // whole page with a spinner. They now paint their frame immediately, so the
+    // marker is the title — a stronger assertion, not a weaker one.
+    'messaging': 'Unified Messaging Suite',
+    'webhooks': 'Webhooks Plane',
+    'health': 'Infrastructure Diagnostics',
     'migrations': 'Migration Setup',
     'backups': 'Project Snapshots',
-    'project-settings': 'Loading Project settings plane...',
+    'project-settings': 'Project Settings Dashboard',
 };
 
 function renderStudio(activeTab: StudioTab, extra?: { path?: string; databases?: any[]; children?: React.ReactNode }) {
@@ -118,6 +129,7 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.clearAllMocks();
+    sdkMethods.clear();
 });
 
 describe('Studio registry dispatch', () => {
@@ -273,5 +285,92 @@ describe('Escape key and open dialogs', () => {
 
         await act(async () => { fireEvent.keyDown(window, { key: 'R', shiftKey: true }); });
         expect(refreshData).toHaveBeenCalled();
+    });
+});
+
+describe('section refresh registry', () => {
+    it('re-fetches a self-loading section on Shift+R', async () => {
+        // `backups` is not one of the seven sections `refreshCurrentView` knows,
+        // so its own registration is the only thing that can re-fetch it.
+        const { view } = renderStudio('backups');
+        expect(await screen.findByText('Project Snapshots')).toBeInTheDocument();
+
+        const listFiles = sdkMethods.get('listFiles')!;
+        const before = listFiles.mock.calls.length;
+        expect(before).toBeGreaterThan(0);
+
+        await act(async () => { fireEvent.keyDown(window, { key: 'R', shiftKey: true }); });
+
+        expect(listFiles.mock.calls.length).toBeGreaterThan(before);
+        view.unmount();
+    });
+
+    it('stops re-fetching a section once it unmounts', async () => {
+        const { view } = renderStudio('backups');
+        expect(await screen.findByText('Project Snapshots')).toBeInTheDocument();
+        const listFiles = sdkMethods.get('listFiles')!;
+        view.unmount();
+
+        const after = listFiles.mock.calls.length;
+        await act(async () => { fireEvent.keyDown(window, { key: 'R', shiftKey: true }); });
+        expect(listFiles.mock.calls.length).toBe(after);
+    });
+});
+
+describe('UsersTab row actions', () => {
+    const user = {
+        $id: 'u1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        status: true,
+        emailVerification: true,
+        labels: [],
+        registration: '2026-07-30T10:00:00.000Z',
+    } as any;
+
+    /** A `PaginatedState` stand-in — the tab only reads these members. */
+    const pagination = {
+        items: [user], total: 1, isLoading: false, error: null,
+        searchQuery: '', setSearch: vi.fn(), refresh: vi.fn(),
+        page: 0, pageSize: 25, totalPages: 1, hasNextPage: false, hasPrevPage: false,
+        pageInfo: '1–1 of 1', nextPage: vi.fn(), prevPage: vi.fn(), setPageSize: vi.fn(),
+    } as any;
+
+    it('offers Change Email, the handler that was wired but unreachable', async () => {
+        const { UsersTab } = await import('./tabs/UsersTab');
+        const onUpdateEmail = vi.fn();
+
+        render(
+            <ToastProvider>
+                <UsersTab
+                    activeProject={project}
+                    users={[user]}
+                    onCreateUser={vi.fn()}
+                    onDeleteUser={vi.fn()}
+                    onUpdateEmail={onUpdateEmail}
+                    pagination={pagination}
+                />
+            </ToastProvider>
+        );
+
+        const button = screen.getByTitle('Change Email');
+        fireEvent.click(button);
+        expect(onUpdateEmail).toHaveBeenCalledWith(user);
+    });
+
+    it('omits it when no handler is supplied', async () => {
+        const { UsersTab } = await import('./tabs/UsersTab');
+        render(
+            <ToastProvider>
+                <UsersTab
+                    activeProject={project}
+                    users={[user]}
+                    onCreateUser={vi.fn()}
+                    onDeleteUser={vi.fn()}
+                    pagination={pagination}
+                />
+            </ToastProvider>
+        );
+        expect(screen.queryByTitle('Change Email')).not.toBeInTheDocument();
     });
 });

@@ -2,6 +2,7 @@
 import React from 'react';
 import { AddIcon, EditIcon, DeleteIcon } from '../../Icons';
 import { CopyButton } from './CopyButton';
+import { ListState } from './ListState';
 
 interface ResourceTableProps<T> {
     title?: string;
@@ -30,6 +31,13 @@ interface ResourceTableProps<T> {
     
     // Pagination
     footer?: React.ReactNode;
+
+    // List state — pass these straight from the pagination object that feeds
+    // `PaginationFooter`, so a failed fetch stops reading as an empty one.
+    isLoading?: boolean;
+    error?: string | null;
+    onRetry?: () => void;
+    emptyMessage?: string;
 }
 
 export const ResourceTable = <T extends { $id: string }>({ 
@@ -50,6 +58,10 @@ export const ResourceTable = <T extends { $id: string }>({
     autoHeight = false,
     allowWrap = false,
     footer,
+    isLoading = false,
+    error = null,
+    onRetry,
+    emptyMessage,
 }: ResourceTableProps<T>) => {
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +123,17 @@ export const ResourceTable = <T extends { $id: string }>({
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
                         {data.length === 0 ? (
-                            <tr><td colSpan={selection ? 5 : 4} className="px-6 py-12 text-center text-gray-500 italic">No items found.</td></tr>
+                            <tr>
+                                <td colSpan={selection ? 5 : 4}>
+                                    <ListState
+                                        isLoading={isLoading}
+                                        error={error}
+                                        isEmpty
+                                        emptyMessage={emptyMessage}
+                                        onRetry={onRetry}
+                                    />
+                                </td>
+                            </tr>
                         ) : (
                             data.map((item) => {
                                 const isActive = isRowActive ? isRowActive(item) : false;

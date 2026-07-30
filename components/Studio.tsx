@@ -20,6 +20,7 @@ import { DocumentDetails } from './studio/ui/DocumentDetails';
 import { useStudioData } from './studio/hooks/useStudioData';
 import { useStudioModals } from './studio/hooks/useStudioModals';
 import { useStudioActions } from './studio/hooks/useStudioActions';
+import { SectionRefreshProvider, useSectionRefreshStore } from './studio/hooks/useSectionRefresh';
 import { useToast } from '../hooks/useToast';
 import { useRouter, routes } from '../services/router';
 
@@ -88,15 +89,10 @@ export const Studio: React.FC<StudioProps> = ({
 
     const studioModals = useStudioModals(handleAfterModalClose);
 
-    // BackupsTab owns its own snapshot listing; it publishes its refresh here so
-    // the delete/restore actions can re-run it.
-    const backupsRefreshRef = useRef<(() => void) | null>(null);
-    const registerBackupsRefresh = useCallback((refresh: (() => void) | null) => {
-        backupsRefreshRef.current = refresh;
-    }, []);
-    const notifyBackupsChanged = useCallback(() => {
-        backupsRefreshRef.current?.();
-    }, []);
+    // Every self-loading panel registers its own re-fetch here, so the Sync
+    // button, Shift+R and the snapshot actions all reach the section on screen.
+    const sectionRefresh = useSectionRefreshStore();
+    const notifyBackupsChanged = sectionRefresh.runAll;
 
     const studioActions = useStudioActions(activeProject, studioData, studioModals, refreshData, logCallback, toast, notifyBackupsChanged);
 
@@ -245,6 +241,7 @@ export const Studio: React.FC<StudioProps> = ({
     const handleStudioRefresh = async () => {
         refreshData();
         await refreshCurrentView();
+        await sectionRefresh.runAll();
     };
 
     // The active group is derived from the active section — the registry owns the mapping.
@@ -423,7 +420,6 @@ export const Studio: React.FC<StudioProps> = ({
             logCallback,
             onDeleteBackup: studioActions.handleDeleteBackup,
             onRestoreBackup: studioActions.handleRestoreBackup,
-            onRegisterRefresh: registerBackupsRefresh,
         },
         'project-settings': { activeProject },
     };
@@ -451,7 +447,9 @@ export const Studio: React.FC<StudioProps> = ({
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-6 md:p-10 relative custom-scrollbar">
                 <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-10">
-                    <ActivePanel {...sectionProps[activeTab]} />
+                    <SectionRefreshProvider store={sectionRefresh}>
+                        <ActivePanel {...sectionProps[activeTab]} />
+                    </SectionRefreshProvider>
                 </div>
             </div>
 

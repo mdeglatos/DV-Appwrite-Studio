@@ -9,6 +9,7 @@ import { CopyButton } from '../ui/CopyButton';
 import { PaginationFooter } from '../ui/PaginationFooter';
 import { ResourceSearchBar } from '../ui/ResourceSearchBar';
 import { CleanupModal } from '../ui/CleanupModal';
+import { ListState } from '../ui/ListState';
 import { getSiteCleanupConfig, getSiteDeploymentCleanupConfig, getSiteVariableCleanupConfig } from '../hooks/cleanupConfigs';
 import { TabShell } from '../ui/TabShell';
 
@@ -153,7 +154,15 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                     className="mb-4"
                 />
 
-                {sites.length === 0 ? (
+                {sitesPagination.isLoading || sitesPagination.error ? (
+                    <ListState
+                        isLoading={sitesPagination.isLoading}
+                        error={sitesPagination.error}
+                        isEmpty={sites.length === 0}
+                        loadingMessage="Loading sites…"
+                        onRetry={sitesPagination.refresh}
+                    />
+                ) : sites.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                         <SitesIcon size={48} className="text-gray-700 mb-4" />
                         <p className="text-lg font-semibold text-gray-400 mb-2">No Sites Yet</p>
@@ -342,8 +351,15 @@ export const SitesTab: React.FC<SitesTabProps> = ({
                         </button>
                     </div>
 
-                    {siteDeployments.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500 text-sm">No deployments yet. Deploy from Git or upload a manual build.</div>
+                    {siteDeploymentsPagination.isLoading || siteDeploymentsPagination.error || siteDeployments.length === 0 ? (
+                        <ListState
+                            isLoading={siteDeploymentsPagination.isLoading}
+                            error={siteDeploymentsPagination.error}
+                            isEmpty={siteDeployments.length === 0}
+                            emptyMessage="No deployments yet. Deploy from Git or upload a manual build."
+                            loadingMessage="Loading deployments…"
+                            onRetry={siteDeploymentsPagination.refresh}
+                        />
                     ) : (
                         siteDeployments.map(dep => {
                             const isActive = dep.$id === selectedSite.deploymentId;
@@ -462,8 +478,15 @@ export const SitesTab: React.FC<SitesTabProps> = ({
 
             {subTab === 'logs' && (
                 <div className="space-y-3">
-                    {siteLogs.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500 text-sm">No request logs yet. Logs appear after your site receives traffic.</div>
+                    {siteLogsPagination.isLoading || siteLogsPagination.error || siteLogs.length === 0 ? (
+                        <ListState
+                            isLoading={siteLogsPagination.isLoading}
+                            error={siteLogsPagination.error}
+                            isEmpty={siteLogs.length === 0}
+                            emptyMessage="No request logs yet. Logs appear after your site receives traffic."
+                            loadingMessage="Loading request logs…"
+                            onRetry={siteLogsPagination.refresh}
+                        />
                     ) : (
                         <div className="bg-gray-900/40 border border-gray-800/50 rounded-xl overflow-hidden">
                             <table className="w-full text-sm">

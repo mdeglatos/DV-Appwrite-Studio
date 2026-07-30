@@ -26,7 +26,8 @@ import { MainContent } from './MainContent';
 import { Footer } from './Footer';
 import { DragAndDropOverlay } from './DragAndDropOverlay';
 import { Studio } from './Studio';
-import { StudioIcon } from './Icons';
+import { StudioIcon, LoadingSpinnerIcon } from './Icons';
+import { ErrorBanner } from './ErrorBanner';
 
 interface AgentAppProps {
     currentUser: Models.User<UserPrefs>;
@@ -78,7 +79,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
 
     const {
         projects, activeProject, handleSaveProject, handleUpdateProject, handleDeleteProject, handleSelectProject,
-        error: projectError, setError: setProjectError
+        error: projectError, isLoading: isProjectsLoading
     } = useProjects(currentUser, refreshUser, logCallback, params.projectId);
 
     const {
@@ -138,7 +139,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         databases, collections, buckets, functions,
         selectedDatabase, selectedCollection, selectedBucket, selectedFunction,
         setSelectedDatabase, setSelectedCollection, setSelectedBucket, setSelectedFunction,
-        isContextLoading, error: contextError, setError: setContextError, refreshContextData,
+        isContextLoading, error: contextError, refreshContextData,
         handleRealtimeEvent: handleContextRealtimeEvent,
     } = useAppContext(activeProject, logCallback, params, navigate, viewMode === 'agent');
 
@@ -170,7 +171,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
         isDeploying,
         handleCodeGenerated, handleFileContentChange,
         handleFileAdd, handleFileDelete, handleFileRename, handleDeployChanges,
-        error: codeModeError, setError: setCodeModeError,
+        error: codeModeError,
         codeModeEvent, clearCodeModeEvent,
     } = useCodeMode(activeProject, selectedFunction, logCallback, isCodeViewerSidebarOpen, setIsCodeViewerSidebarOpen);
 
@@ -194,7 +195,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     }, [viewMode, resolvedStudioSection, activeProject?.$id, params.projectId, navigate]);
     
     const {
-        messages, setMessages, isLoading, error: chatError, setError: setChatError,
+        messages, setMessages, isLoading, error: chatError,
         selectedFiles, handleSendMessage, handleClearChat, handleFileSelect
     } = useChatSession({
         activeProject, selectedDatabase, selectedCollection, selectedBucket, selectedFunction,
@@ -213,12 +214,6 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
     }, [codeModeEvent, setMessages, clearCodeModeEvent]);
 
     const error = projectError || contextError || chatError || codeModeError;
-    const setError = useCallback((msg: string | null) => {
-        setProjectError(msg);
-        setContextError(msg);
-        setChatError(msg);
-        setCodeModeError(msg);
-    }, [setProjectError, setContextError, setChatError, setCodeModeError]);
 
     // Confirmation flows — routed through the app-wide confirmation owner.
     const requestProjectDeletion = useCallback(async (projectId: string, projectName: string) => {
@@ -289,7 +284,12 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                     viewMode={viewMode} setViewMode={setViewMode}
                     realtimeStatus={realtime.status}
                 />
-                
+
+                {/* A failed project load or a CORS/connection failure is a
+                    property of the app shell, not of the Agent view — it used to
+                    be inlined in MainContent and so was invisible in the Studio. */}
+                {error && <ErrorBanner message={error} />}
+
                 {viewMode === 'agent' ? (
                     <>
                         {/* 2. Context Bar (Static) */}
@@ -310,7 +310,7 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                             <MainContent
                                 messages={messages} activeProject={activeProject}
                                 selectedFunction={selectedFunction}
-                                isFunctionContextLoading={isFunctionContextLoading} error={error}
+                                isFunctionContextLoading={isFunctionContextLoading}
                                 currentUser={currentUser} isLeftSidebarOpen={isLeftSidebarOpen} setIsLeftSidebarOpen={setIsLeftSidebarOpen}
                             />
                         </div>
@@ -325,7 +325,12 @@ export const AgentApp: React.FC<AgentAppProps> = ({ currentUser, onLogout, refre
                 ) : (
                     // Studio View
                     <div className="flex-1 flex flex-col overflow-hidden bg-gray-900/40">
-                         {activeProject ? (
+                         {isProjectsLoading && !activeProject ? (
+                             <div className="flex flex-col items-center justify-center h-full text-center p-8 gap-3">
+                                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
+                                <p className="text-gray-400 text-sm">Loading projects…</p>
+                            </div>
+                        ) : activeProject ? (
                             <Studio 
                                 activeProject={activeProject} 
                                 projects={projects}

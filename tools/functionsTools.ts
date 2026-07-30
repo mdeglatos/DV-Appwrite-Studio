@@ -14,43 +14,6 @@ async function handleApiError(error: unknown) {
     return { error: 'An unknown error occurred while communicating with the Appwrite API.' };
 }
 
-/**
- * Sanitizes an endpoint URL and performs a fetch with Appwrite admin headers.
- * Uses mode: 'cors' and credentials: 'omit' to ensure browser-based API key requests 
- * aren't blocked by standard credential-based CORS restrictions.
- */
-async function appwriteFetch(project: AppwriteProject, path: string, options: RequestInit = {}) {
-    const cleanEndpoint = project.endpoint.trim().replace(/\/+$/, '');
-    const cleanPath = path.trim().replace(/^\/+/, '');
-    const url = `${cleanEndpoint}/${cleanPath}`;
-    
-    const headers: Record<string, string> = {
-        'X-Appwrite-Project': project.projectId.trim(),
-        'X-Appwrite-Key': project.apiKey.trim(),
-        'X-Appwrite-Response-Format': 'json',
-    };
-
-    if (options.headers && typeof options.headers === 'object') {
-        Object.entries(options.headers).forEach(([key, value]) => {
-            headers[key] = String(value);
-        });
-    }
-
-    const response = await fetch(url, {
-        ...options,
-        headers,
-        mode: 'cors',
-        credentials: 'omit',
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `HTTP Error ${response.status}` }));
-        throw new Error(errorData.message || `Request failed with status ${response.status}`);
-    }
-
-    return response.json();
-}
-
 // Helper to create a .tar.gz blob from an array of File objects
 async function createTarGzFromFiles(files: File[]): Promise<Blob> {
     const tar = new Tar();
@@ -96,21 +59,11 @@ export async function deployCodeFromString(
     }
 
     const codeBlob = await createTarGzFromStringContent(files);
-    
+
     // CRITICAL: Wrap blob in a File object to ensure multi-part boundary and filename metadata
     const fileObj = new File([codeBlob], 'code.tar.gz', { type: 'application/gzip' });
-    
-    const formData = new FormData();
-    // Explicitly append with filename to ensure multipart headers are set correctly by browser
-    formData.append('code', fileObj, 'code.tar.gz');
-    formData.append('activate', activate ? 'true' : 'false');
-    if (entrypoint) formData.append('entrypoint', entrypoint);
-    if (commands) formData.append('commands', commands);
 
-    return appwriteFetch(project, `/functions/${functionId}/deployments`, {
-        method: 'POST',
-        body: formData,
-    });
+    return getSdkFunctions(project).createDeployment(functionId, fileObj, activate, entrypoint, commands);
 }
 
 
@@ -421,17 +374,7 @@ async function createDeployment(context: AIContext, { functionId, activate, entr
     }
 
     try {
-        const formData = new FormData();
-        // Explicitly set filename
-        formData.append('code', codeFile, codeFile.name);
-        formData.append('activate', String(activate));
-        if (entrypoint) formData.append('entrypoint', entrypoint);
-        if (commands) formData.append('commands', commands);
-
-        return appwriteFetch(context.project, `/functions/${functionId}/deployments`, {
-            method: 'POST',
-            body: formData,
-        });
+        return await getSdkFunctions(context.project).createDeployment(functionId, codeFile, activate, entrypoint, commands);
     } catch (error) {
         return handleApiError(error);
     }

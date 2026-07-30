@@ -1,17 +1,15 @@
 
 import React, { useRef, useEffect } from 'react';
 import type { Models } from 'appwrite';
-import { RiRobot2Line } from 'react-icons/ri';
 import type { Message, AppwriteProject, AppwriteFunction, UserPrefs } from '../types';
 import { ChatMessage } from './ChatMessage';
-import { LoadingSpinnerIcon } from './Icons';
+import { LoadingSpinnerIcon, BotIcon } from './Icons';
 
 interface MainContentProps {
     messages: Message[];
     activeProject: AppwriteProject | null;
     selectedFunction: AppwriteFunction | null;
     isFunctionContextLoading: boolean;
-    error: string | null;
     currentUser: Models.User<UserPrefs>;
     isLeftSidebarOpen: boolean;
     setIsLeftSidebarOpen: (isOpen: boolean) => void;
@@ -22,7 +20,7 @@ const EmptyState = ({ title, description, icon, action }: { title: string, descr
        <div className="relative group mb-8">
            <div className="absolute -inset-8 bg-gradient-to-t from-cyan-600/20 to-purple-600/20 rounded-full blur-2xl opacity-50"></div>
            <div className="relative w-24 h-24 bg-gray-900/80 backdrop-blur-xl rounded-3xl flex items-center justify-center border border-white/10 shadow-2xl">
-               {icon || <RiRobot2Line size={48} className="text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]" />}
+               {icon || <BotIcon size={48} className="text-cyan-400 drop-shadow-[0_0_15px_rgba(34,211,238,0.5)]" />}
            </div>
        </div>
        <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">{title}</h2>
@@ -36,7 +34,6 @@ export const MainContent: React.FC<MainContentProps> = ({
     activeProject,
     selectedFunction,
     isFunctionContextLoading,
-    error,
     currentUser,
     setIsLeftSidebarOpen,
 }) => {
@@ -92,18 +89,6 @@ export const MainContent: React.FC<MainContentProps> = ({
                     messages.map((msg) => (
                         <ChatMessage key={msg.id} message={msg} />
                     ))
-                )}
-                
-                {error && (
-                    <div className="mx-auto w-full max-w-2xl mt-4 animate-fade-in">
-                        <div className="bg-red-950/40 border border-red-500/30 text-red-200 p-4 rounded-2xl backdrop-blur-md flex items-start gap-4 shadow-lg shadow-red-900/10">
-                            <span className="text-2xl">⚠️</span>
-                            <div>
-                                <p className="font-semibold text-red-400">Error</p>
-                                <p className="text-sm opacity-90 leading-relaxed">{error}</p>
-                            </div>
-                        </div>
-                    </div>
                 )}
             </div>
         </main>

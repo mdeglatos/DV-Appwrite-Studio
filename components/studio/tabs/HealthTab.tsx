@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import type { AppwriteProject, HealthStatus } from '../../../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { AppwriteProject } from '../../../types';
 import { getSdkHealth } from '../../../services/appwrite';
-import { HealthIcon, LoadingSpinnerIcon, WarningIcon, VerifiedIcon, ExternalLinkIcon } from '../../Icons';
+import { HealthIcon, LoadingSpinnerIcon, WarningIcon } from '../../Icons';
 import { useToast } from '../../../hooks/useToast';
 import { TabShell } from '../ui/TabShell';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface HealthTabProps {
     activeProject: AppwriteProject;
@@ -28,7 +29,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ activeProject }) => {
     const [diagnostics, setDiagnostics] = useState<DiagnosticMetrics | null>(null);
     const [scopeError, setScopeError] = useState<string | null>(null);
 
-    const runDiagnostics = async () => {
+    const runDiagnostics = useCallback(async () => {
         setIsLoading(true);
         setScopeError(null);
         try {
@@ -101,18 +102,26 @@ export const HealthTab: React.FC<HealthTabProps> = ({ activeProject }) => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeProject, toast]);
+
+    useRegisterSectionRefresh(runDiagnostics);
 
     useEffect(() => {
         runDiagnostics();
-    }, [activeProject]);
+    }, [runDiagnostics]);
 
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
-                <p className="text-gray-400 text-sm">Executing system diagnostic audit...</p>
-            </div>
+            <TabShell
+                title="Infrastructure Diagnostics"
+                subtitle="Audit real-time server latencies, memory cache pools, storage checkouts, and queues backlogs."
+                icon={<HealthIcon size={24} className="text-cyan-400" />}
+            >
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                    <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
+                    <p className="text-gray-400 text-sm">Executing system diagnostic audit...</p>
+                </div>
+            </TabShell>
         );
     }
 

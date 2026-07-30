@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useToast } from '../hooks/useToast';
 import type { AppwriteProject, StudioTab } from '../types';
 import type { NewAppwriteProject } from '../services/projectService';
 import {
@@ -117,6 +118,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeStudioSection,
   onStudioSectionChange
 }) => {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [endpoint, setEndpoint] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -175,8 +177,14 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   const handleSaveGeminiSettings = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!hasGeminiSettingsChanged) return;
-      await onSaveGeminiSettings({ apiKey: apiKeyInput, model: modelInput, thinkingEnabled: thinkingInput });
-      setExpandedSections(prev => ({ ...prev, gemini: false }));
+      // `useSettings.handleSaveGeminiSettings` rethrows; without this the save
+      // failed as an unhandled rejection and the user saw nothing.
+      try {
+          await onSaveGeminiSettings({ apiKey: apiKeyInput, model: modelInput, thinkingEnabled: thinkingInput });
+          setExpandedSections(prev => ({ ...prev, gemini: false }));
+      } catch (err: any) {
+          toast.error(`Could not save AI settings: ${err?.message || String(err)}`);
+      }
   };
 
   const handleResetGeminiSettings = () => {

@@ -1,5 +1,5 @@
 import { ID } from '../../../services/appwrite';
-import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, normalizeEndpoint, listAll } from '../../../services/appwrite';
+import { getSdkDatabases, getSdkStorage, getSdkFunctions, getSdkUsers, getSdkTeams, getSdkSites, listAll } from '../../../services/appwrite';
 import type { AppwriteProject, Database, Bucket, AppwriteFunction, AppwriteSite } from '../../../types';
 import type { Models } from 'node-appwrite';
 import type { FormField } from '../types';
@@ -7,6 +7,7 @@ import React from 'react';
 import { DocumentEditor } from '../ui/DocumentEditor';
 import { DocumentCreateForm } from '../ui/DocumentCreateForm';
 import { BulkEditDocumentModal } from '../ui/BulkEditDocumentModal';
+import { FilePreview } from '../ui/FilePreview';
 import { CopyIcon } from '../../Icons';
 import { BACKUP_BUCKET_ID, BackupService } from '../../../services/backupService';
 import type { ToastActions } from '../../../hooks/useToast';
@@ -275,13 +276,14 @@ export function useStudioActions(
                             successCount++;
                         } catch (e: any) {
                             errorCount++;
-                            console.error(`Failed to update ${id}`, e);
+                            notify.error(`Could not update ${id}: ${e?.message || String(e)}`);
                         }
                     });
 
                     await Promise.all(updatePromises);
-                    
-                    notify.success(`Bulk update: ${successCount} updated, ${errorCount} failed.`);
+
+                    if (successCount > 0) notify.success(`Bulk update: ${successCount} updated.`);
+                    if (errorCount > 0) notify.warning(`${errorCount} of ${documentIds.length} documents could not be updated.`);
                     fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
                     closeModal();
                 }
@@ -304,14 +306,15 @@ export function useStudioActions(
                 try {
                     await sdk.deleteDocument(selectedDb.$id, selectedCollection.$id, id);
                     deletedCount++;
-                } catch (e) {
+                } catch (e: any) {
                     errorCount++;
-                    console.error(`Failed to delete document ${id}`, e);
+                    notify.error(`Could not delete document ${id}: ${e?.message || String(e)}`);
                 }
             });
 
             await Promise.all(promises);
-            notify.success(`Bulk delete: ${deletedCount} deleted, ${errorCount} failed.`);
+            if (deletedCount > 0) notify.success(`Bulk delete: ${deletedCount} deleted.`);
+            if (errorCount > 0) notify.warning(`${errorCount} of ${documentIds.length} documents could not be deleted.`);
             fetchCollectionDetails(selectedDb.$id, selectedCollection.$id);
         });
     };
@@ -621,101 +624,57 @@ export function useStudioActions(
         const bucketId = selectedBucket.$id;
         let successCount = 0;
         let errorCount = 0;
-        
+
         notify.info(`Uploading ${fileList.length} file(s)...`);
-        
+
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
             try {
-                // Use the raw REST API since node-appwrite createFile doesn't handle browser File objects well
-                const endpoint = normalizeEndpoint(activeProject.endpoint);
-                const formData = new FormData();
-                formData.append('fileId', ID.unique());
-                formData.append('file', file);
-                
-                const res = await fetch(`${endpoint}/storage/buckets/${bucketId}/files`, {
-                    method: 'POST',
-                    headers: {
-                        'X-Appwrite-Project': activeProject.projectId,
-                        'X-Appwrite-Key': activeProject.apiKey,
-                    },
-                    body: formData,
-                });
-                
-                if (!res.ok) {
-                    const errBody = await res.text();
-                    throw new Error(`Upload failed (${res.status}): ${errBody}`);
-                }
+                await sdk.createFile(bucketId, ID.unique(), file);
                 successCount++;
             } catch (e: any) {
                 errorCount++;
-                console.error(`Failed to upload ${file.name}`, e);
+                notify.error(`Could not upload ${file.name}: ${e?.message || String(e)}`);
             }
         }
-        
-        notify.success(`Upload complete: ${successCount} succeeded, ${errorCount} failed.`);
+
+        if (errorCount === 0) {
+            notify.success(`Upload complete: ${successCount} succeeded.`);
+        } else {
+            notify.warning(`${errorCount} of ${fileList.length} file(s) could not be uploaded.`);
+        }
         fetchFiles(bucketId);
     };
 
     const handleDownloadFile = async (file: Models.File) => {
         if (!selectedBucket) return;
+        let url: string | null = null;
         try {
-            const endpoint = normalizeEndpoint(activeProject.endpoint);
-            const url = `${endpoint}/storage/buckets/${selectedBucket.$id}/files/${file.$id}/download?project=${activeProject.projectId}`;
-            const res = await fetch(url, {
-                headers: {
-                    'X-Appwrite-Project': activeProject.projectId,
-                    'X-Appwrite-Key': activeProject.apiKey,
-                }
-            });
-            if (!res.ok) throw new Error('Download failed');
-            const blob = await res.blob();
+            const buffer = await getSdkStorage(activeProject).getFileDownload(selectedBucket.$id, file.$id);
+            const blob = new Blob([buffer], { type: file.mimeType || 'application/octet-stream' });
+            url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
+            a.href = url;
             a.download = file.name;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
         } catch (e: any) {
             notify.error(`Download failed: ${e.message}`);
+        } finally {
+            if (url) URL.revokeObjectURL(url);
         }
     };
 
     const handlePreviewFile = (file: Models.File) => {
         if (!selectedBucket) return;
-        const endpoint = normalizeEndpoint(activeProject.endpoint);
-        // For images, use preview endpoint; for others, use view
-        const isImage = file.mimeType?.startsWith('image/');
-        const url = isImage 
-            ? `${endpoint}/storage/buckets/${selectedBucket.$id}/files/${file.$id}/preview?project=${activeProject.projectId}&width=800&height=600`
-            : `${endpoint}/storage/buckets/${selectedBucket.$id}/files/${file.$id}/view?project=${activeProject.projectId}`;
-        
         openCustomModal(
             file.name,
-            React.createElement('div', { className: "space-y-4" },
-                React.createElement('div', { className: "flex items-center gap-4 text-xs text-gray-400" },
-                    React.createElement('span', null, `Type: ${file.mimeType}`),
-                    React.createElement('span', null, `Size: ${(file.sizeOriginal / 1024).toFixed(1)} KB`),
-                    React.createElement('span', null, `ID: ${file.$id}`)
-                ),
-                isImage 
-                    ? React.createElement('img', { 
-                        src: url, 
-                        alt: file.name,
-                        className: "max-w-full max-h-[60vh] rounded-lg border border-gray-700 mx-auto",
-                        crossOrigin: "anonymous"
-                    })
-                    : React.createElement('div', { className: "bg-gray-900 rounded-lg border border-gray-700 p-8 text-center" },
-                        React.createElement('p', { className: "text-gray-400 mb-4" }, `Preview not available for ${file.mimeType}`),
-                        React.createElement('a', { 
-                            href: url, 
-                            target: '_blank', 
-                            rel: 'noopener noreferrer',
-                            className: "px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-bold"
-                        }, "Open in New Tab")
-                    )
-            ),
+            React.createElement(FilePreview, {
+                project: activeProject,
+                bucketId: selectedBucket.$id,
+                file,
+            }),
             '3xl'
         );
     };
@@ -729,11 +688,12 @@ export function useStudioActions(
                 try {
                     await sdk.deleteBucket(id);
                     deletedCount++;
-                } catch (e) {
-                    console.error(`Failed to delete bucket ${id}`, e);
+                } catch (e: any) {
+                    notify.error(`Could not delete bucket ${id}: ${e?.message || String(e)}`);
                 }
             }));
-            notify.success(`Deleted ${deletedCount} buckets.`);
+            if (deletedCount > 0) notify.success(`Deleted ${deletedCount} buckets.`);
+            if (deletedCount < bucketIds.length) notify.warning(`${bucketIds.length - deletedCount} of ${bucketIds.length} buckets could not be deleted.`);
             refreshData();
         });
     };
@@ -757,11 +717,12 @@ export function useStudioActions(
                 try {
                     await sdk.deleteFile(selectedBucket.$id, id);
                     deletedCount++;
-                } catch (e) {
-                    console.error(`Failed to delete file ${id}`, e);
+                } catch (e: any) {
+                    notify.error(`Could not delete file ${id}: ${e?.message || String(e)}`);
                 }
             }));
-            notify.success(`Deleted ${deletedCount} files.`);
+            if (deletedCount > 0) notify.success(`Deleted ${deletedCount} files.`);
+            if (deletedCount < fileIds.length) notify.warning(`${fileIds.length - deletedCount} of ${fileIds.length} files could not be deleted.`);
             fetchFiles(selectedBucket.$id);
         });
     };

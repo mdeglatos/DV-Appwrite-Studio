@@ -255,6 +255,9 @@ export const StorageTab: React.FC<StorageTabProps> = ({
                     onSelectionChange: setSelectedFileIds
                 }}
                 headers={['Actions', 'ID', 'File', 'Details']}
+                isLoading={filesPagination.isLoading}
+                error={filesPagination.error}
+                onRetry={filesPagination.refresh}
                 renderExtraActions={(f) => (
                     <div className="flex items-center gap-1">
                         {onPreviewFile && (

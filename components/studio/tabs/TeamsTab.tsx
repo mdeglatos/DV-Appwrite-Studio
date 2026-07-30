@@ -61,8 +61,11 @@ export const TeamsTab: React.FC<TeamsTabProps> = ({
                     onCreate={onCreateTeam} 
                     onDelete={onDeleteTeam} 
                     onSelect={(item) => onSelectTeam(item)} 
-                    createLabel="New Team" 
+                    createLabel="New Team"
                     headers={['Actions', 'ID', 'Team', 'Details']}
+                    isLoading={pagination.isLoading}
+                    error={pagination.error}
+                    onRetry={pagination.refresh}
                     selection={{
                         selectedIds: selectedTeamIds,
                         onSelectionChange: setSelectedTeamIds
@@ -200,6 +203,9 @@ export const TeamsTab: React.FC<TeamsTabProps> = ({
                 onDelete={onDeleteMembership} 
                 createLabel="Invite Member"
                 headers={['Actions', 'ID', 'Member', 'Roles & Status']}
+                isLoading={membershipsPagination.isLoading}
+                error={membershipsPagination.error}
+                onRetry={membershipsPagination.refresh}
                 renderName={(m) => (
                     <div>
                         <div className="text-gray-200 font-medium">{m.userName || <span className="italic text-gray-500">No Name</span>}</div>

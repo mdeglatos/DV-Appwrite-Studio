@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { Models } from 'node-appwrite';
 import type { AppwriteProject, MessageProvider, MessageTopic, MessageSubscriber } from '../../../types';
 import { getSdkMessaging, ID, Query } from '../../../services/appwrite';
-import { MessageIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon, PlayIcon, EmailVerifiedIcon, PhoneIcon, BotIcon } from '../../Icons';
+import { MessageIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, PlayIcon, EmailVerifiedIcon, PhoneIcon, BotIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
 import { useConfirm } from '../../../hooks/useConfirm';
 import { TabShell } from '../ui/TabShell';
+import { ListState } from '../ui/ListState';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface MessagingTabProps {
     activeProject: AppwriteProject;
@@ -15,8 +18,12 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
     const toast = useToast();
     const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [providers, setProviders] = useState<MessageProvider[]>([]);
     const [topics, setTopics] = useState<MessageTopic[]>([]);
+    const [campaigns, setCampaigns] = useState<Models.Message[]>([]);
+    const [campaignsLoading, setCampaignsLoading] = useState(true);
+    const [campaignsError, setCampaignsError] = useState<string | null>(null);
     const [selectedTopic, setSelectedTopic] = useState<MessageTopic | null>(null);
     const [subscribers, setSubscribers] = useState<MessageSubscriber[]>([]);
     const [subscribersLoading, setSubscribersLoading] = useState(false);
@@ -39,29 +46,56 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
     const [pushBody, setPushBody] = useState('');
     const [isSending, setIsSending] = useState(false);
 
-    // Load Messaging resources
-    const loadMessagingData = async () => {
+    // Load Messaging resources. A failure here used to be swallowed into an
+    // empty provider list, which read as "nothing configured".
+    const loadMessagingData = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
         try {
             const sdk = getSdkMessaging(activeProject);
             const [providersRes, topicsRes] = await Promise.all([
-                sdk.listProviders().catch(() => ({ providers: [] })),
-                sdk.listTopics().catch(() => ({ topics: [] }))
+                sdk.listProviders(),
+                sdk.listTopics(),
             ]);
             setProviders(providersRes.providers as any[] || []);
             setTopics(topicsRes.topics as any[] || []);
         } catch (e: any) {
-            toast.error(`Messaging API Error: ${e.message}`);
+            setError(`Messaging API Error: ${e.message}`);
+            setProviders([]);
+            setTopics([]);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeProject]);
+
+    /** The most recent broadcasts, so a queued campaign has a visible outcome. */
+    const loadCampaigns = useCallback(async () => {
+        setCampaignsLoading(true);
+        setCampaignsError(null);
+        try {
+            const sdk = getSdkMessaging(activeProject);
+            const res = await sdk.listMessages([Query.orderDesc('$createdAt'), Query.limit(10)]);
+            setCampaigns(res.messages as Models.Message[] || []);
+        } catch (e: any) {
+            setCampaignsError(`Could not list campaigns: ${e.message}`);
+            setCampaigns([]);
+        } finally {
+            setCampaignsLoading(false);
+        }
+    }, [activeProject]);
+
+    const refreshSection = useCallback(async () => {
+        await Promise.all([loadMessagingData(), loadCampaigns()]);
+    }, [loadMessagingData, loadCampaigns]);
+
+    useRegisterSectionRefresh(refreshSection);
 
     useEffect(() => {
         loadMessagingData();
+        loadCampaigns();
         setSelectedTopic(null);
         setSubscribers([]);
-    }, [activeProject]);
+    }, [loadMessagingData, loadCampaigns]);
 
     // Load subscribers for selected topic
     const loadSubscribers = async (topic: MessageTopic) => {
@@ -175,17 +209,16 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
         try {
             const sdk = getSdkMessaging(activeProject);
             const msgId = ID.unique();
-            let response;
-            
+
             if (messageChannel === 'email') {
                 if (!emailSubject || !msgContent) throw new Error('Subject and body content required.');
-                response = await sdk.createEmail(msgId, emailSubject, msgContent, [selectedTopic.$id]);
+                await sdk.createEmail(msgId, emailSubject, msgContent, [selectedTopic.$id]);
             } else if (messageChannel === 'sms') {
                 if (!msgContent) throw new Error('SMS message body content required.');
-                response = await sdk.createSms(msgId, msgContent, [selectedTopic.$id]);
+                await sdk.createSms(msgId, msgContent, [selectedTopic.$id]);
             } else {
                 if (!pushTitle || !pushBody) throw new Error('Push title and body alert required.');
-                response = await sdk.createPush(msgId, pushTitle, pushBody, [selectedTopic.$id]);
+                await sdk.createPush(msgId, pushTitle, pushBody, [selectedTopic.$id]);
             }
 
             toast.success(`Successfully queued ${messageChannel} campaign broadcast.`);
@@ -193,21 +226,13 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
             setMsgContent('');
             setPushTitle('');
             setPushBody('');
+            loadCampaigns();
         } catch (err: any) {
             toast.error(`Broadcast failed: ${err.message}`);
         } finally {
             setIsSending(false);
         }
     };
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
-                <p className="text-gray-400 text-sm">Loading Messaging interface...</p>
-            </div>
-        );
-    }
 
     return (
         <TabShell
@@ -216,6 +241,16 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
             icon={<MessageIcon size={24} className="text-cyan-400" />}
             consoleHref={consoleLinks.overview(activeProject) + '/messaging'}
         >
+            {isLoading || error ? (
+                <ListState
+                    isLoading={isLoading}
+                    error={error}
+                    isEmpty={false}
+                    loadingMessage="Loading Messaging interface…"
+                    onRetry={loadMessagingData}
+                />
+            ) : (
+            <div className="space-y-6">
 
             {/* Providers check */}
             <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
@@ -459,6 +494,41 @@ export const MessagingTab: React.FC<MessagingTabProps> = ({ activeProject }) => 
                     )}
                 </div>
             </div>
+
+            {/* Recent campaigns — a broadcast's outcome, which the composer alone never showed */}
+            <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
+                <h2 className="text-sm font-bold text-gray-200 uppercase tracking-widest mb-3.5">Recent Campaigns</h2>
+                {campaignsLoading || campaignsError || campaigns.length === 0 ? (
+                    <ListState
+                        isLoading={campaignsLoading}
+                        error={campaignsError}
+                        isEmpty={campaigns.length === 0}
+                        emptyMessage="No campaigns dispatched yet."
+                        loadingMessage="Loading campaigns…"
+                        onRetry={loadCampaigns}
+                    />
+                ) : (
+                    <div className="space-y-2">
+                        {campaigns.map(msg => (
+                            <div key={msg.$id} className="bg-gray-950/40 border border-white/5 rounded-xl p-3 flex items-center justify-between gap-4 text-xs">
+                                <div className="min-w-0">
+                                    <div className="font-mono text-[10px] text-gray-500 truncate">{msg.$id}</div>
+                                    <div className="text-gray-300 font-semibold capitalize mt-0.5">{msg.providerType}</div>
+                                </div>
+                                <div className="text-right flex-shrink-0 text-[10px] text-gray-500">
+                                    {msg.deliveredAt
+                                        ? <span className="text-green-400 font-semibold">Delivered {new Date(msg.deliveredAt).toLocaleString()}</span>
+                                        : msg.scheduledAt
+                                            ? <span className="text-cyan-400 font-semibold">Scheduled {new Date(msg.scheduledAt).toLocaleString()}</span>
+                                            : <span>Queued {new Date(msg.$createdAt).toLocaleString()}</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            </div>
+            )}
         </TabShell>
     );
 };

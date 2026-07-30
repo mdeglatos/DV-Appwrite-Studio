@@ -562,16 +562,7 @@ export class MigrationService {
                             const buffer = await this.sourceStorage.getFileDownload(sourceBucketId, file.$id);
                             const blob = new Blob([buffer]);
                             const fileObj = new File([blob], file.name);
-                            const formData = new FormData();
-                            formData.append('fileId', file.$id);
-                            formData.append('file', fileObj);
-                            if (file.$permissions) file.$permissions.forEach((p, i) => formData.append(`permissions[${i}]`, p));
-                            const res = await fetch(`${this.destProjectConfig.endpoint.trim().replace(/\/+$/, '')}/storage/buckets/${targetBucketId}/files`, {
-                                method: 'POST',
-                                headers: { 'X-Appwrite-Project': this.destProjectConfig.projectId, 'X-Appwrite-Key': this.destProjectConfig.apiKey },
-                                body: formData,
-                            });
-                            if (!res.ok) throw new Error('Upload failed');
+                            await this.destStorage.createFile(targetBucketId, file.$id, fileObj, file.$permissions);
                         }
                         count++;
                     } catch (err) { this.error(`migrating file ${file.$id}`, err); }

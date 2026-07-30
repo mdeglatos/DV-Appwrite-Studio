@@ -1,10 +1,11 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AppwriteProject } from '../../../types';
 import { MigrationService, type MigrationOptions, type MigrationPlan, type MigrationResource } from '../../../services/migrationService';
 import { MigrationIcon, LoadingSpinnerIcon, WarningIcon, CheckIcon, ChevronDownIcon, ArrowLeftIcon, DatabaseIcon, StorageIcon, FunctionIcon, TeamIcon, UserIcon, DeleteIcon, RefreshIcon, RiRocketLine } from '../../Icons';
 import { useToast } from '../../../hooks/useToast';
 import { TabShell } from '../ui/TabShell';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface MigrationsTabProps {
     activeProject: AppwriteProject;
@@ -82,7 +83,7 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
     const serviceRef = useRef<MigrationService | null>(null);
     
     // Check for checkpoints whenever config changes
-    useEffect(() => {
+    const refreshCheckpoint = useCallback(() => {
         if (destEndpoint && destProjectId && destApiKey) {
             try {
                 const destProject: AppwriteProject = { $id: 'dest', name: 'Dest', projectId: destProjectId, endpoint: destEndpoint, apiKey: destApiKey };
@@ -93,6 +94,19 @@ export const MigrationsTab: React.FC<MigrationsTabProps> = ({ activeProject, pro
             setHasCheckpoint(false);
         }
     }, [destEndpoint, destProjectId, destApiKey, activeProject]);
+
+    useEffect(() => {
+        refreshCheckpoint();
+    }, [refreshCheckpoint]);
+
+    // The checkpoint is the only refreshable state here, and re-reading it
+    // mid-run would fight the migration in flight.
+    const refreshSection = useCallback(() => {
+        if (step === 'executing') return;
+        refreshCheckpoint();
+    }, [step, refreshCheckpoint]);
+
+    useRegisterSectionRefresh(refreshSection);
 
     // UI Helpers
     const handleLog = (msg: string) => {

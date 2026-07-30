@@ -6,6 +6,9 @@ import type { AppwriteProject } from '../../../types';
 const createMembership = vi.fn(async () => ({}));
 const deleteTeam = vi.fn(async () => ({}));
 const deleteUser = vi.fn(async () => ({}));
+const createFile = vi.fn(async () => ({ $id: 'f1' }));
+const getFileDownload = vi.fn(async () => new ArrayBuffer(8));
+const deleteFile = vi.fn(async () => ({}));
 
 vi.mock('../../../services/appwrite', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../services/appwrite')>();
@@ -16,7 +19,7 @@ vi.mock('../../../services/appwrite', async (importOriginal) => {
         getSdkTeams: () => ({ createMembership, delete: deleteTeam }),
         getSdkUsers: () => ({ delete: deleteUser }),
         getSdkDatabases: () => stub,
-        getSdkStorage: () => stub,
+        getSdkStorage: () => ({ createFile, getFileDownload, deleteFile, listFiles: vi.fn(async () => empty) }),
         getSdkFunctions: () => stub,
         getSdkSites: () => stub,
         createProjectAdminClient: () => ({}),
@@ -34,12 +37,12 @@ const project: AppwriteProject = {
 };
 
 /** Minimal stand-ins for the two hooks `useStudioActions` consumes. */
-function makeHarness(selectedTeam: any = { $id: 'team-1', name: 'Ops' }) {
+function makeHarness(selectedTeam: any = { $id: 'team-1', name: 'Ops' }, selectedBucket: any = null) {
     const pagination = () => ({ items: [], total: 0, refresh: vi.fn() });
     const data = {
         selectedDb: null, setSelectedDb: vi.fn(),
         selectedCollection: null, setSelectedCollection: vi.fn(),
-        selectedBucket: null, setSelectedBucket: vi.fn(),
+        selectedBucket, setSelectedBucket: vi.fn(),
         selectedFunction: null, setSelectedFunction: vi.fn(),
         selectedTeam,
         selectedSite: null, setSelectedSite: vi.fn(),
@@ -78,6 +81,9 @@ beforeEach(() => {
     createMembership.mockClear();
     deleteTeam.mockClear();
     deleteUser.mockClear();
+    createFile.mockClear();
+    getFileDownload.mockClear();
+    deleteFile.mockClear();
 });
 
 describe('handleCreateMembership', () => {
@@ -143,5 +149,79 @@ describe('bulk delete handlers', () => {
 
         expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('team in use'));
         expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('reports per-file delete failures rather than swallowing them', async () => {
+        const { actions, toast, flush } = makeHarness(undefined, { $id: 'bucket-1', name: 'Assets' });
+        deleteFile.mockRejectedValueOnce(new Error('file is locked'));
+
+        actions.handleBulkDeleteFiles(['f1', 'f2']);
+        await flush();
+
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('file is locked'));
+        expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('1 of 2'));
+    });
+});
+
+/**
+ * The transfers used to be hand-built `fetch` calls carrying the admin API key.
+ * These pin them to the SDK owner.
+ */
+describe('file transfers go through the SDK', () => {
+    const bucket = { $id: 'bucket-1', name: 'Assets' };
+
+    function fileList(...files: File[]): FileList {
+        return { length: files.length, item: (i: number) => files[i], ...files } as unknown as FileList;
+    }
+
+    it('uploads with storage.createFile and never calls global fetch', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const { actions, toast } = makeHarness(undefined, bucket);
+
+        await actions.handleUploadFile(fileList(new File(['hello'], 'a.txt', { type: 'text/plain' })));
+
+        expect(createFile).toHaveBeenCalledTimes(1);
+        const [bucketId, , file] = createFile.mock.calls[0] as unknown as any[];
+        expect(bucketId).toBe('bucket-1');
+        expect(file).toBeInstanceOf(File);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('1 succeeded'));
+
+        fetchSpy.mockRestore();
+    });
+
+    it('reports a per-file upload failure and withholds the success toast', async () => {
+        const { actions, toast } = makeHarness(undefined, bucket);
+        createFile.mockRejectedValueOnce(new Error('storage quota exceeded'));
+
+        await actions.handleUploadFile(fileList(new File(['x'], 'big.bin')));
+
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('storage quota exceeded'));
+        expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('1 of 1'));
+        expect(toast.success).not.toHaveBeenCalled();
+    });
+
+    it('downloads with storage.getFileDownload and never calls global fetch', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+        const createObjectURL = vi.fn(() => 'blob:stub');
+        const revokeObjectURL = vi.fn();
+        vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL });
+
+        const { actions } = makeHarness(undefined, bucket);
+        await actions.handleDownloadFile({ $id: 'f1', name: 'a.txt', mimeType: 'text/plain' } as any);
+
+        expect(getFileDownload).toHaveBeenCalledWith('bucket-1', 'f1');
+        expect(fetchSpy).not.toHaveBeenCalled();
+        // The object URL is released rather than leaked.
+        expect(revokeObjectURL).toHaveBeenCalledWith('blob:stub');
+
+        vi.unstubAllGlobals();
+        fetchSpy.mockRestore();
+    });
+
+    it('holds no endpoint string or API-key header in the module', () => {
+        const source = readFileSync(join(__dirname, 'useStudioActions.ts'), 'utf8');
+        expect(source).not.toContain('X-Appwrite-Key');
+        expect(source).not.toContain('/storage/buckets/');
     });
 });

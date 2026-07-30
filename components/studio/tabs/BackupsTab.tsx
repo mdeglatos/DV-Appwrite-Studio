@@ -9,6 +9,7 @@ import { BackupIcon, LoadingSpinnerIcon, RiShareForwardLine, CheckIcon, Download
 import { Modal } from '../../Modal';
 import { useToast } from '../../../hooks/useToast';
 import { TabShell } from '../ui/TabShell';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface BackupsTabProps {
     activeProject: AppwriteProject;
@@ -16,17 +17,13 @@ interface BackupsTabProps {
     // New handlers passed from Studio
     onDeleteBackup?: (file: Models.File) => void;
     onRestoreBackup?: (file: Models.File) => void;
-    /**
-     * Hands this tab's snapshot re-fetch up to `Studio`, so the delete/restore
-     * actions in `useStudioActions` can refresh a list they do not own.
-     */
-    onRegisterRefresh?: (refresh: (() => void) | null) => void;
 }
 
-export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback, onDeleteBackup, onRestoreBackup, onRegisterRefresh }) => {
+export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallback, onDeleteBackup, onRestoreBackup }) => {
     const toast = useToast();
     const [backups, setBackups] = useState<Models.File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [showExecutionLogs, setShowExecutionLogs] = useState(false);
@@ -48,11 +45,13 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
     const fetchBackups = useCallback(async () => {
         if (!activeProject) return;
         setIsLoading(true);
+        setError(null);
         try {
             const storage = getSdkStorage(activeProject);
             const res = await storage.listFiles(BACKUP_BUCKET_ID, [Query.orderDesc('$createdAt'), Query.limit(100)]);
             setBackups(res.files);
-        } catch (e) {
+        } catch (e: any) {
+            setError(`Could not list snapshots: ${e.message}`);
             setBackups([]);
         } finally {
             setIsLoading(false);
@@ -63,11 +62,9 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
         fetchBackups();
     }, [fetchBackups]);
 
-    // Publish the refresh while this tab is mounted, and withdraw it on unmount.
-    useEffect(() => {
-        onRegisterRefresh?.(fetchBackups);
-        return () => onRegisterRefresh?.(null);
-    }, [onRegisterRefresh, fetchBackups]);
+    // The snapshot list is this tab's own; the registry lets Sync, Shift+R and
+    // the delete/restore actions all reach it.
+    useRegisterSectionRefresh(fetchBackups);
 
     const handleToggleAll = (val: boolean) => {
         setOptions({
@@ -126,25 +123,8 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
         try {
             const service = new BackupService(activeProject, logCallback);
             await service.ensureBackupBucket();
-            
-            const formData = new FormData();
-            const fileId = ID.unique();
-            formData.append('fileId', fileId);
-            formData.append('file', file);
 
-            const uploadRes = await fetch(`${activeProject.endpoint}/storage/buckets/${BACKUP_BUCKET_ID}/files`, {
-                method: 'POST',
-                headers: {
-                    'X-Appwrite-Project': activeProject.projectId,
-                    'X-Appwrite-Key': activeProject.apiKey,
-                },
-                body: formData
-            });
-
-            if (!uploadRes.ok) {
-                const errData = await uploadRes.json();
-                throw new Error(errData.message || "Upload failed");
-            }
+            await getSdkStorage(activeProject).createFile(BACKUP_BUCKET_ID, ID.unique(), file);
 
             setProgressLogs(prev => [...prev, "✅ Upload successful. Ready for restoration."]);
             fetchBackups();
@@ -158,21 +138,19 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
     };
 
     const handleDownload = async (file: Models.File) => {
+        let url: string | null = null;
         try {
-            const response = await fetch(`${activeProject.endpoint}/storage/buckets/${BACKUP_BUCKET_ID}/files/${file.$id}/download`, {
-                headers: {
-                    'X-Appwrite-Project': activeProject.projectId,
-                    'X-Appwrite-Key': activeProject.apiKey,
-                }
-            });
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
+            const buffer = await getSdkStorage(activeProject).getFileDownload(BACKUP_BUCKET_ID, file.$id);
+            const blob = new Blob([buffer]);
+            url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = file.name;
             a.click();
         } catch (e: any) {
-            console.error("Download failed:", e);
+            toast.error(`Download failed: ${e.message}`);
+        } finally {
+            if (url) window.URL.revokeObjectURL(url);
         }
     };
 
@@ -253,6 +231,10 @@ export const BackupsTab: React.FC<BackupsTabProps> = ({ activeProject, logCallba
                     title="Available Snapshots"
                     data={backups}
                     headers={['Created At', 'File Name', 'Size', 'Actions']}
+                    isLoading={isLoading}
+                    error={error}
+                    onRetry={fetchBackups}
+                    emptyMessage="No snapshots captured yet."
                     renderName={(f) => (
                         <div className="flex flex-col">
                             <span className="font-bold text-gray-200">{f.name}</span>

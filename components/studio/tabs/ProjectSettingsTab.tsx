@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, ApiKey, Platform, ProjectVariable } from '../../../types';
 import * as adminService from '../../../services/projectAdminService';
-import { KeyIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon, WarningIcon, VerifiedIcon } from '../../Icons';
+import { KeyIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, WarningIcon, VerifiedIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
 import { useConfirm } from '../../../hooks/useConfirm';
 import { TabShell } from '../ui/TabShell';
+import { ListState } from '../ui/ListState';
+import { CopyButton } from '../ui/CopyButton';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface ProjectSettingsTabProps {
     activeProject: AppwriteProject;
@@ -30,7 +33,12 @@ const ALL_SCOPES = [
     'platforms.read', 'platforms.write',
     'health.read',
     'migrations.read', 'migrations.write',
-    'messaging.read', 'messaging.write',
+    // The Messaging API is scoped per resource — there is no `messaging.*` scope.
+    'providers.read', 'providers.write',
+    'topics.read', 'topics.write',
+    'subscribers.read', 'subscribers.write',
+    'messages.read', 'messages.write',
+    'targets.read', 'targets.write',
     'sites.read', 'sites.write'
 ];
 
@@ -38,6 +46,7 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
     const toast = useToast();
     const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
     const [platforms, setPlatforms] = useState<Platform[]>([]);
     const [variables, setVariables] = useState<ProjectVariable[]>([]);
@@ -61,30 +70,50 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
 
     const [isCorsFixing, setIsCorsFixing] = useState(false);
 
-    // Fetch administrative configs
-    const loadSettings = async () => {
+    // Fetch administrative configs. Each of these four used to swallow its own
+    // failure, so a key missing a scope produced an empty panel instead of a reason.
+    const loadSettings = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
         try {
             const [keysList, platList, varsList, authConfigs] = await Promise.all([
-                adminService.listApiKeys(activeProject).catch(() => []),
-                adminService.listPlatforms(activeProject).catch(() => []),
-                adminService.listGlobalVariables(activeProject).catch(() => []),
-                adminService.getAuthSettings(activeProject).catch(() => null)
+                adminService.listApiKeys(activeProject),
+                adminService.listPlatforms(activeProject),
+                adminService.listGlobalVariables(activeProject),
+                adminService.getAuthSettings(activeProject),
             ]);
             setApiKeys(keysList);
             setPlatforms(platList);
             setVariables(varsList);
             setAuthSettings(authConfigs);
         } catch (e: any) {
-            toast.error(`Could not fetch settings: ${e.message}`);
+            setError(`Could not fetch settings: ${e.message}`);
+            setApiKeys([]);
+            setPlatforms([]);
+            setVariables([]);
+            setAuthSettings(null);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeProject]);
+
+    useRegisterSectionRefresh(loadSettings);
 
     useEffect(() => {
         loadSettings();
-    }, [activeProject]);
+    }, [loadSettings]);
+
+    /** The three tables and the auth panel share one tab-level state. */
+    const listState = (isEmpty: boolean, emptyMessage: string) => (
+        <ListState
+            isLoading={isLoading}
+            error={error}
+            isEmpty={isEmpty}
+            emptyMessage={emptyMessage}
+            loadingMessage="Loading Project settings plane…"
+            onRetry={loadSettings}
+        />
+    );
 
     // Handlers
     const handleCreateApiKey = async (e: React.FormEvent) => {
@@ -228,15 +257,6 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
-                <p className="text-gray-400 text-sm">Loading Project settings plane...</p>
-            </div>
-        );
-    }
-
     return (
         <TabShell
             title="Project Settings Dashboard"
@@ -276,9 +296,9 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {platforms.length === 0 ? (
+                                {isLoading || error || platforms.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="py-4 text-gray-500 italic text-center">No platforms registered. Add one below to authorize SDK access.</td>
+                                        <td colSpan={4}>{listState(platforms.length === 0, 'No platforms registered. Add one below to authorize SDK access.')}</td>
                                     </tr>
                                 ) : (
                                     platforms.map(plat => (
@@ -397,16 +417,21 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-gray-300">
-                                {apiKeys.length === 0 ? (
+                                {isLoading || error || apiKeys.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="py-4 text-gray-500 italic text-center">No administrative API keys listed. Create one to enable server-side SDK commands.</td>
+                                        <td colSpan={4}>{listState(apiKeys.length === 0, 'No administrative API keys listed. Create one to enable server-side SDK commands.')}</td>
                                     </tr>
                                 ) : (
                                     apiKeys.map(key => (
                                         <tr key={key.$id}>
                                             <td className="py-3.5 font-medium">{key.name}</td>
                                             <td className="py-3.5 font-mono text-[11px] text-gray-400">
-                                                {key.secret ? `${key.secret.slice(0, 10)}...${key.secret.slice(-6)}` : '••••••••••••'}
+                                                <div className="flex items-center gap-1 group">
+                                                    <span>{key.secret ? `${key.secret.slice(0, 10)}...${key.secret.slice(-6)}` : '••••••••••••'}</span>
+                                                    {key.secret && (
+                                                        <CopyButton text={key.secret} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-3.5">
                                                 <span className="bg-purple-900/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-800/30">
@@ -491,9 +516,9 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-gray-300">
-                                {variables.length === 0 ? (
+                                {isLoading || error || variables.length === 0 ? (
                                     <tr>
-                                        <td colSpan={3} className="py-4 text-gray-500 italic text-center">No environment variables defined. Set one below.</td>
+                                        <td colSpan={3}>{listState(variables.length === 0, 'No environment variables defined. Set one below.')}</td>
                                     </tr>
                                 ) : (
                                     variables.map(v => (
@@ -544,7 +569,9 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                 <div className="bg-gray-900/40 border border-white/5 rounded-2xl p-6 backdrop-blur-md">
                     <h2 className="text-sm font-bold text-gray-200 uppercase tracking-widest mb-4">Authentication Routes</h2>
                     
-                    {authSettings ? (
+                    {isLoading || error ? (
+                        listState(false, '')
+                    ) : authSettings ? (
                         <div className="space-y-4">
                             {Object.entries(authSettings.authMethods).map(([method, val]) => (
                                 <div key={method} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
@@ -564,6 +591,46 @@ export const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ activePr
                                     </button>
                                 </div>
                             ))}
+
+                            {/* Read-only session and password policy — fetched all along, never shown */}
+                            <div className="border-t border-white/5 pt-4 space-y-2.5">
+                                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Session &amp; Password Policy</h3>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-400">Max sessions per user</span>
+                                    <span className="font-mono text-gray-200">{authSettings.authLimit === 0 ? 'Unlimited' : authSettings.authLimit}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-400">Session length</span>
+                                    <span className="font-mono text-gray-200">{Math.round(authSettings.authDuration / 3600)} h</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-400">Password history</span>
+                                    <span className="font-mono text-gray-200">{authSettings.authPasswordHistory === 0 ? 'Disabled' : `${authSettings.authPasswordHistory} kept`}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-400">Password dictionary</span>
+                                    <span className="font-mono text-gray-200">{authSettings.authPasswordDictionary ? 'Enabled' : 'Disabled'}</span>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-white/5 pt-4 space-y-2.5">
+                                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Enabled OAuth Providers</h3>
+                                {(() => {
+                                    const providers: adminService.AuthSettings['authProviders'] = authSettings.authProviders || {};
+                                    const enabled = Object.entries(providers).filter(([, p]) => p?.enabled);
+                                    return enabled.length === 0 ? (
+                                        <p className="text-[10px] text-gray-500 italic">No OAuth providers enabled.</p>
+                                    ) : (
+                                        <div className="flex gap-1 flex-wrap">
+                                            {enabled.map(([name]) => (
+                                                <span key={name} className="text-[10px] capitalize bg-cyan-900/20 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-800/30">
+                                                    {name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
                         </div>
                     ) : (
                         <div className="text-xs text-gray-500 italic text-center py-10">

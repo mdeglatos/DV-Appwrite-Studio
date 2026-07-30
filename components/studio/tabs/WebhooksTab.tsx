@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AppwriteProject, Webhook } from '../../../types';
 import * as adminService from '../../../services/projectAdminService';
-import { WebhookIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon, ExternalLinkIcon } from '../../Icons';
+import { WebhookIcon, AddIcon, DeleteIcon, LoadingSpinnerIcon } from '../../Icons';
 import { consoleLinks } from '../../../services/appwrite';
 import { useToast } from '../../../hooks/useToast';
 import { useConfirm } from '../../../hooks/useConfirm';
 import { TabShell } from '../ui/TabShell';
+import { ListState } from '../ui/ListState';
+import { CopyButton } from '../ui/CopyButton';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface WebhooksTabProps {
     activeProject: AppwriteProject;
@@ -29,31 +32,49 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
     const toast = useToast();
     const confirm = useConfirm();
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [webhooks, setWebhooks] = useState<Webhook[]>([]);
 
     // Form inputs state
     const [newName, setNewName] = useState('');
     const [newUrl, setNewUrl] = useState('');
     const [selectedEvents, setSelectedEvents] = useState<string[]>(['databases.*.collections.*.documents.*.create']);
+    const [customEvent, setCustomEvent] = useState('');
     const [newSecurity, setNewSecurity] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
 
-    // Load webhooks
-    const loadWebhooks = async () => {
+    // Load webhooks. The failure used to be swallowed into an empty list, so a
+    // key missing `webhooks.read` read as "no webhooks registered".
+    const loadWebhooks = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
         try {
-            const list = await adminService.listWebhooks(activeProject).catch(() => []);
+            const list = await adminService.listWebhooks(activeProject);
             setWebhooks(list);
         } catch (e: any) {
-            toast.error(`Webhooks Error: ${e.message}`);
+            setError(`Webhooks Error: ${e.message}`);
+            setWebhooks([]);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeProject]);
+
+    useRegisterSectionRefresh(loadWebhooks);
 
     useEffect(() => {
         loadWebhooks();
-    }, [activeProject]);
+    }, [loadWebhooks]);
+
+    /** Events outside the preset list — Appwrite accepts far more than the 11 shown. */
+    const addCustomEvent = () => {
+        const event = customEvent.trim();
+        if (!event || selectedEvents.includes(event)) {
+            setCustomEvent('');
+            return;
+        }
+        setSelectedEvents([...selectedEvents, event]);
+        setCustomEvent('');
+    };
 
     // Create webhook handler
     const handleCreateWebhook = async (e: React.FormEvent) => {
@@ -89,15 +110,6 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin" />
-                <p className="text-gray-400 text-sm">Loading Webhook configurations...</p>
-            </div>
-        );
-    }
-
     return (
         <TabShell
             title="Webhooks Plane"
@@ -119,13 +131,23 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
                                     <th className="pb-3">Name</th>
                                     <th className="pb-3">Destination URL</th>
                                     <th className="pb-3">Active Triggers</th>
+                                    <th className="pb-3">Status &amp; Signature Key</th>
                                     <th className="pb-3 text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5 text-gray-300">
-                                {webhooks.length === 0 ? (
+                                {isLoading || error || webhooks.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="py-4 text-gray-500 italic text-center">No webhooks registered. Create one to dispatch system triggers.</td>
+                                        <td colSpan={5}>
+                                            <ListState
+                                                isLoading={isLoading}
+                                                error={error}
+                                                isEmpty={webhooks.length === 0}
+                                                emptyMessage="No webhooks registered. Create one to dispatch system triggers."
+                                                loadingMessage="Loading Webhook configurations…"
+                                                onRetry={loadWebhooks}
+                                            />
+                                        </td>
                                     </tr>
                                 ) : (
                                     webhooks.map(wh => (
@@ -142,6 +164,25 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
                                                             {ev}
                                                         </span>
                                                     ))}
+                                                </div>
+                                            </td>
+                                            <td className="py-3.5">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border w-fit ${
+                                                        wh.enabled
+                                                            ? 'bg-green-900/20 text-green-400 border-green-900/50'
+                                                            : 'bg-gray-800 text-gray-500 border-gray-700'
+                                                    }`}>
+                                                        {wh.enabled ? 'Enabled' : 'Disabled'}
+                                                    </span>
+                                                    {wh.signatureKey && (
+                                                        <div className="flex items-center gap-1 group">
+                                                            <span className="font-mono text-[9px] text-gray-500">
+                                                                {`${wh.signatureKey.slice(0, 4)}${'•'.repeat(8)}${wh.signatureKey.slice(-4)}`}
+                                                            </span>
+                                                            <CopyButton text={wh.signatureKey} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="py-3.5 text-right">
@@ -204,6 +245,43 @@ export const WebhooksTab: React.FC<WebhooksTabProps> = ({ activeProject }) => {
                                     </label>
                                 ))}
                             </div>
+                            <div className="flex gap-2 mt-2">
+                                <input
+                                    type="text"
+                                    aria-label="Custom event"
+                                    placeholder="Custom event, e.g. buckets.*.files.*.update"
+                                    className="flex-1 min-w-0 bg-gray-950 border border-white/5 rounded-xl p-2 text-xs text-gray-300 outline-none focus:ring-1 focus:ring-cyan-500 font-mono"
+                                    value={customEvent}
+                                    onChange={e => setCustomEvent(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') { e.preventDefault(); addCustomEvent(); }
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={addCustomEvent}
+                                    className="px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-xl text-[10px] font-bold text-gray-300 transition-colors flex-shrink-0"
+                                >
+                                    Add Event
+                                </button>
+                            </div>
+                            {selectedEvents.some(ev => !COMMON_EVENTS.includes(ev)) && (
+                                <div className="flex gap-1 flex-wrap mt-2">
+                                    {selectedEvents.filter(ev => !COMMON_EVENTS.includes(ev)).map(ev => (
+                                        <span key={ev} className="text-[9px] font-mono bg-purple-900/20 text-purple-300 px-1.5 py-0.5 rounded border border-purple-800/30 flex items-center gap-1">
+                                            {ev}
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedEvents(selectedEvents.filter(e => e !== ev))}
+                                                className="text-purple-400 hover:text-red-400"
+                                                title={`Remove ${ev}`}
+                                            >
+                                                ×
+                                            </button>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             <input

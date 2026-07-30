@@ -53,10 +53,13 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 
             <ResourceTable<Models.User<any>> 
                 title="Users" 
-                data={users} 
-                onCreate={onCreateUser} 
-                onDelete={onDeleteUser} 
+                data={users}
+                onCreate={onCreateUser}
+                onDelete={onDeleteUser}
                 createLabel="New User"
+                isLoading={pagination.isLoading}
+                error={pagination.error}
+                onRetry={pagination.refresh}
                 headers={['Actions', 'ID', 'User', 'Status & Details']}
                 selection={{
                     selectedIds: selectedUserIds,
@@ -101,6 +104,11 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                         {onUpdateStatus && (
                             <button onClick={() => onUpdateStatus(u)} className={`p-1 rounded hover:bg-gray-800 transition-colors ${u.status ? 'text-green-500 hover:text-red-400' : 'text-red-500 hover:text-green-400'}`} title={u.status ? "Block User" : "Activate User"}>
                                 {u.status ? <UnlockIcon size={14} /> : <LockIcon size={14} />}
+                            </button>
+                        )}
+                        {onUpdateEmail && (
+                            <button onClick={() => onUpdateEmail(u)} className="text-gray-500 hover:text-cyan-400 p-1 rounded hover:bg-gray-800 transition-colors" title="Change Email">
+                                <EmailVerifiedIcon size={14} />
                             </button>
                         )}
                         {onUpdateLabels && (

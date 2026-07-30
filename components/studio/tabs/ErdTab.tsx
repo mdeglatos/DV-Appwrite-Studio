@@ -1,10 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { AppwriteProject, Database, Collection } from '../../../types';
 import { parseCollectionsToErd, ErdNode, ErdEdge } from '../../../services/databaseToolsService';
 import { getSdkDatabases } from '../../../services/appwrite';
 import { ErdIcon, DatabaseIcon, InfoIcon, VerifiedIcon, LoadingSpinnerIcon } from '../../Icons';
 import { useToast } from '../../../hooks/useToast';
 import { TabShell } from '../ui/TabShell';
+import { ListState } from '../ui/ListState';
+import { useRegisterSectionRefresh } from '../hooks/useSectionRefresh';
 
 interface ErdTabProps {
     activeProject: AppwriteProject;
@@ -18,6 +20,7 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [collectionsLoading, setCollectionsLoading] = useState(false);
+    const [collectionsError, setCollectionsError] = useState<string | null>(null);
 
     // Filter databases to set initial selection
     useEffect(() => {
@@ -27,22 +30,27 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
     }, [databases]);
 
     // Fetch collections dynamically
-    useEffect(() => {
+    const loadCollections = useCallback(async () => {
         if (!selectedDbId) return;
-        const fetchCollections = async () => {
-            setCollectionsLoading(true);
-            try {
-                const sdk = getSdkDatabases(activeProject);
-                const res = await sdk.listCollections(selectedDbId);
-                setCollections(res.collections as any[] || []);
-            } catch (e: any) {
-                toast.error(`Could not fetch collections for ERD: ${e.message}`);
-            } finally {
-                setCollectionsLoading(false);
-            }
-        };
-        fetchCollections();
+        setCollectionsLoading(true);
+        setCollectionsError(null);
+        try {
+            const sdk = getSdkDatabases(activeProject);
+            const res = await sdk.listCollections(selectedDbId);
+            setCollections(res.collections as any[] || []);
+        } catch (e: any) {
+            setCollectionsError(`Could not fetch collections for ERD: ${e.message}`);
+            setCollections([]);
+        } finally {
+            setCollectionsLoading(false);
+        }
     }, [selectedDbId, activeProject]);
+
+    useRegisterSectionRefresh(loadCollections);
+
+    useEffect(() => {
+        loadCollections();
+    }, [loadCollections]);
 
     const activeDbName = useMemo(() => {
         return databases.find(d => d.$id === selectedDbId)?.name || 'Select Database';
@@ -115,11 +123,14 @@ export const ErdTab: React.FC<ErdTabProps> = ({ activeProject, databases }) => {
                             <span className="text-[10px] text-gray-500 font-medium">Hover over cards to trace relationships</span>
                         </div>
 
-                        {collectionsLoading ? (
-                            <div className="flex-1 flex flex-col justify-center items-center py-20 text-gray-500 text-xs">
-                                <LoadingSpinnerIcon size={32} className="text-cyan-400 animate-spin mb-2" />
-                                <span>Analyzing collection relationship schemas...</span>
-                            </div>
+                        {collectionsLoading || collectionsError ? (
+                            <ListState
+                                isLoading={collectionsLoading}
+                                error={collectionsError}
+                                isEmpty={nodes.length === 0}
+                                loadingMessage="Analyzing collection relationship schemas…"
+                                onRetry={loadCollections}
+                            />
                         ) : nodes.length === 0 ? (
                             <div className="flex-1 flex flex-col justify-center items-center py-20 text-gray-500 text-xs">
                                 <ErdIcon size={32} className="text-gray-600 mb-2" />
