@@ -55,7 +55,7 @@ One structural adjustment inside the plan's approach: `Studio.tsx` now calls `us
   - *"invites use the deploy origin"* → `useStudioActions.test.ts` asserts the argument equals `window.location.origin` (jsdom's origin is itself a localhost URL, so the test also asserts the exact `'http://localhost'` literal appears nowhere in the module).
   - *"usage is never fabricated"* → `projectAdminService.test.ts`: a rejecting call resolves to `null`, twice, identically.
   - No check was left for a human.
-- **Commit:** see below — staged paths only; no other agent's edits were present in the tree.
+- **Commit:** `77e6289` — *Consolidate Studio navigation into 6 groups and sweep 26 defects* (62 files, +5197/−1285). Explicit paths staged only; the unrelated untracked `.plans/2026-07-21-ops-orchestrator/` folder was left alone. **Pushed** to `origin/main` (`c5d3215..77e6289`) after asking.
 
 ## Follow-ups / known gaps
 
